@@ -1,0 +1,8 @@
+# Rules for `rsync --filter='merge .rsyncfilter'` in scripts/deploy-to-pi.sh.
+# Order matters: includes must come before the broader exclude they carve
+# a hole out of.
++ bin/data/clips/samples/
++ bin/data/clips/samples/**
+- bin/data/clips/*
+- .git/
+- .env

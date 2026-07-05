@@ -1,0 +1,30 @@
+#pragma once
+
+#include <memory>
+
+#include "control/ControlSource.h"
+#include "fx/ShaderChain.h"
+#include "ofMain.h"
+#include "scenes/SceneManager.h"
+#include "util/Config.h"
+#include "video/ClipPlayer.h"
+
+class ofApp : public ofBaseApp {
+public:
+    void setup() override;
+    void update() override;
+    void draw() override;
+    void keyPressed(int key) override;
+
+private:
+    void loadCurrentScene();
+
+    Config config;
+    std::unique_ptr<ControlSource> controlSource;
+    SceneManager sceneManager;
+    ClipPlayer clipPlayer;
+    ShaderChain shaderChain;
+
+    size_t lastLoadedSceneIndex = static_cast<size_t>(-1);
+    bool showDebugOverlay = true;
+};

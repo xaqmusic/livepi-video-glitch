@@ -1,0 +1,89 @@
+# Deploying to the Pi
+
+## OS choice
+
+**Raspberry Pi OS Lite, 64-bit, Trixie.** Not Patchbox OS (what this
+project's Pi previously ran), for two reasons verified against Blokas' own
+Patchbox docs:
+
+- Patchbox OS's supported-hardware list stops at the Pi 4B -- **no listed Pi
+  5 support at all.**
+- Even on a Pi 4, Patchbox bundles a real-time audio kernel, a lightweight
+  desktop environment, and a "patch"-switching system built around swapping
+  between pre-made audio tools (Pure Data, guitar-amp sims, etc.). None of
+  that serves a single dedicated video-glitch appliance, and the bundled
+  desktop actively works against the minimal X11-kiosk setup below.
+
+Trixie over Bookworm: Raspberry Pi OS moved to Trixie (Debian 13) in
+October 2025 with a newer 6.12 LTS kernel and better Pi 5 support. Pisound
+packages weren't ported at first (installer 404'd), which would have made
+Bookworm the safer pick -- but Blokas shipped Trixie support on
+2025-11-26, so that gap is closed. Pisound's driver install isn't
+Patchbox-exclusive either way -- `scripts/setup-pi.sh` runs Blokas' own
+install script (`curl https://blokas.io/pisound/install.sh | sh`, adds
+their apt repo), documented to work on plain Raspberry Pi OS directly.
+
+Flash Raspberry Pi OS **Lite** (no desktop) so there's no auto-login desktop
+session fighting the kiosk for the display, enable SSH in the imager, then:
+
+```sh
+git clone <this repo> ~/livepi-video-glitch    # or rsync it over, see below
+cd ~/livepi-video-glitch
+./scripts/setup-pi.sh
+```
+
+## Rehearsal-time deploy: desktop -> Pi
+
+`scripts/deploy-to-pi.sh`, driven by `.env` (copy `.env.example`):
+
+1. `ssh` reachability check -- fails loudly and fast if the Pi isn't up
+   rather than hanging.
+2. `rsync` source/shaders/config to `$PI_APP_DIR` (`--filter='merge
+   .rsyncfilter'` excludes full-resolution `bin/data/clips/*` but keeps
+   `bin/data/clips/samples/` -- full footage is synced separately/rarely,
+   not on every code tweak).
+3. `ssh ... make OF_ROOT=$PI_OF_ROOT -j$(nproc)` -- always a **native**
+   build on the Pi's own architecture, never cross-compiled.
+4. `--restart` flag additionally bounces the systemd service so a shader
+   tweak goes live without touching the Pi physically:
+   ```sh
+   ./scripts/deploy-to-pi.sh --restart
+   ```
+
+This is intentionally rsync+ssh, not `git pull` on the Pi -- tweaking a
+shader minutes before a set shouldn't require commit discipline, and the Pi
+doesn't need its own git remote/auth configured at all.
+
+## Button wiring
+
+After `setup-pi.sh`:
+
+```sh
+sudo cp scripts/pisound/advance-scene-btn.sh /usr/local/pisound/scripts/pisound-btn/
+sudo chmod +x /usr/local/pisound/scripts/pisound-btn/advance-scene-btn.sh
+sudo pisound-config   # wire it to a click pattern (e.g. single click)
+```
+
+## Autostart at boot (kiosk)
+
+GLFW (oF's Linux window backend) has no raw KMS/DRM path, so "boot straight
+to a bare fullscreen GL surface" isn't possible with vanilla oF. The
+well-trodden path is a minimal X11 session running only this binary:
+
+1. Copy `systemd/livepi-video-glitch.env.example` to
+   `/etc/livepi-video-glitch.env` and set `APP_DIR`.
+2. Copy `systemd/livepi-video-glitch.service` to
+   `/etc/systemd/system/livepi-video-glitch.service`.
+3. `sudo systemctl daemon-reload && sudo systemctl enable --now livepi-video-glitch`
+
+The unit runs `startx <binary> -- -s off -dpms` as the `pi` user (edit
+`User=`/`Group=` in the unit if using a different account), in the
+`video`/`render`/`audio` groups needed for `/dev/dri` and ALSA access, with
+`Restart=on-failure`.
+
+**This is designed but not yet empirically verified against real
+hardware** -- Phase 6 in `architecture.md`. Checklist for that first real
+pass: confirm VT ownership (nothing else grabs the console), confirm group
+permissions actually grant `/dev/dri` + ALSA access, confirm no
+Raspberry-Pi-OS-Lite default service starts a conflicting getty/X session on
+the same VT.

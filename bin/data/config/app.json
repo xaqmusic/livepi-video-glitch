@@ -1,0 +1,27 @@
+{
+    "control_source": "mock",
+    "mock": {
+        "bpm": 120.0
+    },
+    "midi": {
+        "port_name": "pisound MIDI",
+        "knobA_cc": 21,
+        "knobB_cc": 22
+    },
+    "pisound": {
+        "button_fifo": "/tmp/livepi-button.fifo"
+    },
+    "window": {
+        "width": 1280,
+        "height": 720
+    },
+    "scenes": [
+        {
+            "name": "default",
+            "clip": "clips/samples/sample_crt_loop_01.mp4",
+            "hSyncIntensity": 0.5,
+            "chromaticIntensity": 0.4,
+            "stutterEnabled": true
+        }
+    ]
+}

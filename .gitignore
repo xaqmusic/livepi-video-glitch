@@ -1,0 +1,23 @@
+# Build artifacts
+obj/
+bin/*
+!bin/data/
+!bin/data/**
+*.o
+*.d
+
+# Local machine config / secrets -- copy the checked-in .example versions
+.env
+bin/data/config/app.local.json
+
+# Full-resolution gig footage -- see bin/data/clips/README.md
+bin/data/clips/*
+!bin/data/clips/.gitkeep
+!bin/data/clips/samples/
+!bin/data/clips/samples/**
+!bin/data/clips/README.md
+
+# OS / editor cruft
+.DS_Store
+*.swp
+.vscode/ipch/
