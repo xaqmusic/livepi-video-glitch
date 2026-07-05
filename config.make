@@ -7,7 +7,16 @@
 # include paths, compiler flags, etc).
 
 PROJECT_CFLAGS =
-PROJECT_LDFLAGS =
+# ofxMidi's addon_config.mk lists `jack` in ADDON_PKG_CONFIG_LIBRARIES for
+# linux/linux64, but not linuxaarch64/linuxarmv7l/linuxarmv6l -- RtMidi.cpp
+# still compiles in JACK support there (-D__UNIX_JACK__ gets set whenever
+# libjack-dev is present, independent of that addon_config.mk list), so the
+# link fails with "undefined reference to jack_port_name" on any ARM Linux
+# build with libjack-dev installed. Link it directly here instead of patching
+# the addon (which lives outside this repo and gets re-cloned from scratch
+# on every machine) -- harmless no-op on desktop, where it's already linked
+# via the addon's own linux64 config.
+PROJECT_LDFLAGS = -ljack
 PROJECT_DEFINES =
 
 # Nothing excluded from the default src/ scan -- every .cpp under src/ builds.

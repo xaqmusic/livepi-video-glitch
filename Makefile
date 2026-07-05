@@ -9,6 +9,14 @@
 
 APPNAME = livepi-video-glitch
 
+# config.make was never actually wired in here -- PROJECT_CFLAGS/LDFLAGS/
+# DEFINES/EXCLUSIONS in that file have been silent no-ops since the original
+# scaffold. This is oF's own canonical pattern (see e.g.
+# examples/threads/threadedImageLoaderExample/Makefile).
+ifneq ($(wildcard config.make),)
+	include config.make
+endif
+
 OF_ROOT ?= ../openFrameworks
 
 include $(OF_ROOT)/libs/openFrameworksCompiled/project/makefileCommon/compile.project.mk
