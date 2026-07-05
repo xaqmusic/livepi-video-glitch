@@ -12,9 +12,9 @@ that original doc's hardware assumptions.
 
 ## Status
 
-Early scaffold -- see `docs/architecture.md` for the phased roadmap. Nothing
-has been built/run yet; Phase 0 (installing openFrameworks and confirming a
-first compile) is the next hands-on step.
+Phase 0 (desktop build) and the start of Phase 1 (video playback through the
+shader chain) are working -- see `docs/architecture.md` for the phased
+roadmap and current state. Not yet deployed to real Pi hardware.
 
 ## Quickstart (desktop)
 

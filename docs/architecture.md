@@ -131,13 +131,20 @@ need to actually be added, they weren't fabricated during scaffolding).
 ## Phased roadmap
 
 0. **Bootstrap** (desktop) -- scaffold this tree; install oF 0.12.1
-   `linux64` as a sibling dir; confirm a stock example compiles/runs.
+   `linux64` as a sibling dir; confirm a stock example compiles/runs. **Done**
+   -- went straight to a first build of the real app instead of a stock
+   example; caught two missing-include bugs (`ofSoundBuffer.h`,
+   `ofAppRunner.h`) and a dead openFrameworks download URL (moved to GitHub
+   Releases) along the way, see git history.
 1. **Desktop playback + one hardcoded glitch** -- `ClipPlayer` loops a sample
    clip through `ShaderChain`; proves the FBO ping-pong + `ShaderLoader`
-   shim end-to-end.
+   shim end-to-end. **Done** -- verified with a synthetic placeholder clip
+   (`bin/data/clips/samples/sample_crt_loop_01.mp4`, not real footage yet).
 2. **Mock-driven beat counter + scenes** -- `MockControlSource`,
    `SceneManager` cycling on the fake button, debug overlay of live
    beat/bar/BPM/knob/CC values (already wired into `ofApp`, toggle with `d`).
+   **Done** -- confirmed live in the same smoke test as Phase 1, since the
+   mock-driven scaffold was built as one whole rather than incrementally.
 3. **Real MIDI clock/CC** (still desktop) -- validate `ofxMidi`/`BeatClock`
    against any real/USB MIDI source; Pisound's MIDI is just an ALSA device,
    so this fully exercises the real-protocol path without needing hardware.
