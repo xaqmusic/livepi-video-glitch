@@ -11,7 +11,8 @@ void MockControlSource::setup(const Config& config) {
 }
 
 void MockControlSource::update() {
-    state.lastButtonEvent = ButtonEvent::None;  // latched for exactly one update() cycle
+    state.lastButtonEvent = pendingButtonEvent;  // latched for exactly one update() cycle
+    pendingButtonEvent = ButtonEvent::None;
 
     applyClockTicksSince(ofGetElapsedTimef());
 
@@ -34,7 +35,7 @@ void MockControlSource::applyClockTicksSince(double nowSeconds) {
 void MockControlSource::keyPressed(int key) {
     switch (key) {
         case ' ':
-            state.lastButtonEvent = ButtonEvent::Click;
+            pendingButtonEvent = ButtonEvent::Click;
             break;
         case '[':
             state.knobA = ofClamp(state.knobA - 0.05f, -1.0f, 1.0f);

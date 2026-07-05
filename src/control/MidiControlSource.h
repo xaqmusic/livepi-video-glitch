@@ -38,4 +38,12 @@ private:
 
     int knobACcNumber = 21;
     int knobBCcNumber = 22;
+
+    // keyPressed() runs from GLFW's pollEvents(), which oF calls *after*
+    // update()/draw() each iteration -- so a click set directly on `state`
+    // would be wiped by the next update() clearing it before SceneManager
+    // ever reads it. This accumulator decouples the two: keyPressed() only
+    // ever sets it, update() is the only thing that transfers it onto
+    // `state` (for exactly one cycle) and clears it.
+    ButtonEvent pendingButtonEvent = ButtonEvent::None;
 };

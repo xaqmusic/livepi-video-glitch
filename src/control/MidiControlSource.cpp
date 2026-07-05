@@ -30,7 +30,8 @@ void MidiControlSource::setup(const Config& config) {
 }
 
 void MidiControlSource::update() {
-    state.lastButtonEvent = ButtonEvent::None;  // latched for exactly one update() cycle
+    state.lastButtonEvent = pendingButtonEvent;  // latched for exactly one update() cycle
+    pendingButtonEvent = ButtonEvent::None;
 
     state.midiClockTicks = clock.getTotalTicks();
     state.beatInBar = clock.getBeatInBar();
@@ -73,7 +74,7 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
 
 void MidiControlSource::keyPressed(int key) {
     if (key == ' ') {
-        state.lastButtonEvent = ButtonEvent::Click;
+        pendingButtonEvent = ButtonEvent::Click;
     }
 }
 
