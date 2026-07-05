@@ -70,14 +70,19 @@ GLFW (oF's Linux window backend) has no raw KMS/DRM path, so "boot straight
 to a bare fullscreen GL surface" isn't possible with vanilla oF. The
 well-trodden path is a minimal X11 session running only this binary:
 
-1. Copy `systemd/livepi-video-glitch.env.example` to
-   `/etc/livepi-video-glitch.env` and set `APP_DIR`.
-2. Copy `systemd/livepi-video-glitch.service` to
-   `/etc/systemd/system/livepi-video-glitch.service`.
-3. `sudo systemctl daemon-reload && sudo systemctl enable --now livepi-video-glitch`
+Run this **on the Pi**, from inside the repo:
 
-The unit runs `startx <binary> -- -s off -dpms` as the `pi` user (edit
-`User=`/`Group=` in the unit if using a different account), in the
+```sh
+./scripts/install-systemd-unit.sh          # runs as the current user
+# or: ./scripts/install-systemd-unit.sh someoneelse
+sudo systemctl enable --now livepi-video-glitch
+```
+
+`install-systemd-unit.sh` renders `systemd/livepi-video-glitch.service.template`
+with the actual account name and repo path baked in (`User=`/`Group=`/
+`WorkingDirectory=`/`ExecStart=`) and installs it -- no manual editing of the
+unit file, and safe to re-run if the repo moves or a different account
+should run the kiosk. The unit runs `startx <binary> -- -s off -dpms` in the
 `video`/`render`/`audio` groups needed for `/dev/dri` and ALSA access, with
 `Restart=on-failure`.
 

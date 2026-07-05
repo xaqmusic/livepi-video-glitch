@@ -10,6 +10,14 @@ bin/*
 .env
 bin/data/config/app.local.json
 
+# SSH keys accidentally generated into the repo dir instead of ~/.ssh/
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.pem
+*_deploy
+*_deploy.pub
+
 # Full-resolution gig footage -- see bin/data/clips/README.md
 bin/data/clips/*
 !bin/data/clips/.gitkeep

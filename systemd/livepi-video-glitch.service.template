@@ -1,0 +1,24 @@
+# Template for /etc/systemd/system/livepi-video-glitch.service -- rendered
+# and installed by scripts/install-systemd-unit.sh, which fills in the
+# account and repo path below and requires no manual editing. See
+# docs/deploy.md for the full setup (X11 kiosk session, group permissions,
+# disabling any conflicting auto-login desktop). This unit is designed but
+# not yet empirically verified against real hardware -- Phase 6 in
+# docs/architecture.md.
+
+[Unit]
+Description=LivePi VideoGlitcher (kiosk)
+After=sound.target network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- -s off -dpms
+Restart=on-failure
+RestartSec=2
+User=__PI_USER__
+Group=__PI_USER__
+SupplementaryGroups=video render audio
+
+[Install]
+WantedBy=multi-user.target
