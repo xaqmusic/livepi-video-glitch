@@ -12,19 +12,19 @@ OF_ROOT="${OF_ROOT:-$REPO_DIR/../openFrameworks}"
 if [ -d "$OF_ROOT" ]; then
     echo "openFrameworks already present at $OF_ROOT, skipping download."
 else
-    TARBALL="of_v${OF_VERSION}_${OF_PLATFORM}_gcc6_release.tar.gz"
-    URL="https://openframeworks.cc/versions/v${OF_VERSION}/${TARBALL}"
+    TARBALL="of_v${OF_VERSION}_${OF_PLATFORM}_release.tar.gz"
+    URL="https://github.com/openframeworks/openFrameworks/releases/download/${OF_VERSION}/${TARBALL}"
     echo "Downloading openFrameworks ${OF_VERSION} for ${OF_PLATFORM}..."
     curl -fL "$URL" -o "/tmp/${TARBALL}"
     mkdir -p "$(dirname "$OF_ROOT")"
     tar -xzf "/tmp/${TARBALL}" -C "$(dirname "$OF_ROOT")"
-    mv "$(dirname "$OF_ROOT")/of_v${OF_VERSION}_${OF_PLATFORM}_gcc6_release" "$OF_ROOT"
+    mv "$(dirname "$OF_ROOT")/of_v${OF_VERSION}_${OF_PLATFORM}_release" "$OF_ROOT"
     rm "/tmp/${TARBALL}"
 fi
 
 echo "Installing Linux dependencies (requires sudo)..."
-bash "$OF_ROOT/scripts/linux/debian/install_dependencies.sh" 2>/dev/null || \
-    bash "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
+sudo bash "$OF_ROOT/scripts/linux/debian/install_dependencies.sh" 2>/dev/null || \
+    sudo bash "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
 
 echo "Cloning ofxMidi addon..."
 ADDON_DIR="$OF_ROOT/addons/ofxMidi"

@@ -12,7 +12,7 @@ if [ -d "$OF_ROOT" ]; then
     echo "openFrameworks already present at $OF_ROOT, skipping download."
 else
     TARBALL="of_v${OF_VERSION}_${OF_PLATFORM}_gcc6_release.tar.gz"
-    URL="https://openframeworks.cc/versions/v${OF_VERSION}/${TARBALL}"
+    URL="https://github.com/openframeworks/openFrameworks/releases/download/${OF_VERSION}/${TARBALL}"
     echo "Downloading openFrameworks ${OF_VERSION} for ${OF_PLATFORM}..."
     curl -fL "$URL" -o "/tmp/${TARBALL}"
     mkdir -p "$(dirname "$OF_ROOT")"
@@ -22,7 +22,7 @@ else
 fi
 
 echo "Installing Linux dependencies (requires sudo)..."
-bash "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
+sudo bash "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
 
 echo "Cloning ofxMidi addon..."
 ADDON_DIR="$OF_ROOT/addons/ofxMidi"

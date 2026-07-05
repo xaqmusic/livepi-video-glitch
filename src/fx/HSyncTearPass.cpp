@@ -1,5 +1,6 @@
 #include "HSyncTearPass.h"
 
+#include "ofAppRunner.h"
 #include "ofGraphics.h"
 #include "ofUtils.h"
 #include "util/ShaderLoader.h"

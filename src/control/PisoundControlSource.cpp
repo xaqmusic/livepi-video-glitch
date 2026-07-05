@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "ofLog.h"
+#include "ofSoundBuffer.h"
 #include "ofUtils.h"
 #include "util/Config.h"
 
