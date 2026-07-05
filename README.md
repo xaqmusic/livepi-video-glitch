@@ -20,8 +20,7 @@ roadmap and current state. Not yet deployed to real Pi hardware.
 
 ```sh
 ./scripts/setup-desktop.sh   # installs openFrameworks + ofxMidi as a sibling dir
-make
-./scripts/run-mock.sh
+./run.sh                     # builds and launches
 ```
 
 With no hardware attached, the app runs against `MockControlSource`:

@@ -37,4 +37,4 @@ echo "Done. Add this to your shell profile so 'make' picks up OF_ROOT by default
 echo "  export OF_ROOT=\"$OF_ROOT\""
 echo ""
 echo "Then build with:      make OF_ROOT=\"$OF_ROOT\""
-echo "Run with mock input:  ./scripts/run-mock.sh"
+echo "Run with:             ./run.sh"
