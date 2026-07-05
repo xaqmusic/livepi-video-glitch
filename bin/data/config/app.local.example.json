@@ -1,7 +1,12 @@
 {
     "_comment": "Copy to app.local.json (gitignored) and edit for this machine. Only override what needs to differ from app.json -- Config::mergeFromFile does a JSON merge_patch on top of the base config, not a full replace.",
 
-    "control_source": "pisound",
+    "control_source": "midi",
+    "midi": {
+        "port_name": "",
+        "knobA_cc": 21,
+        "knobB_cc": 22
+    },
     "window": {
         "width": 1920,
         "height": 1080

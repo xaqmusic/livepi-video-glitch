@@ -1,5 +1,6 @@
 #include "ofApp.h"
 
+#include "control/MidiControlSource.h"
 #include "control/MockControlSource.h"
 #include "fx/ChromaticAberrationPass.h"
 #include "fx/HSyncTearPass.h"
@@ -73,9 +74,12 @@ void ofApp::keyPressed(int key) {
         return;
     }
 
-    // Only the mock backend cares about keyboard input; the real Pisound
-    // backend gets its button/knob events from MIDI/FIFO instead.
+    // Mock uses the keyboard for everything; MidiControlSource only wants it
+    // as a stand-in scene button (real knobs/clock come from MIDI); the real
+    // Pisound backend gets its button from the FIFO instead and ignores this.
     if (auto* mock = dynamic_cast<MockControlSource*>(controlSource.get())) {
         mock->keyPressed(key);
+    } else if (auto* midi = dynamic_cast<MidiControlSource*>(controlSource.get())) {
+        midi->keyPressed(key);
     }
 }

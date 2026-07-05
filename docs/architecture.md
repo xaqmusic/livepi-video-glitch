@@ -60,13 +60,25 @@ own `update()` before applying new events, so there's no separate
 "consume" API to call).
 
 `ControlSource` (`src/control/ControlSource.h`) is the abstract interface:
-`setup(config)`, `update()`, `getState()`, `shutdown()`. Two implementations,
-both driving the same shared `BeatClock` so beat math can never drift between
-them:
+`setup(config)`, `update()`, `getState()`, `shutdown()`. Three
+implementations, all driving the same shared `BeatClock` so beat math can
+never drift between them:
 
 - **`MockControlSource`** -- desktop dev. A virtual 24-PPQN timer at a
   configurable BPM; keyboard keys simulate the button and both knobs (see
   README for bindings).
+- **`MidiControlSource`** -- desktop testing against any real MIDI device
+  (USB keyboard/controller), no Pisound hardware needed. On `setup()` it
+  logs every available MIDI port (`ofLogNotice`) and every incoming CC
+  number/value, which doubles as a device-detection + CC-learn workflow:
+  run it, watch the console, wiggle the physical control you want, read off
+  its CC number, then set `midi.knobA_cc`/`midi.knobB_cc` in
+  `app.local.json`. Uses the keyboard's spacebar as a stand-in scene button
+  (no FIFO/hardware button on a generic MIDI device). **Caveat found in
+  practice:** some controllers send 14-bit high-resolution CC as an
+  MSB/LSB pair (CC *n* + CC *n*+32) rather than a single 7-bit CC --
+  `knobA_cc`/`knobB_cc` only read a single CC number, so map to the MSB
+  (the lower-numbered one) for a working, if coarser (128-step), control.
 - **`PisoundControlSource`** -- the Pi. `ofxMidi` against the "pisound MIDI"
   ALSA port for clock/CC, `ofSoundStream` (via `ofBaseSoundInput`) against
   Pisound's ALSA capture for `audioLevel`, and a FIFO-based bridge for button
@@ -75,8 +87,9 @@ them:
   see below.
 
 Which backend runs is chosen at runtime by `control_source` in
-`bin/data/config/app.json` (`"mock"` or `"pisound"`), not a compile flag --
-useful for testing the mock backend on the Pi itself, or vice versa.
+`bin/data/config/app.json` (`"mock"`, `"midi"`, or `"pisound"`), not a
+compile flag -- useful for testing the mock backend on the Pi itself, or
+vice versa.
 
 ## Corrected hardware assumption: the onboard knobs
 
@@ -148,6 +161,10 @@ need to actually be added, they weren't fabricated during scaffolding).
 3. **Real MIDI clock/CC** (still desktop) -- validate `ofxMidi`/`BeatClock`
    against any real/USB MIDI source; Pisound's MIDI is just an ALSA device,
    so this fully exercises the real-protocol path without needing hardware.
+   **Done** -- `MidiControlSource` added for this; verified against a real
+   USB MIDI keyboard's filter-cutoff knob (see "Input abstraction" above for
+   the 14-bit CC finding). No MIDI clock from that particular keyboard, so
+   the free-run fallback path got exercised too, not just the happy path.
 4. **Full glitch chain** -- tune all three effects against real footage,
    real audio level via the desktop's own `ofSoundStream` as a stand-in for
    Pisound.
