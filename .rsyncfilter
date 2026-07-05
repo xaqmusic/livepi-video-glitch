@@ -6,3 +6,4 @@
 - bin/data/clips/*
 - .git/
 - .env
+- bin/data/config/app.local.json
