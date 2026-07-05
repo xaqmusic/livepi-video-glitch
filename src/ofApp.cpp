@@ -10,6 +10,11 @@ void ofApp::setup() {
     ofSetVerticalSync(true);
     ofBackground(0);
 
+    // Cheap to log, expensive to debug blind -- see "GL / GLES portability"
+    // in docs/architecture.md for why the actual negotiated context/version
+    // is worth confirming on every new piece of hardware this runs on.
+    ofLogNotice("ofApp") << "GL renderer: " << glGetString(GL_RENDERER) << ", version: " << glGetString(GL_VERSION);
+
     config.loadFromFile("config/app.json");
     config.mergeFromFile("config/app.local.json");
 

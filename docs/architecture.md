@@ -30,18 +30,46 @@ descriptions.
 
 ## GL / GLES portability
 
-Not free. The Pi 4's Mesa V3D driver is GLES-3.1-only (no desktop GL at all).
-The Pi 5's newer V3D 7.1 driver reportedly adds desktop GL 3.1 core support
-in addition to GLES. The desktop dev machine here has an RTX 4060 Ti at GL
-4.6. Rather than write per-platform shader variants, `ShaderLoader`
-(`src/util/ShaderLoader.h`) prepends the right `#version` header per platform
-at load time, and every shader body in `bin/data/shaders/` is written in a
-GLSL subset valid under both desktop `#version 150` and `#version 300 es`
-(`in`/`out` qualifiers, `texture()` not `texture2D()`, explicit `fragColor`
-output). See `shader-authoring.md` for the exact rules. This needs empirical
-confirmation once we're actually running on Pi hardware (Phase 5) --
-`ofGetGLRenderer()` / `glGetString(GL_VERSION)` should be logged at startup
-to check what context we actually got.
+Not free, and more varied across Pi generations than the original HLD
+assumed. Raspberry Pi's GPU changed driver families between generations:
+Pi 0-3 use VideoCore IV via Mesa's `vc4` driver, whose solid baseline is
+GLES 2.0 (GLES 3.x support arrived later and is less complete). Pi 4 uses
+VideoCore VI via Mesa's `v3d` driver, GLES-3.1-only (no desktop GL at all).
+Pi 5's newer V3D 7.1 driver reportedly adds desktop GL 3.1 core support in
+addition to GLES. The desktop dev machine here has an RTX 4060 Ti at GL 4.6.
+
+Rather than target the newest GLES version each specific Pi could offer
+(which would mean re-deriving/re-testing this per Pi generation, and our
+three effects don't need anything from GLES 3.x anyway), the Pi side
+targets **GLES 2.0 uniformly across every Pi generation** -- the one
+version guaranteed to run unchanged whether it's a Pi 3, 4, or 5.
+
+`ShaderLoader` (`src/util/ShaderLoader.h`) prepends the right `#version`
+header per platform at load time (`#version 150` desktop, `#version 100` +
+`precision mediump float;` on the Pi). Shader bodies in `bin/data/shaders/`
+are still authored once, in the modern `in`/`out`/`texture()` dialect (the
+same one that would work under desktop GLSL 150 *or* GLSL ES 300) --
+`ShaderLoader` mechanically rewrites that to GLSL ES 1.00's
+`attribute`/`varying`/`texture2D()`/`gl_FragColor` on the Pi at load time
+(`toGles2Dialect()`), rather than maintaining a second hand-written shader
+dialect. See `shader-authoring.md` for the exact rules and the naming
+conventions that rewrite depends on.
+
+`main.cpp` also had a real bug caught before ever touching Pi hardware:
+it constructed `ofGLWindowSettings` unconditionally, which requests
+`GLFW_OPENGL_API` (desktop GL) regardless of platform -- openFrameworks'
+own `ofSetupOpenGL()` branches on `TARGET_OPENGLES` to use
+`ofGLESWindowSettings` (`GLFW_OPENGL_ES_API`) instead, and ours didn't.
+Since the Pi has no desktop GL profile at all (Mesa `vc4`/`v3d` are
+GLES-only), this would have failed to create a context at all, on any Pi
+generation. Fixed to branch the same way oF's own default entry point does.
+
+Not yet empirically confirmed against real hardware -- currently bringing
+up a Raspberry Pi 3 Model B Plus for early MVP testing (Phase 5), with a
+Pi 4/5 planned as the eventual target. `ofGetGLRenderer()` /
+`glGetString(GL_VERSION)` should be logged at startup on this and every
+future first-run against new hardware, since this is exactly the kind of
+assumption that's cheap to verify and expensive to debug blind.
 
 GLFW (oF's Linux window backend) has no KMS/DRM path, so "boot straight to a
 bare fullscreen GL surface with zero compositor" isn't achievable with vanilla

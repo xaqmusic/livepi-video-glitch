@@ -10,19 +10,28 @@ portability" in `architecture.md`).
 
 1. **No `#version` line.** `ShaderLoader` prepends one for you:
    - Desktop: `#version 150`
-   - Pi (`TARGET_OPENGLES` defined): `#version 300 es` + `precision mediump
-     float;`
+   - Pi (`TARGET_OPENGLES` defined): `#version 100` + `precision mediump
+     float;` (GLES 2.0/GLSL ES 1.00 -- targeted uniformly across every Pi
+     generation, not just whichever one is currently plugged in. Pi 3's
+     Mesa `vc4` driver has GLES 2.0 as its solid baseline, with GLES 3.x
+     support added later and less complete; Pi 4/5's `v3d` driver handles
+     GLES 3.1 fine, but our effects don't use anything from GLES 3 that
+     GLES 2 lacks, so there's no reason to target it and then have to
+     special-case older hardware.)
 
-   Both targets support the same modern-ish syntax below, so the shader body
-   itself never needs to know which platform it's on.
+2. **Use `in`/`out`, not `attribute`/`varying` -- write it as if targeting
+   GLSL 150 / GLSL ES 300.** Vertex shaders declare `in vec4 position;
+   in vec2 texcoord; out vec2 texCoordVarying;`. Fragment shaders declare
+   `in vec2 texCoordVarying; out vec4 fragColor;` and write to `fragColor`,
+   not `gl_FragColor`. **On the Pi, `ShaderLoader` mechanically rewrites this
+   to GLSL ES 1.00's `attribute`/`varying`/`gl_FragColor`** (see
+   `toGles2Dialect()` in `ShaderLoader.cpp`) -- it depends on these exact
+   variable names (`position`, `texcoord`, `texCoordVarying`, `fragColor`),
+   so don't rename them without updating that function too.
 
-2. **Use `in`/`out`, not `attribute`/`varying`.** Vertex shaders declare
-   `in vec4 position; in vec2 texcoord; out vec2 texCoordVarying;`. Fragment
-   shaders declare `in vec2 texCoordVarying; out vec4 fragColor;` and write
-   to `fragColor`, not `gl_FragColor`.
-
-3. **Use `texture(sampler, uv)`, not `texture2D(sampler, uv)`** -- the
-   former is what both GLSL 150 and GLSL ES 300 call it.
+3. **Use `texture(sampler, uv)`, not `texture2D(sampler, uv)`** -- write it
+   as `texture()` regardless of target; `ShaderLoader` rewrites it to
+   `texture2D()` on the Pi (GLSL ES 1.00 doesn't have `texture()`).
 
 4. **Texture coordinates are already normalized 0..1.** `main.cpp` calls
    `ofDisableArbTex()` before any texture is created, which switches oF from
