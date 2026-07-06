@@ -64,12 +64,33 @@ Since the Pi has no desktop GL profile at all (Mesa `vc4`/`v3d` are
 GLES-only), this would have failed to create a context at all, on any Pi
 generation. Fixed to branch the same way oF's own default entry point does.
 
-Not yet empirically confirmed against real hardware -- currently bringing
-up a Raspberry Pi 3 Model B Plus for early MVP testing (Phase 5), with a
-Pi 4/5 planned as the eventual target. `ofGetGLRenderer()` /
-`glGetString(GL_VERSION)` should be logged at startup on this and every
-future first-run against new hardware, since this is exactly the kind of
-assumption that's cheap to verify and expensive to debug blind.
+**Status on the Raspberry Pi 3 Model B Plus** (early MVP target before the
+planned Pi 4/5 migration, Phase 5): the app itself builds cleanly
+(aarch64, GLES 2.0 targeting, `-ljack` fix -- see git history), but hasn't
+run yet -- **X.Org itself crashes** before our binary ever gets a GL
+context. Reproduced identically both over SSH and from the physical
+console (ruling out a session/SSH-permission cause): `Xorg` segfaults
+immediately after loading `glamoregl` (glamor's EGL/GBM-based
+acceleration module) while probing the `modesetting` KMS driver against
+`/dev/dri/card0`. This looks like a Mesa `vc4` + glamor incompatibility on
+this specific Pi 3 / Trixie / Mesa 25.0.7 combination, not anything in our
+own code -- `ofGetGLRenderer()`/`glGetString(GL_VERSION)` (already logged
+at startup in `ofApp::setup()`) has never actually been reached on this
+hardware yet.
+
+Two side-fixes made getting this far possible and are worth keeping
+regardless of the crash: `/etc/X11/Xwrapper.config` needed
+`allowed_users=anybody` (default `console` refuses to start X outside an
+active console/seat login -- needed anyway for the eventual kiosk systemd
+service, which won't have an interactive login present either), and
+`xinit`/`xserver-xorg`/`xserver-xorg-legacy`/`x11-xserver-utils` aren't
+installed by default on Raspberry Pi OS **Lite** and need adding.
+
+Untried next step if picked back up: force X to skip glamor entirely (an
+`xorg.conf` `Option "AccelMethod" "none"`, or the `fbdev` driver directly)
+-- a known workaround for VC4-driver/glamor issues elsewhere. Shouldn't
+affect our own app's GL context, since that's negotiated directly by
+GLFW/EGL, not through X's own accelerated-2D path.
 
 GLFW (oF's Linux window backend) has no KMS/DRM path, so "boot straight to a
 bare fullscreen GL surface with zero compositor" isn't achievable with vanilla
