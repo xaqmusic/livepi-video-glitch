@@ -2,7 +2,6 @@
 
 #include "ofAppRunner.h"
 #include "ofGraphics.h"
-#include "ofUtils.h"
 #include "util/ShaderLoader.h"
 
 void HSyncTearPass::setup() {
@@ -23,11 +22,12 @@ void HSyncTearPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlSta
     dst.begin();
     ofClear(0, 0, 0, 255);
     shader.begin();
+    ShaderLoader::bindMvp(shader);
     shader.setUniformTexture("srcTex", src.getTexture(), 0);
     shader.setUniform1f("noisePhase", noisePhase);
     shader.setUniform1f("beatSpike", beatSpike);
     shader.setUniform1f("intensity", intensity);
-    src.draw(0, 0);
+    ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
     dst.end();
 }

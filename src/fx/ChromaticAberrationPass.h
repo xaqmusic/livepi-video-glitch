@@ -5,8 +5,8 @@
 
 // Chromatic Aberration & Color Bleed (see docs/LivePi VideoGlitcher HLD.pdf):
 // splits the RGB channels apart, separation driven by a blend of live audio
-// level and the scene's configured intensity. GLSL side:
-// bin/data/shaders/chromatic_aberration.frag.
+// level, knobB (live performer control), and the scene's configured
+// baseline intensity. GLSL side: bin/data/shaders/chromatic_aberration.frag.
 class ChromaticAberrationPass : public ShaderPass {
 public:
     void setup() override;

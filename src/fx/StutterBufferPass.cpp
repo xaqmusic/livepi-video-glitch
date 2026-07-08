@@ -26,8 +26,11 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
     // note (6 MIDI clock ticks), per the HLD's "loops 3 frames rapidly over
     // a 16th note." Exact beat-to-event mapping is scene content design, not
     // architecture -- see docs/architecture.md -- and will get tuned once
-    // we're iterating on real footage.
-    bool stutterActive = scene.stutterEnabled && (controlState.midiClockTicks % 6 < 2);
+    // we're iterating on real footage. Gated on clockPresent: without a real
+    // clock, midiClockTicks never advances past 0, and 0 % 6 < 2 would
+    // otherwise make this permanently true instead of gracefully idle.
+    bool stutterActive =
+        scene.stutterEnabled && controlState.clockPresent && (controlState.midiClockTicks % 6 < 2);
     ofFbo& sourceForOutput = stutterActive ? ring[writeIndex % 3] : src;
 
     writeIndex = (writeIndex + 1) % kRingSize;
@@ -35,8 +38,9 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
     dst.begin();
     ofClear(0, 0, 0, 255);
     shader.begin();
+    ShaderLoader::bindMvp(shader);
     shader.setUniformTexture("srcTex", sourceForOutput.getTexture(), 0);
-    sourceForOutput.draw(0, 0);
+    ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
     dst.end();
 }

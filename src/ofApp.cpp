@@ -27,10 +27,10 @@ void ofApp::setup() {
 
     sceneManager.setup(config);
 
-    shaderChain.setup(width, height);
     shaderChain.addPass(std::make_unique<HSyncTearPass>());
     shaderChain.addPass(std::make_unique<ChromaticAberrationPass>());
     shaderChain.addPass(std::make_unique<StutterBufferPass>());
+    shaderChain.setup(width, height);
 
     loadCurrentScene();
 }

@@ -179,6 +179,44 @@ MIDI clock ticks) is a placeholder -- exact beat-to-event mapping is scene
 content design, not architecture, and will get tuned once we're iterating on
 real footage (Phase 2/4 below).
 
+### Two oF renderer bugs that silently ate every pass's shader
+
+Getting the three passes to actually render anything (rather than a silent
+passthrough or a solid color) took two separate fixes, both worth recording
+since they'll bite again the moment a fourth pass is added:
+
+1. **`modelViewProjectionMatrix` never reaches a freshly-bound custom
+   shader.** oF's own per-`shader.begin()` matrix upload
+   (`ofGLProgrammableRenderer::bind()` -> `uploadMatrices()`) is supposed to
+   set this uniform automatically on every bind. Confirmed empirically it
+   doesn't: `glGetActiveUniform` finds the uniform at a valid location, but
+   reading it back with `glGetUniformfv` immediately after `shader.begin()`
+   shows an all-zero matrix, which collapses every vertex to `gl_Position =
+   (0,0,0,0)` and rasterizes nothing. Fix: `ShaderLoader::bindMvp(shader)`
+   sets it explicitly from `ofGetCurrentMatrix(OF_MATRIX_PROJECTION) *
+   ofGetCurrentMatrix(OF_MATRIX_MODELVIEW)` right after every
+   `shader.begin()`.
+2. **The `texcoord` vertex attribute goes disabled mid-draw.** Even with (1)
+   fixed, drawing through oF's normal `ofFbo::draw()` / `ofTexture::draw()`
+   (which route through the renderer's single shared internal VBO,
+   `ofGLProgrammableRenderer::meshVbo`, also used by `ofMesh::draw()`) left
+   every fragment reading the same `texCoordVarying` instead of an
+   interpolated 0..1 gradient -- confirmed via `glGetVertexAttribiv` showing
+   the array disabled and GL falling back to the generic constant
+   `(1,1,1,1)`. Root cause not fully pinned down (this process also drives
+   GStreamer/NVDEC GL interop for hardware video decode on the same
+   context, a plausible source of shared-state interference), but the fix
+   sidesteps it regardless: `ShaderLoader::drawFullscreenQuad(w, h)` draws
+   through its own dedicated VAO/VBO with explicit
+   `glVertexAttribPointer`/`glEnableVertexAttribArray` calls, never
+   touching oF's shared mesh machinery.
+
+Every `ShaderPass::apply()` must call `bindMvp()` right after
+`shader.begin()` and use `drawFullscreenQuad()` instead of
+`someFbo.draw(0, 0)` for the shader-bound draw. The plain (non-custom-shader)
+copy in `StutterBufferPass` (into its ring buffer) is unaffected and still
+uses the normal `ofFbo::draw()`.
+
 ## Asset strategy
 
 No git-lfs. The HLD's actual "share a shader as a text file with a friend"
@@ -216,7 +254,22 @@ need to actually be added, they weren't fabricated during scaffolding).
    the free-run fallback path got exercised too, not just the happy path.
 4. **Full glitch chain** -- tune all three effects against real footage,
    real audio level via the desktop's own `ofSoundStream` as a stand-in for
-   Pisound.
+   Pisound. **In progress** -- `MidiControlSource` now also captures real
+   audio level (same class, since the desktop MIDI keyboard's audio
+   interface -- a UMC404HD -- already has real audio I/O; verified
+   `audioLevel` responds live to real sound). Also fixed two real bugs
+   found along the way: `StutterBufferPass`'s trigger wasn't gated on
+   `clockPresent`, so with no MIDI clock present `midiClockTicks` stays at
+   0 forever and `0 % 6 < 2` was permanently true -- the stutter effect was
+   *always* engaged instead of gracefully idle; and all three passes'
+   shaders were never actually loaded (`ofApp` called `shaderChain.setup()`
+   before `addPass()`, so the `for (auto& pass : passes) pass->setup()`
+   loop ran over an empty vector) -- see "Two oF renderer bugs" above for
+   what surfaced once that was fixed and shaders actually started
+   rendering. All three effects now visibly confirmed working together
+   against the colorbars test scene. Still open: tuning how they look/feel
+   against real footage, and knobB is only wired into chromatic
+   aberration's separation and h-sync's intensity so far.
 5. **First real Pi deploy** -- `scripts/setup-pi.sh` / `deploy-to-pi.sh`,
    `PisoundControlSource`, empirically confirm the actual GL context and
    adjust `ShaderLoader` if reality differs from the notes above.

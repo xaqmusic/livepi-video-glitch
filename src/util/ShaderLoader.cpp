@@ -3,6 +3,7 @@
 #include <sstream>
 
 #include "ofFileUtils.h"
+#include "ofGraphics.h"
 #include "ofLog.h"
 #include "ofUtils.h"
 
@@ -101,4 +102,46 @@ bool ShaderLoader::load(ofShader& shader, const std::string& vertPath, const std
         ofLogError("ShaderLoader") << "Failed to build shader from " << vertPath << " + " << fragPath;
     }
     return ok;
+}
+
+void ShaderLoader::bindMvp(ofShader& shader) {
+    glm::mat4 mvp = ofGetCurrentMatrix(OF_MATRIX_PROJECTION) * ofGetCurrentMatrix(OF_MATRIX_MODELVIEW);
+    shader.setUniformMatrix4f("modelViewProjectionMatrix", mvp);
+}
+
+void ShaderLoader::drawFullscreenQuad(float width, float height) {
+    // Bypasses oF's shared internal VBO (ofGLProgrammableRenderer::meshVbo,
+    // also used by ofMesh::draw()) entirely -- own VAO/VBO, own explicit
+    // glVertexAttribPointer calls, so nothing else touching that shared
+    // state (oF's default shaders, the GStreamer/NVDEC GL interop used for
+    // hardware video decode) can leave the texcoord attribute disabled out
+    // from under a custom shader's draw call.
+    static GLuint vao = 0;
+    static GLuint vbo = 0;
+    if (vao == 0) {
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, nullptr, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(ofShader::POSITION_ATTRIBUTE);
+        glVertexAttribPointer(ofShader::POSITION_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)0);
+        glEnableVertexAttribArray(ofShader::TEXCOORD_ATTRIBUTE);
+        glVertexAttribPointer(
+            ofShader::TEXCOORD_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)(sizeof(float) * 2));
+        glBindVertexArray(0);
+    }
+
+    float verts[16] = {
+        0,     0,      0, 0,
+        width, 0,      1, 0,
+        width, height, 1, 1,
+        0,     height, 0, 1,
+    };
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
