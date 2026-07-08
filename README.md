@@ -27,11 +27,17 @@ With no hardware attached, the app runs against `MockControlSource`:
 
 | Key       | Action                           |
 |-----------|-----------------------------------|
-| `space`   | scene-change button               |
+| `space`   | scene button: Click (next scene)  |
+| `h`       | scene button: Hold (back to first)|
 | `[` / `]` | knobA down / up (bidirectional)   |
 | `,` / `.` | knobB down / up (intensity)       |
 | `-` / `=` | tempo down / up                   |
 | `d`       | toggle debug overlay              |
+
+Running against `MidiControlSource` (`control_source: "midi"`) shares the
+same `space`/`h`/`[`/`]`/`,`/`.`/`d` bindings, plus `a`/`b` to CC-learn
+knobA/knobB from the next incoming CC message instead of hand-editing
+`app.local.json`.
 
 ## First-time Pi network setup
 

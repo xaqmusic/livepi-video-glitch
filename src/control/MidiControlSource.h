@@ -41,11 +41,13 @@ public:
     // ofBaseSoundInput -- runs on the audio thread, not the main thread.
     void audioIn(ofSoundBuffer& buffer) override;
 
-    // Stand-in for the physical scene button (space); a keyboard fallback
-    // for knobA/knobB ([/] and ,/. -- same bindings as MockControlSource)
-    // for testing before both knobs are CC-learned, or on a MIDI keyboard
-    // with no free assignable knobs at all; and 'a'/'b' to arm CC-learn for
-    // knobA/knobB (see newMidiMessage). Forwarded from ofApp::keyPressed.
+    // Stand-in for the physical scene button (space Click, h Hold -- same
+    // click/hold split PisoundControlSource gets from pisound-btn's FIFO);
+    // a keyboard fallback for knobA/knobB ([/] and ,/. -- same bindings as
+    // MockControlSource) for testing before both knobs are CC-learned, or on
+    // a MIDI keyboard with no free assignable knobs at all; and 'a'/'b' to
+    // arm CC-learn for knobA/knobB (see newMidiMessage). Forwarded from
+    // ofApp::keyPressed.
     void keyPressed(int key);
 
 private:

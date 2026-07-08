@@ -9,7 +9,8 @@
 // scene logic can be exercised end-to-end with nothing but a laptop.
 //
 // Keys (forwarded from ofApp::keyPressed while the window has focus):
-//   space        button Click
+//   space        button Click (advance to the next scene)
+//   h            button Hold (jump back to the first scene)
 //   [ / ]        knobA down / up (bidirectional, centered at 0)
 //   , / .        knobB down / up (0..1)
 //   - / =        tempo down / up

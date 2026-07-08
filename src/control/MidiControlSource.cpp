@@ -139,6 +139,9 @@ void MidiControlSource::keyPressed(int key) {
         case ' ':
             pendingButtonEvent = ButtonEvent::Click;
             break;
+        case 'h':
+            pendingButtonEvent = ButtonEvent::Hold;
+            break;
         // Keyboard fallback for knobA/knobB (same bindings as
         // MockControlSource), so a knob that isn't CC-learned yet -- or a
         // MIDI keyboard with no free assignable knobs at all -- can still be

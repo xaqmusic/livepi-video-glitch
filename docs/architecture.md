@@ -119,11 +119,14 @@ never drift between them:
 - **`MidiControlSource`** -- desktop testing against any real MIDI device
   (USB keyboard/controller), no Pisound hardware needed. On `setup()` it
   logs every available MIDI port (`ofLogNotice`) and every incoming CC
-  number/value, which doubles as a device-detection + CC-learn workflow:
-  run it, watch the console, wiggle the physical control you want, read off
-  its CC number, then set `midi.knobA_cc`/`midi.knobB_cc` in
-  `app.local.json`. Uses the keyboard's spacebar as a stand-in scene button
-  (no FIFO/hardware button on a generic MIDI device). **Caveat found in
+  number/value, which doubles as a device-detection + CC-learn workflow: two
+  ways to map a knob -- watch the console, wiggle the physical control, read
+  off its CC number, set `midi.knobA_cc`/`midi.knobB_cc` in `app.local.json`
+  (persists across restarts); or press `a`/`b` then move the knob, which
+  learns and immediately applies the next CC message for the rest of that
+  run (verified against real injected MIDI CC messages, not just read).
+  Uses the keyboard's spacebar/`h` as a stand-in scene button Click/Hold (no
+  FIFO/hardware button on a generic MIDI device). **Caveat found in
   practice:** some controllers send 14-bit high-resolution CC as an
   MSB/LSB pair (CC *n* + CC *n*+32) rather than a single 7-bit CC --
   `knobA_cc`/`knobB_cc` only read a single CC number, so map to the MSB

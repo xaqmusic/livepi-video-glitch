@@ -37,6 +37,9 @@ void MockControlSource::keyPressed(int key) {
         case ' ':
             pendingButtonEvent = ButtonEvent::Click;
             break;
+        case 'h':
+            pendingButtonEvent = ButtonEvent::Hold;
+            break;
         case '[':
             state.knobA = ofClamp(state.knobA - 0.05f, -1.0f, 1.0f);
             break;
