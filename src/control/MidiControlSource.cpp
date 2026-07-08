@@ -1,6 +1,9 @@
 #include "MidiControlSource.h"
 
+#include <cmath>
+
 #include "ofLog.h"
+#include "ofSoundBuffer.h"
 #include "ofUtils.h"
 #include "util/Config.h"
 
@@ -27,6 +30,33 @@ void MidiControlSource::setup(const Config& config) {
     midiIn.ignoreTypes(false, false, false);  // don't ignore clock/sysex/active-sense
 
     clock.start();
+
+    auto devices = soundStream.getDeviceList();
+    ofLogNotice("MidiControlSource") << devices.size() << " audio devices available:";
+    for (const auto& device : devices) {
+        ofLogNotice("MidiControlSource") << "  " << device.deviceID << ": " << device.name
+                                          << " (in=" << device.inputChannels << ")"
+                                          << (device.isDefaultInput ? " [default input]" : "");
+    }
+
+    ofSoundStreamSettings settings;
+    settings.numInputChannels = 1;
+    settings.numOutputChannels = 0;
+    settings.sampleRate = 48000;
+    settings.bufferSize = 256;
+    settings.setInListener(this);
+
+    std::string audioDeviceName = config.getString("audio.device_name", "");
+    if (!audioDeviceName.empty()) {
+        auto matches = soundStream.getMatchingDevices(audioDeviceName, 1);
+        if (!matches.empty()) {
+            settings.setInDevice(matches.front());
+        } else {
+            ofLogWarning("MidiControlSource")
+                << "No audio input device matching '" << audioDeviceName << "', using the default.";
+        }
+    }
+    soundStream.setup(settings);
 }
 
 void MidiControlSource::update() {
@@ -39,6 +69,22 @@ void MidiControlSource::update() {
     state.bpmEstimate = clock.getBpmEstimate();
     state.clockPresent = clock.isClockPresent(ofGetElapsedTimef());
     state.healthy = true;  // a missing clock just means free-run, not a fault
+
+    std::lock_guard<std::mutex> lock(audioLevelMutex);
+    // One-pole smoothing so the level doesn't jitter frame to frame.
+    state.audioLevel = state.audioLevel * 0.8f + currentAudioLevel * 0.2f;
+}
+
+void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
+    float sumSquares = 0.0f;
+    for (size_t i = 0; i < buffer.getNumFrames(); ++i) {
+        float sample = buffer.getSample(i, 0);
+        sumSquares += sample * sample;
+    }
+    float rms = std::sqrt(sumSquares / std::max<size_t>(1, buffer.getNumFrames()));
+
+    std::lock_guard<std::mutex> lock(audioLevelMutex);
+    currentAudioLevel = rms;
 }
 
 void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
@@ -80,4 +126,5 @@ void MidiControlSource::keyPressed(int key) {
 
 void MidiControlSource::shutdown() {
     midiIn.closePort();
+    soundStream.close();
 }

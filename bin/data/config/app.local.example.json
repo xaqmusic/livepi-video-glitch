@@ -7,6 +7,9 @@
         "knobA_cc": 21,
         "knobB_cc": 22
     },
+    "audio": {
+        "device_name": ""
+    },
     "window": {
         "width": 1920,
         "height": 1080
