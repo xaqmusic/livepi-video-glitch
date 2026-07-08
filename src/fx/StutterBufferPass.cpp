@@ -1,6 +1,7 @@
 #include "StutterBufferPass.h"
 
 #include "ofGraphics.h"
+#include "ofUtils.h"
 #include "util/ShaderLoader.h"
 
 void StutterBufferPass::setup() {
@@ -29,8 +30,14 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
     // we're iterating on real footage. Gated on clockPresent: without a real
     // clock, midiClockTicks never advances past 0, and 0 % 6 < 2 would
     // otherwise make this permanently true instead of gracefully idle.
-    bool stutterActive =
-        scene.stutterEnabled && controlState.clockPresent && (controlState.midiClockTicks % 6 < 2);
+    //
+    // knobA is bidirectional (-1..1, center-detent), remapped to 0..1 as a
+    // master glitch-intensity knob shared with the other two passes -- below
+    // a small threshold near fully counterclockwise, the performer has
+    // dialed everything off, so stutter should stay idle too.
+    float masterIntensity = ofClamp((controlState.knobA + 1.0f) * 0.5f, 0.0f, 1.0f);
+    bool stutterActive = scene.stutterEnabled && controlState.clockPresent && masterIntensity > 0.05f
+        && (controlState.midiClockTicks % 6 < 2);
     ofFbo& sourceForOutput = stutterActive ? ring[writeIndex % 3] : src;
 
     writeIndex = (writeIndex + 1) % kRingSize;

@@ -36,8 +36,11 @@ public:
     // ofBaseSoundInput -- runs on the audio thread, not the main thread.
     void audioIn(ofSoundBuffer& buffer) override;
 
-    // Stand-in for the physical scene button, since a generic MIDI
-    // keyboard doesn't have one wired up (forwarded from ofApp::keyPressed).
+    // Stand-in for the physical scene button (space), and a keyboard
+    // fallback for knobA/knobB ([/] and ,/. -- same bindings as
+    // MockControlSource) for testing before both knobs are CC-learned, or on
+    // a MIDI keyboard with no free assignable knobs at all. Forwarded from
+    // ofApp::keyPressed.
     void keyPressed(int key);
 
 private:

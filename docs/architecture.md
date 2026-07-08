@@ -267,9 +267,18 @@ need to actually be added, they weren't fabricated during scaffolding).
    loop ran over an empty vector) -- see "Two oF renderer bugs" above for
    what surfaced once that was fixed and shaders actually started
    rendering. All three effects now visibly confirmed working together
-   against the colorbars test scene. Still open: tuning how they look/feel
-   against real footage, and knobB is only wired into chromatic
-   aberration's separation and h-sync's intensity so far.
+   against the colorbars test scene, and against a real 720p clip
+   (`silhouette` scene) -- chromatic aberration and h-sync both read clearly
+   against its high-contrast edges. knobA is now wired in too, as a master
+   glitch-intensity knob shared across all three passes (remapped from its
+   native -1..1 bidirectional range to 0..1: fully counterclockwise kills
+   every effect, fully clockwise is each scene's configured intensity) --
+   confirmed via keyboard hotkeys (`[`/`]` for knobA, `,`/`.` for knobB, same
+   bindings as `MockControlSource`, added to `MidiControlSource` since both
+   knobs aren't CC-learned from the real MIDI keyboard yet). Also confirmed
+   `StutterBufferPass`'s trigger actually activates on schedule (not just
+   correctly idles without one) using `MockControlSource`'s virtual 24-PPQN
+   clock. Still open: tuning intensities further against real footage.
 5. **First real Pi deploy** -- `scripts/setup-pi.sh` / `deploy-to-pi.sh`,
    `PisoundControlSource`, empirically confirm the actual GL context and
    adjust `ShaderLoader` if reality differs from the notes above.

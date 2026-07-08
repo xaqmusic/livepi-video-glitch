@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "ofLog.h"
+#include "ofMath.h"
 #include "ofSoundBuffer.h"
 #include "ofUtils.h"
 #include "util/Config.h"
@@ -119,8 +120,27 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
 }
 
 void MidiControlSource::keyPressed(int key) {
-    if (key == ' ') {
-        pendingButtonEvent = ButtonEvent::Click;
+    // Same bindings as MockControlSource, so a knob that isn't CC-learned
+    // yet (or a keyboard with no free assignable knobs at all) can still be
+    // exercised from this same backend.
+    switch (key) {
+        case ' ':
+            pendingButtonEvent = ButtonEvent::Click;
+            break;
+        case '[':
+            state.knobA = ofClamp(state.knobA - 0.05f, -1.0f, 1.0f);
+            break;
+        case ']':
+            state.knobA = ofClamp(state.knobA + 0.05f, -1.0f, 1.0f);
+            break;
+        case ',':
+            state.knobB = ofClamp(state.knobB - 0.05f, 0.0f, 1.0f);
+            break;
+        case '.':
+            state.knobB = ofClamp(state.knobB + 0.05f, 0.0f, 1.0f);
+            break;
+        default:
+            break;
     }
 }
 

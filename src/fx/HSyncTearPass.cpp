@@ -2,6 +2,7 @@
 
 #include "ofAppRunner.h"
 #include "ofGraphics.h"
+#include "ofUtils.h"
 #include "util/ShaderLoader.h"
 
 void HSyncTearPass::setup() {
@@ -17,7 +18,12 @@ void HSyncTearPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlSta
     }
     noisePhase += ofGetLastFrameTime();
 
-    float intensity = scene.hSyncIntensity * (0.5f + controlState.knobB * 0.5f);
+    // knobA is bidirectional (-1..1, center-detent) -- remap to 0..1 so it
+    // reads as a master glitch-intensity knob shared across all three passes,
+    // fully counterclockwise kills the effect, fully clockwise is the
+    // scene's configured intensity.
+    float masterIntensity = ofClamp((controlState.knobA + 1.0f) * 0.5f, 0.0f, 1.0f);
+    float intensity = scene.hSyncIntensity * (0.5f + controlState.knobB * 0.5f) * masterIntensity;
 
     dst.begin();
     ofClear(0, 0, 0, 255);

@@ -15,6 +15,13 @@ void ChromaticAberrationPass::apply(ofFbo& src, ofFbo& dst, const ControlState& 
     float separation = ofClamp(
         controlState.audioLevel * 0.4f + controlState.knobB * 0.3f + scene.chromaticIntensity * 0.3f, 0.0f, 1.0f);
 
+    // knobA is bidirectional (-1..1, center-detent) -- remap to 0..1 so it
+    // reads as a master glitch-intensity knob shared across all three passes,
+    // fully counterclockwise kills the effect, fully clockwise is the
+    // scene's configured intensity.
+    float masterIntensity = ofClamp((controlState.knobA + 1.0f) * 0.5f, 0.0f, 1.0f);
+    separation *= masterIntensity;
+
     dst.begin();
     ofClear(0, 0, 0, 255);
     shader.begin();

@@ -6,8 +6,9 @@
 // Horizontal Sync Displacement (see docs/LivePi VideoGlitcher HLD.pdf):
 // shifts scanlines sideways by an amount driven by a noise field, spiking
 // hard on each beat and decaying until the next one -- what turns a steady
-// wobble into a "violent snap sideways." GLSL side:
-// bin/data/shaders/hsync_tear.frag.
+// wobble into a "violent snap sideways." Intensity is knobB plus the scene's
+// baseline, both scaled by knobA (master glitch intensity, shared across all
+// three passes). GLSL side: bin/data/shaders/hsync_tear.frag.
 class HSyncTearPass : public ShaderPass {
 public:
     void setup() override;
