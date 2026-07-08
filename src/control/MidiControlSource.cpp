@@ -106,7 +106,22 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
             state.ccValues[message.control] = normalized;
             ofLogNotice("MidiControlSource")
                 << "CC " << message.control << " = " << normalized
-                << "  (set midi.knobA_cc / midi.knobB_cc in app.local.json to map it)";
+                << "  (set midi.knobA_cc / midi.knobB_cc in app.local.json to map it, or press 'a'/'b' to learn it)";
+
+            if (pendingLearn == LearnTarget::KnobA) {
+                knobACcNumber = message.control;
+                pendingLearn = LearnTarget::None;
+                ofLogNotice("MidiControlSource")
+                    << "knobA learned: CC " << knobACcNumber << " (set midi.knobA_cc to this in app.local.json"
+                    << " to keep it next run)";
+            } else if (pendingLearn == LearnTarget::KnobB) {
+                knobBCcNumber = message.control;
+                pendingLearn = LearnTarget::None;
+                ofLogNotice("MidiControlSource")
+                    << "knobB learned: CC " << knobBCcNumber << " (set midi.knobB_cc to this in app.local.json"
+                    << " to keep it next run)";
+            }
+
             if (message.control == knobACcNumber) {
                 state.knobA = normalized * 2.0f - 1.0f;  // 0..1 -> -1..1, center-detent feel
             } else if (message.control == knobBCcNumber) {
@@ -120,13 +135,14 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
 }
 
 void MidiControlSource::keyPressed(int key) {
-    // Same bindings as MockControlSource, so a knob that isn't CC-learned
-    // yet (or a keyboard with no free assignable knobs at all) can still be
-    // exercised from this same backend.
     switch (key) {
         case ' ':
             pendingButtonEvent = ButtonEvent::Click;
             break;
+        // Keyboard fallback for knobA/knobB (same bindings as
+        // MockControlSource), so a knob that isn't CC-learned yet -- or a
+        // MIDI keyboard with no free assignable knobs at all -- can still be
+        // exercised from this same backend.
         case '[':
             state.knobA = ofClamp(state.knobA - 0.05f, -1.0f, 1.0f);
             break;
@@ -138,6 +154,17 @@ void MidiControlSource::keyPressed(int key) {
             break;
         case '.':
             state.knobB = ofClamp(state.knobB + 0.05f, 0.0f, 1.0f);
+            break;
+        // Arm CC-learn: the next CC message that arrives is assigned as that
+        // knob (handled in newMidiMessage), instead of needing to read its
+        // number off the console and edit app.local.json by hand.
+        case 'a':
+            pendingLearn = LearnTarget::KnobA;
+            ofLogNotice("MidiControlSource") << "Learning knobA -- move the knob you want to assign...";
+            break;
+        case 'b':
+            pendingLearn = LearnTarget::KnobB;
+            ofLogNotice("MidiControlSource") << "Learning knobB -- move the knob you want to assign...";
             break;
         default:
             break;

@@ -20,9 +20,14 @@
 // connected. It opens "midi.port_name"/"audio.device_name" from config if
 // set, otherwise the first MIDI port / default audio device. Every incoming
 // CC message is logged with its number and normalized value regardless of
-// whether it's mapped to anything yet -- turn the knob you want to use, read
-// its CC number off the console, then set midi.knobA_cc/midi.knobB_cc in
-// app.local.json.
+// whether it's mapped to anything yet.
+//
+// Two ways to map a knob: read its CC number off the console and set
+// midi.knobA_cc/midi.knobB_cc in app.local.json (persists across restarts);
+// or press 'a'/'b' then move the physical knob -- the next CC message that
+// arrives is learned as that knob for the rest of this run (see keyPressed
+// below). The console still logs the learned CC number so it can be copied
+// into app.local.json to keep it next time.
 class MidiControlSource : public ControlSource, public ofxMidiListener, public ofBaseSoundInput {
 public:
     void setup(const Config& config) override;
@@ -36,20 +41,23 @@ public:
     // ofBaseSoundInput -- runs on the audio thread, not the main thread.
     void audioIn(ofSoundBuffer& buffer) override;
 
-    // Stand-in for the physical scene button (space), and a keyboard
-    // fallback for knobA/knobB ([/] and ,/. -- same bindings as
-    // MockControlSource) for testing before both knobs are CC-learned, or on
-    // a MIDI keyboard with no free assignable knobs at all. Forwarded from
-    // ofApp::keyPressed.
+    // Stand-in for the physical scene button (space); a keyboard fallback
+    // for knobA/knobB ([/] and ,/. -- same bindings as MockControlSource)
+    // for testing before both knobs are CC-learned, or on a MIDI keyboard
+    // with no free assignable knobs at all; and 'a'/'b' to arm CC-learn for
+    // knobA/knobB (see newMidiMessage). Forwarded from ofApp::keyPressed.
     void keyPressed(int key);
 
 private:
+    enum class LearnTarget { None, KnobA, KnobB };
+
     BeatClock clock;
     ControlState state;
     ofxMidiIn midiIn;
 
     int knobACcNumber = 21;
     int knobBCcNumber = 22;
+    LearnTarget pendingLearn = LearnTarget::None;
 
     ofSoundStream soundStream;
     float currentAudioLevel = 0.0f;
