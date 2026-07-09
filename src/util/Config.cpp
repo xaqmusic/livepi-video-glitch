@@ -45,6 +45,10 @@ int Config::getInt(const std::string& key, int fallback) const {
     return json.value(toPointer(key), fallback);
 }
 
+bool Config::getBool(const std::string& key, bool fallback) const {
+    return json.value(toPointer(key), fallback);
+}
+
 std::vector<Scene> Config::getScenes() const {
     std::vector<Scene> scenes;
     if (!json.contains("scenes")) return scenes;

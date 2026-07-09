@@ -18,10 +18,6 @@ void ofApp::setup() {
     config.loadFromFile("config/app.json");
     config.mergeFromFile("config/app.local.json");
 
-    int width = config.getInt("window.width", 1280);
-    int height = config.getInt("window.height", 720);
-    ofSetWindowShape(width, height);
-
     controlSource = createControlSource(config);
     controlSource->setup(config);
 
@@ -30,7 +26,12 @@ void ofApp::setup() {
     shaderChain.addPass(std::make_unique<HSyncTearPass>());
     shaderChain.addPass(std::make_unique<ChromaticAberrationPass>());
     shaderChain.addPass(std::make_unique<StutterBufferPass>());
-    shaderChain.setup(width, height);
+    // The window itself (size, fullscreen-vs-windowed) is already set up in
+    // main.cpp before this runs -- ofGetWidth/Height reflect its actual
+    // current size (the real display's native resolution in fullscreen
+    // mode), so the effect chain always matches whatever's really on
+    // screen instead of a second, possibly-mismatched config read.
+    shaderChain.setup(ofGetWidth(), ofGetHeight());
 
     loadCurrentScene();
 }
@@ -68,6 +69,12 @@ void ofApp::draw() {
            << "knobA: " << state.knobA << "  knobB: " << state.knobB << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
+           << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  fbo: " << shaderChain.getOutputFbo().getWidth()
+           << "x" << shaderChain.getOutputFbo().getHeight() << "  clip: " << clipPlayer.getTexture().getWidth() << "x"
+           << clipPlayer.getTexture().getHeight() << "\n"
+           << "app fps: " << ofGetFrameRate() << "\n"
+           << "clip pos: " << (clipPlayer.getPosition() * clipPlayer.getDuration()) << "s / "
+           << clipPlayer.getDuration() << "s  (t=" << ofGetElapsedTimef() << ")\n"
            << "[d] toggle this overlay";
         ofSetColor(255);
         ofDrawBitmapStringHighlight(ss.str(), 20, 20);

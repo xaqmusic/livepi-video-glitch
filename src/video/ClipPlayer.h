@@ -14,6 +14,8 @@ public:
     void update();
     ofTexture& getTexture();
     bool isLoaded() const { return loaded; }
+    float getPosition() const { return player.getPosition(); }
+    float getDuration() const { return player.getDuration(); }
 
 private:
     ofVideoPlayer player;

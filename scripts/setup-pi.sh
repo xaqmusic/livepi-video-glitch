@@ -157,6 +157,18 @@ patch(
     "ofFbo.cpp GLES guard",
 )
 
+# NOTE: OF_USE_GST_GL (routing GStreamer video decode straight into a GL
+# texture) was tried here to fix a real, confirmed bug -- the V4L2 hardware
+# decoder keeps up fine, but oF's default CPU-side color conversion from its
+# native output format into RGBA pegs an entire Pi 4 core and plays every
+# clip back at roughly 40% of real speed. Enabling USE_GST_GL got past
+# three separate latent oF bugs in this never-before-exercised code path
+# (a missing ofTexture.h include, missing EGL/iostream includes, unqualified
+# cout/endl), but the resulting texture never actually allocates (blank
+# screen, clip 0x0) -- a fourth, deeper bug not worth chasing further right
+# now. Reverted; still playing back slow. See docs/architecture.md's Pi 4
+# section for the current state of this investigation before trying again.
+
 print("All GLES patches applied. If oF is ever upgraded past 0.12.1, "
       "re-check these against docs/architecture.md's \"Pi 4 bring-up\" section.")
 PATCH_OF_FOR_GLES

@@ -23,6 +23,7 @@ public:
     std::string getString(const std::string& key, const std::string& fallback) const;
     float getFloat(const std::string& key, float fallback) const;
     int getInt(const std::string& key, int fallback) const;
+    bool getBool(const std::string& key, bool fallback) const;
     std::vector<Scene> getScenes() const;
 
 private:
