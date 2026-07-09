@@ -1,11 +1,13 @@
 #include "SceneRenderer.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <sstream>
 
 #include "fx/FilterPasses.h"
 #include "fx/StutterBufferPass.h"
 #include "ofGraphics.h"
+#include "ofImage.h"
 #include "ofLog.h"
 #include "ofUtils.h"
 
@@ -174,6 +176,18 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
     postChain.getOutputFbo().draw(0, 0, width, height);
     outputFbo.end();
 
+    // Self-dump for headless verification (set LIVEPI_DEBUG_DUMP to a
+    // directory): writes the final output every ~2s. How effects get
+    // verified on machines whose screen can't be captured.
+    static const char* dumpDir = std::getenv("LIVEPI_DEBUG_DUMP");
+    if (dumpDir) {
+        static int frameCount = 0;
+        if (++frameCount % 120 == 0) {
+            ofPixels pixels;
+            outputFbo.readToPixels(pixels);
+            ofSaveImage(pixels, std::string(dumpDir) + "/render-dump.png");
+        }
+    }
 }
 
 std::string SceneRenderer::describeLayers() const {
