@@ -1,5 +1,6 @@
 #include "StutterBufferPass.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "ofGraphics.h"
@@ -24,56 +25,52 @@ void StutterBufferPass::setup() {
     ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/stutter_hold.frag");
 }
 
-const ofFbo* StutterBufferPass::findFrameNear(double targetTime) const {
-    const Slot* best = nullptr;
-    double bestDelta = 1e9;
-    for (const auto& slot : ring) {
-        if (slot.timeSeconds < 0) continue;
-        double delta = std::fabs(slot.timeSeconds - targetTime);
-        if (delta < bestDelta) {
-            bestDelta = delta;
-            best = &slot;
-        }
-    }
-    return best ? &best->fbo : nullptr;
-}
-
 void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlState,
                               const LiveParams& liveParams) {
     double now = ofGetElapsedTimef();
     bool engageRequested = readParam(liveParams, "stutter.engage", 0.0f) > 0.5f;
 
     if (engageRequested && !engaged) {
-        engaged = true;
-        engageTime = now;
-
-        // Interval from the rate param against the current tempo --
+        // Capture: every recorded frame inside the last interval, oldest
+        // first. Interval from the rate param against the current tempo --
         // bpmEstimate free-runs at a musical default when no clock is
         // present, so this works with or without a synced keyboard.
         double bpm = controlState.bpmEstimate > 1.0 ? controlState.bpmEstimate : 120.0;
-        intervalSecs = rateToBeats(readParam(liveParams, "stutter.rate", 0.5f)) * 60.0 / bpm;
+        double intervalSecs = rateToBeats(readParam(liveParams, "stutter.rate", 0.5f)) * 60.0 / bpm;
 
-        // Can't loop further back than recorded history reaches.
-        double oldest = now;
-        for (const auto& slot : ring) {
-            if (slot.timeSeconds >= 0 && slot.timeSeconds < oldest) oldest = slot.timeSeconds;
+        std::vector<std::pair<double, int>> window;
+        int newest = -1;
+        double newestTime = -1.0;
+        for (int i = 0; i < kRingCapacity; i++) {
+            double t = ring[i].timeSeconds;
+            if (t < 0) continue;
+            if (t >= now - intervalSecs) window.push_back({t, i});
+            if (t > newestTime) {
+                newestTime = t;
+                newest = i;
+            }
         }
-        double available = now - oldest;
-        if (available > 0.05 && intervalSecs > available) intervalSecs = available;
+        std::sort(window.begin(), window.end());
+        loopSlots.clear();
+        for (const auto& [t, i] : window) loopSlots.push_back(i);
+        // Interval shorter than one frame (or no history yet): freeze the
+        // newest frame rather than doing nothing.
+        if (loopSlots.empty() && newest >= 0) loopSlots.push_back(newest);
+        playIndex = 0;
+        engaged = !loopSlots.empty();
     } else if (!engageRequested && engaged) {
         engaged = false;
+        loopSlots.clear();
     }
 
     const ofFbo* output = &src;
 
     if (engaged) {
-        // Loop the captured window [engageTime - interval, engageTime] at
-        // normal speed: same phase math every frame, frames found by
-        // timestamp. Recording is paused, so the window can't be
+        // Step through the captured window one frame per render, wrapping.
+        // Recording pauses while engaged, so the window can't be
         // overwritten no matter how long the stutter is held.
-        double phase = std::fmod(now - engageTime, intervalSecs);
-        const ofFbo* looped = findFrameNear(engageTime - intervalSecs + phase);
-        if (looped) output = looped;
+        output = &ring[loopSlots[playIndex]].fbo;
+        playIndex = (playIndex + 1) % loopSlots.size();
     } else {
         // Record continuously so an engage always has a fresh interval of
         // history behind it. Lazy per-slot allocation: one FBO per frame as

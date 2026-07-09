@@ -37,14 +37,18 @@ private:
         double timeSeconds = -1.0;  // -1 = never written
     };
 
-    const ofFbo* findFrameNear(double targetTime) const;
-
     ofShader shader;
     std::string name = "stutter_buffer";
     std::vector<Slot> ring{kRingCapacity};
     int writeIndex = 0;
 
     bool engaged = false;
-    double engageTime = 0.0;
-    double intervalSecs = 0.5;
+    // The captured window, oldest-first, played back by INDEX one frame
+    // per render and wrapping -- not by wall-clock lookup. Clock-based
+    // nearest-neighbor resampling aliases badly when the interval is a
+    // fractional number of render frames (a 1/16 note at ~28fps is 3.5
+    // frames: alternate cycles land on different frames and the visible
+    // pattern only repeats every TWO cycles -- "1/16 looks like 1/8").
+    std::vector<int> loopSlots;
+    size_t playIndex = 0;
 };
