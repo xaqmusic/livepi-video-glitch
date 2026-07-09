@@ -4,7 +4,7 @@
 // reversed.
 
 import { newId } from "../../api/client";
-import type { BlendMode, Clip, EffectsManifest, ParamSpec, Scene } from "../../api/types";
+import type { AudioBand, BlendMode, Clip, EffectsManifest, ParamSpec, Scene } from "../../api/types";
 import MappableControl, { makePreviewSender } from "../../components/MappableControl";
 import { useShowStore } from "../../state/showStore";
 
@@ -41,25 +41,53 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
     const clipCount = scene.layers.filter((l) => l.kind === "clip").length;
     const overBudget = clipCount > manifest.layerBudget.maxClipLayers;
 
-    const layerParamMapping = (layerId: string, param: string) =>
-        scene.mappings.find((m) => m.targets.some((t) => t.layerId === layerId && t.param === param)) ?? null;
+    const MIDI_TYPES = ["cc", "note"];
 
-    const bindLayerParam = (layerId: string, param: string, trigger: Scene["mappings"][number]["trigger"], spec?: ParamSpec) => {
+    const targetsLayerParam = (m: Scene["mappings"][number], layerId: string, param: string) =>
+        m.targets.some((t) => t.layerId === layerId && t.param === param);
+
+    const midiMappingFor = (layerId: string, param: string) =>
+        scene.mappings.find((m) => MIDI_TYPES.includes(m.trigger.type) && targetsLayerParam(m, layerId, param)) ?? null;
+
+    const audioMappingFor = (layerId: string, param: string) => {
+        const m = scene.mappings.find((x) => x.trigger.type === "audioBand" && targetsLayerParam(x, layerId, param));
+        if (!m) return null;
+        const target = m.targets.find((t) => t.layerId === layerId && t.param === param)!;
+        return { band: m.trigger.band as AudioBand, amount: target.max };
+    };
+
+    const removeLayerBindings = (draftScene: Scene, layerId: string, param: string, types: string[]) => {
+        draftScene.mappings = draftScene.mappings
+            .map((m) =>
+                types.includes(m.trigger.type)
+                    ? { ...m, targets: m.targets.filter((t) => !(t.layerId === layerId && t.param === param)) }
+                    : m,
+            )
+            .filter((m) => m.targets.length > 0);
+    };
+
+    const bindLayerMidi = (layerId: string, param: string, trigger: Scene["mappings"][number]["trigger"], spec?: ParamSpec) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
-            s.mappings = s.mappings.filter((m) => !m.targets.some((t) => t.layerId === layerId && t.param === param));
+            removeLayerBindings(s, layerId, param, MIDI_TYPES);
             s.mappings.push({ trigger, targets: [{ layerId, param, min: spec?.min ?? 0, max: spec?.max ?? 1 }] });
         });
     };
 
-    const unbindLayerParam = (layerId: string, param: string) => {
+    const bindLayerAudio = (layerId: string, param: string, band: AudioBand, amount: number) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
-            s.mappings = s.mappings
-                .map((m) => ({ ...m, targets: m.targets.filter((t) => !(t.layerId === layerId && t.param === param)) }))
-                .filter((m) => m.targets.length > 0);
+            removeLayerBindings(s, layerId, param, ["audioBand"]);
+            s.mappings.push({ trigger: { type: "audioBand", band }, targets: [{ layerId, param, min: 0, max: amount }] });
+        });
+    };
+
+    const unbindLayerParam = (layerId: string, param: string, types: string[]) => {
+        edit((draft) => {
+            const s = draft.scenes.find((x) => x.id === scene.id);
+            if (s) removeLayerBindings(s, layerId, param, types);
         });
     };
 
@@ -141,9 +169,12 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                             spec={{ label: "Opacity", type: "float", min: 0, max: 1, default: 1 }}
                             value={layer.opacity}
                             onChange={(v) => editLayer(layer.id, (l) => { l.opacity = v; })}
-                            mapping={layerParamMapping(layer.id, "opacity")}
-                            onBind={(trigger) => bindLayerParam(layer.id, "opacity", trigger)}
-                            onUnbind={() => unbindLayerParam(layer.id, "opacity")}
+                            midiMapping={midiMappingFor(layer.id, "opacity")}
+                            audioMapping={audioMappingFor(layer.id, "opacity")}
+                            onBindMidi={(trigger) => bindLayerMidi(layer.id, "opacity", trigger)}
+                            onUnbindMidi={() => unbindLayerParam(layer.id, "opacity", MIDI_TYPES)}
+                            onBindAudio={(band, amount) => bindLayerAudio(layer.id, "opacity", band, amount)}
+                            onUnbindAudio={() => unbindLayerParam(layer.id, "opacity", ["audioBand"])}
                             sendPreview={makePreviewSender(scene.id, `layer.${layer.id}.opacity`)}
                         />
                         {Object.entries(manifest.layerEffects).map(([key, spec]) => (
@@ -153,9 +184,12 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                                 spec={spec}
                                 value={layer.layerEffects[key] ?? spec.default}
                                 onChange={(v) => editLayer(layer.id, (l) => { l.layerEffects[key] = v; })}
-                                mapping={layerParamMapping(layer.id, key)}
-                                onBind={(trigger) => bindLayerParam(layer.id, key, trigger, spec)}
-                                onUnbind={() => unbindLayerParam(layer.id, key)}
+                                midiMapping={midiMappingFor(layer.id, key)}
+                                audioMapping={audioMappingFor(layer.id, key)}
+                                onBindMidi={(trigger) => bindLayerMidi(layer.id, key, trigger, spec)}
+                                onUnbindMidi={() => unbindLayerParam(layer.id, key, MIDI_TYPES)}
+                                onBindAudio={(band, amount) => bindLayerAudio(layer.id, key, band, amount)}
+                                onUnbindAudio={() => unbindLayerParam(layer.id, key, ["audioBand"])}
                                 sendPreview={makePreviewSender(scene.id, `layer.${layer.id}.${key}`)}
                             />
                         ))}

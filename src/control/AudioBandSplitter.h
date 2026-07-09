@@ -17,9 +17,12 @@ public:
     void setup(float sampleRate);
     void process(const float* samples, size_t numFrames);
 
-    float getLow() const { return lowEnvelope; }
-    float getMid() const { return midEnvelope; }
-    float getHigh() const { return highEnvelope; }
+    // Peak-normalized 0..1 (relative to each band's own recent loudness --
+    // see the normalization notes in the .cpp). The raw envelope scale is
+    // an implementation detail no consumer should see.
+    float getLow() const { return normalize(lowEnvelope, lowPeak); }
+    float getMid() const { return normalize(midEnvelope, midPeak); }
+    float getHigh() const { return normalize(highEnvelope, highPeak); }
 
 private:
     struct Biquad {
@@ -49,6 +52,7 @@ private:
     static Biquad butterworthLowpass(float freq, float sampleRate);
     static Biquad butterworthHighpass(float freq, float sampleRate);
     static float updateEnvelope(float envelope, float rectified, float attackCoeff, float releaseCoeff);
+    static float normalize(float envelope, float peak);
 
     // Stage 1 splits at 2000 Hz into "low+mid" and "high". Stage 2 takes
     // the "low+mid" output and splits again at 100 Hz into "low" and
@@ -60,8 +64,12 @@ private:
 
     float attackCoeff = 0.0f;
     float releaseCoeff = 0.0f;
+    float peakDecayCoeff = 1.0f;
 
     float lowEnvelope = 0.0f;
     float midEnvelope = 0.0f;
     float highEnvelope = 0.0f;
+    float lowPeak = 0.0f;
+    float midPeak = 0.0f;
+    float highPeak = 0.0f;
 };

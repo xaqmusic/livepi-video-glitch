@@ -10,6 +10,14 @@ constexpr float kMidHighCrossoverHz = 2000.0f;
 // of flickering frame to frame.
 constexpr float kAttackTimeSeconds = 0.005f;
 constexpr float kReleaseTimeSeconds = 0.15f;
+// Adaptive normalization: raw rectified envelopes sit at 0.001..0.1 for
+// real mic/line levels -- far too small to drive a 0..1 param visibly
+// (found when "binding audio had no effect" with a real USB mic). Each
+// band normalizes against its own rolling peak, which decays by half
+// every ~20s so the scale adapts to the room/set volume, with a noise
+// floor so silence outputs 0 instead of amplifying hiss to full scale.
+constexpr float kPeakHalfLifeSeconds = 20.0f;
+constexpr float kNoiseFloor = 0.003f;
 }  // namespace
 
 void AudioBandSplitter::setup(float sampleRate) {
@@ -25,6 +33,7 @@ void AudioBandSplitter::setup(float sampleRate) {
 
     attackCoeff = std::exp(-1.0f / (kAttackTimeSeconds * sampleRate));
     releaseCoeff = std::exp(-1.0f / (kReleaseTimeSeconds * sampleRate));
+    peakDecayCoeff = std::exp(std::log(0.5f) / (kPeakHalfLifeSeconds * sampleRate));
 }
 
 AudioBandSplitter::Biquad AudioBandSplitter::butterworthLowpass(float freq, float sampleRate) {
@@ -77,5 +86,15 @@ void AudioBandSplitter::process(const float* samples, size_t numFrames) {
         lowEnvelope = updateEnvelope(lowEnvelope, std::fabs(low), attackCoeff, releaseCoeff);
         midEnvelope = updateEnvelope(midEnvelope, std::fabs(mid), attackCoeff, releaseCoeff);
         highEnvelope = updateEnvelope(highEnvelope, std::fabs(high), attackCoeff, releaseCoeff);
+
+        lowPeak = std::max(lowEnvelope, lowPeak * peakDecayCoeff);
+        midPeak = std::max(midEnvelope, midPeak * peakDecayCoeff);
+        highPeak = std::max(highEnvelope, highPeak * peakDecayCoeff);
     }
+}
+
+float AudioBandSplitter::normalize(float envelope, float peak) {
+    if (peak < kNoiseFloor) return 0.0f;
+    float v = envelope / peak;
+    return v > 1.0f ? 1.0f : v;
 }

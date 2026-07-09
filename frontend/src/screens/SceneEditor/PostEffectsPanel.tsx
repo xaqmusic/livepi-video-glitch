@@ -1,24 +1,44 @@
 // Scene-wide post effects (the CRT-decay chain), manifest-driven: every
 // param in the manifest renders a MappableControl -- a new pass added to
-// the manifest shows up here with Learn support, zero frontend changes.
+// the manifest shows up here with MIDI + audio binding for free.
 
-import type { EffectsManifest, Mapping, Scene } from "../../api/types";
+import type { AudioBand, EffectsManifest, Mapping, Scene } from "../../api/types";
 import MappableControl, { makePreviewSender } from "../../components/MappableControl";
 import { useShowStore } from "../../state/showStore";
+
+const MIDI_TYPES = ["cc", "note"];
 
 export default function PostEffectsPanel({ scene, manifest }: { scene: Scene; manifest: EffectsManifest }) {
     const edit = useShowStore((s) => s.edit);
 
-    const mappingFor = (param: string) =>
-        scene.mappings.find((m) => m.targets.some((t) => !t.layerId && t.param.replace(/^postEffects\./, "") === param)) ?? null;
+    const targetsParam = (m: Mapping, param: string) =>
+        m.targets.some((t) => !t.layerId && t.param.replace(/^postEffects\./, "") === param);
 
-    const bind = (param: string, trigger: Mapping["trigger"]) => {
+    const midiMappingFor = (param: string) =>
+        scene.mappings.find((m) => MIDI_TYPES.includes(m.trigger.type) && targetsParam(m, param)) ?? null;
+
+    const audioMappingFor = (param: string) => {
+        const m = scene.mappings.find((x) => x.trigger.type === "audioBand" && targetsParam(x, param));
+        if (!m) return null;
+        const target = m.targets.find((t) => !t.layerId && t.param.replace(/^postEffects\./, "") === param)!;
+        return { band: m.trigger.band as AudioBand, amount: target.max };
+    };
+
+    const removeBindings = (draftScene: Scene, param: string, types: string[]) => {
+        draftScene.mappings = draftScene.mappings
+            .map((m) =>
+                types.includes(m.trigger.type)
+                    ? { ...m, targets: m.targets.filter((t) => !(!t.layerId && t.param.replace(/^postEffects\./, "") === param)) }
+                    : m,
+            )
+            .filter((m) => m.targets.length > 0);
+    };
+
+    const bindMidi = (param: string, trigger: Mapping["trigger"]) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
-            s.mappings = s.mappings.filter(
-                (m) => !m.targets.some((t) => !t.layerId && t.param.replace(/^postEffects\./, "") === param),
-            );
+            removeBindings(s, param, MIDI_TYPES);
             const spec = manifest.postEffects[param];
             s.mappings.push({
                 trigger,
@@ -27,16 +47,22 @@ export default function PostEffectsPanel({ scene, manifest }: { scene: Scene; ma
         });
     };
 
-    const unbind = (param: string) => {
+    const bindAudio = (param: string, band: AudioBand, amount: number) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
-            s.mappings = s.mappings
-                .map((m) => ({
-                    ...m,
-                    targets: m.targets.filter((t) => !(!t.layerId && t.param.replace(/^postEffects\./, "") === param)),
-                }))
-                .filter((m) => m.targets.length > 0);
+            removeBindings(s, param, ["audioBand"]);
+            s.mappings.push({
+                trigger: { type: "audioBand", band },
+                targets: [{ param: `postEffects.${param}`, min: 0, max: amount }],
+            });
+        });
+    };
+
+    const unbind = (param: string, types: string[]) => {
+        edit((draft) => {
+            const s = draft.scenes.find((x) => x.id === scene.id);
+            if (s) removeBindings(s, param, types);
         });
     };
 
@@ -55,9 +81,12 @@ export default function PostEffectsPanel({ scene, manifest }: { scene: Scene; ma
                             if (s) s.postEffects[param] = v;
                         })
                     }
-                    mapping={mappingFor(param)}
-                    onBind={(trigger) => bind(param, trigger)}
-                    onUnbind={() => unbind(param)}
+                    midiMapping={midiMappingFor(param)}
+                    audioMapping={audioMappingFor(param)}
+                    onBindMidi={(trigger) => bindMidi(param, trigger)}
+                    onUnbindMidi={() => unbind(param, MIDI_TYPES)}
+                    onBindAudio={(band, amount) => bindAudio(param, band, amount)}
+                    onUnbindAudio={() => unbind(param, ["audioBand"])}
                     sendPreview={makePreviewSender(scene.id, `postEffects.${param}`)}
                 />
             ))}
