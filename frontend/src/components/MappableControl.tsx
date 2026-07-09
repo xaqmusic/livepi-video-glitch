@@ -43,7 +43,7 @@ export default function MappableControl(props: MappableControlProps) {
     const connected = useTelemetryStore((s) => s.connected);
 
     useEffect(() => {
-        if (!armed || !telemetry) return;
+        if (!armed || !telemetry?.lastControl) return;
         const { kind, number, ts } = telemetry.lastControl;
         if (kind !== "none" && ts > armedAt.current) {
             onBind({ type: kind, number });
@@ -54,7 +54,7 @@ export default function MappableControl(props: MappableControlProps) {
     const arm = () => {
         // Renderer clock: compare against the telemetry we already have so
         // "newer than arming" is measured in the renderer's own time base.
-        armedAt.current = telemetry?.lastControl.ts ?? 0;
+        armedAt.current = telemetry?.lastControl?.ts ?? 0;
         setArmed(true);
         setMenuOpen(false);
     };

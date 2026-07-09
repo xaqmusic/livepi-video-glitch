@@ -49,12 +49,13 @@ def put_show(name: str, document: dict):
     except ValueError as e:
         raise HTTPException(400, str(e))
     try:
-        _, warnings = validate_show(document)
+        show, warnings = validate_show(document)
     except ValidationError as e:
         raise HTTPException(422, detail=[str(err["msg"]) for err in e.errors()])
     except ValidationProblem as e:
         raise HTTPException(422, detail=e.errors)
-    storage.atomic_write_json(path, document)
+    # Persist the SANITIZED document (retired params/mappings stripped).
+    storage.atomic_write_json(path, show.model_dump())
     return {"ok": True, "warnings": warnings}
 
 

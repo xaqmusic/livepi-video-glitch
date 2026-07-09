@@ -68,7 +68,17 @@ class ValidationProblem(Exception):
 
 def validate_show(document: dict) -> tuple[Show, list[str]]:
     """Full validation: schema (raises pydantic ValidationError), then
-    cross-checks (raises ValidationProblem), then returns (show, warnings)."""
+    sanitization of stale references, then cross-checks (raises
+    ValidationProblem). Returns (show, warnings) -- callers should persist
+    show.model_dump(), which is the SANITIZED document.
+
+    Sanitize-don't-reject for anything that goes stale when the effect
+    catalog evolves (a param that used to exist, a mapping bound to it):
+    rejecting those bricks every save of an existing show the moment the
+    manifest changes -- exactly what happened when stutter moved from the
+    post chain to the layers. Structural problems (unknown clips,
+    generators, layer ids; out-of-range values of KNOWN params) still
+    reject."""
     show = Show.model_validate(document)
 
     manifest = load_manifest()
@@ -103,23 +113,25 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                     )
 
         for layer in scene.layers:
+            for key in [k for k in layer.layerEffects if k not in layer_specs]:
+                layer.layerEffects.pop(key)
+                warnings.append(
+                    f'Scene "{scene.name}" layer "{layer.id}": dropped retired param "{key}"'
+                )
             for key, value in layer.layerEffects.items():
-                spec = layer_specs.get(key)
-                if spec is None:
-                    errors.append(
-                        f'Scene "{scene.name}" layer "{layer.id}": unknown layerEffects param "{key}"'
-                    )
-                elif not (spec["min"] <= value <= spec["max"]):
+                spec = layer_specs[key]
+                if not (spec["min"] <= value <= spec["max"]):
                     errors.append(
                         f'Scene "{scene.name}" layer "{layer.id}": {key}={value} outside '
                         f'[{spec["min"]}, {spec["max"]}]'
                     )
 
+        for key in [k for k in scene.postEffects if k not in post_specs]:
+            scene.postEffects.pop(key)
+            warnings.append(f'Scene "{scene.name}": dropped retired param "{key}"')
         for key, value in scene.postEffects.items():
-            spec = post_specs.get(key)
-            if spec is None:
-                errors.append(f'Scene "{scene.name}": unknown postEffects param "{key}"')
-            elif not (spec["min"] <= value <= spec["max"]):
+            spec = post_specs[key]
+            if not (spec["min"] <= value <= spec["max"]):
                 errors.append(
                     f'Scene "{scene.name}": {key}={value} outside [{spec["min"]}, {spec["max"]}]'
                 )
@@ -129,21 +141,26 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                 errors.append(f'Scene "{scene.name}": {mapping.trigger.type} mapping missing "number"')
             if mapping.trigger.type == "audioBand" and mapping.trigger.band is None:
                 errors.append(f'Scene "{scene.name}": audioBand mapping missing "band"')
+
+            kept_targets = []
             for target in mapping.targets:
                 if target.layerId and target.layerId not in layer_ids:
                     errors.append(
                         f'Scene "{scene.name}": mapping targets unknown layerId "{target.layerId}"'
                     )
-                if target.layerId and target.param != "opacity" and target.param not in layer_specs:
-                    errors.append(
-                        f'Scene "{scene.name}": mapping targets unknown layer param "{target.param}"'
+                elif target.layerId and target.param != "opacity" and target.param not in layer_specs:
+                    warnings.append(
+                        f'Scene "{scene.name}": dropped mapping target to retired param "{target.param}"'
                     )
-                if not target.layerId:
-                    bare = target.param.removeprefix("postEffects.")
-                    if bare not in post_specs:
-                        errors.append(
-                            f'Scene "{scene.name}": mapping targets unknown param "{target.param}"'
-                        )
+                    continue
+                elif not target.layerId and target.param.removeprefix("postEffects.") not in post_specs:
+                    warnings.append(
+                        f'Scene "{scene.name}": dropped mapping target to retired param "{target.param}"'
+                    )
+                    continue
+                kept_targets.append(target)
+            mapping.targets = kept_targets
+        scene.mappings = [m for m in scene.mappings if m.targets]
 
         # Layer budget: soft warning, never a rejection -- it's art.
         max_clips = budget.get("maxClipLayers", 2)

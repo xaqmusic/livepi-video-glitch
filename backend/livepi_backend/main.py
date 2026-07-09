@@ -49,12 +49,18 @@ def health():
 if config.FRONTEND_DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=config.FRONTEND_DIST / "assets"), name="assets")
 
+    # index.html must NEVER be cached: it names the hashed bundle, and a
+    # cached copy after a deploy serves stale JS against a new API/telemetry
+    # shape (first observed as Learn blanking the page after the lastControl
+    # rename). The hashed /assets are immutable by construction.
+    _NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
     @app.get("/{path:path}")
     def spa(path: str):
         candidate = config.FRONTEND_DIST / path
         if path and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(config.FRONTEND_DIST / "index.html")
+            return FileResponse(candidate, headers=_NO_CACHE if candidate.suffix == ".html" else None)
+        return FileResponse(config.FRONTEND_DIST / "index.html", headers=_NO_CACHE)
 else:
 
     @app.get("/")

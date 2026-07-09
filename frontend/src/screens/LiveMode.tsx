@@ -79,7 +79,7 @@ export default function LiveMode() {
                             })
                             .join(" + ")}
                         ccNumber={mapping.trigger.number!}
-                        initial={telemetry && telemetry.lastControl.kind === "cc" && telemetry.lastControl.number === mapping.trigger.number ? telemetry.lastControl.value : 0.5}
+                        initial={telemetry?.lastControl && telemetry.lastControl.kind === "cc" && telemetry.lastControl.number === mapping.trigger.number ? telemetry.lastControl.value : 0.5}
                         onSend={(value) => void send({ type: "cc", number: mapping.trigger.number, value })}
                     />
                 ))}
