@@ -55,7 +55,10 @@ def put_show(name: str, document: dict):
     except ValidationProblem as e:
         raise HTTPException(422, detail=e.errors)
     # Persist the SANITIZED document (retired params/mappings stripped).
-    storage.atomic_write_json(path, show.model_dump())
+    # exclude_none: pydantic serializes unset Optionals as null, and
+    # present-but-null is exactly the shape that crashed the renderer's
+    # nlohmann .value() reads (json.exception.type_error.302).
+    storage.atomic_write_json(path, show.model_dump(exclude_none=True))
     return {"ok": True, "warnings": warnings}
 
 

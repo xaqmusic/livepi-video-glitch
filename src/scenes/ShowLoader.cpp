@@ -144,7 +144,12 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
 
     auto clipPaths = loadClipLibrary();
 
+    // The whole extraction sits inside the try: nlohmann throws on type
+    // surprises (e.g. a field present but null -- exactly what a buggy
+    // writer once produced), and an escaped exception here doesn't degrade,
+    // it TERMINATES the renderer. Any throw = keep last-good.
     std::vector<Scene> parsed;
+    try {
     for (const auto& sceneNode : show.value("scenes", ofJson::array())) {
         Scene scene;
         scene.id = sceneNode.value("id", std::string(""));
@@ -221,6 +226,11 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
         }
 
         parsed.push_back(std::move(scene));
+    }
+    } catch (const std::exception& e) {
+        ofLogError("ShowLoader") << "Malformed show data in " << absPath << ": " << e.what()
+                                 << " -- keeping last-good show.";
+        return false;
     }
 
     scenes = std::move(parsed);
