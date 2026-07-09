@@ -13,7 +13,9 @@ void ChromaticAberrationPass::apply(ofFbo& src, ofFbo& dst, const ControlState& 
     // audio or a specific MIDI CC" -- blend audio, a live knob, and the
     // scene's baseline rather than picking just one.
     float separation = ofClamp(
-        controlState.audioLevel * 0.4f + controlState.knobB * 0.3f + scene.chromaticIntensity * 0.3f, 0.0f, 1.0f);
+        controlState.audioLevel * 0.4f + controlState.knobB * 0.3f
+            + scene.getParam("chromatic.intensity", 0.5f) * 0.3f,
+        0.0f, 1.0f);
 
     // knobA is bidirectional (-1..1, center-detent) -- remap to 0..1 so it
     // reads as a master glitch-intensity knob shared across all three passes,

@@ -36,8 +36,8 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
     // a small threshold near fully counterclockwise, the performer has
     // dialed everything off, so stutter should stay idle too.
     float masterIntensity = ofClamp((controlState.knobA + 1.0f) * 0.5f, 0.0f, 1.0f);
-    bool stutterActive = scene.stutterEnabled && controlState.clockPresent && masterIntensity > 0.05f
-        && (controlState.midiClockTicks % 6 < 2);
+    bool stutterActive = scene.getParam("stutter.enabled", 1.0f) > 0.5f && controlState.clockPresent
+        && masterIntensity > 0.05f && (controlState.midiClockTicks % 6 < 2);
     ofFbo& sourceForOutput = stutterActive ? ring[writeIndex % 3] : src;
 
     writeIndex = (writeIndex + 1) % kRingSize;

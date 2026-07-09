@@ -23,7 +23,7 @@ void HSyncTearPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlSta
     // fully counterclockwise kills the effect, fully clockwise is the
     // scene's configured intensity.
     float masterIntensity = ofClamp((controlState.knobA + 1.0f) * 0.5f, 0.0f, 1.0f);
-    float intensity = scene.hSyncIntensity * (0.5f + controlState.knobB * 0.5f) * masterIntensity;
+    float intensity = scene.getParam("hsync.intensity", 0.5f) * (0.5f + controlState.knobB * 0.5f) * masterIntensity;
 
     dst.begin();
     ofClear(0, 0, 0, 255);

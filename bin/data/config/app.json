@@ -19,9 +19,11 @@
         {
             "name": "default",
             "clip": "clips/samples/sample_crt_loop_01.mp4",
-            "hSyncIntensity": 0.5,
-            "chromaticIntensity": 0.4,
-            "stutterEnabled": true
+            "params": {
+                "hsync.intensity": 0.5,
+                "chromatic.intensity": 0.4,
+                "stutter.enabled": 1.0
+            }
         }
     ]
 }

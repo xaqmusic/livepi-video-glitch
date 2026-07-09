@@ -53,9 +53,11 @@ std::vector<Scene> Config::getScenes() const {
         Scene scene;
         scene.name = entry.value("name", std::string("scene"));
         scene.clipPath = entry.value("clip", std::string(""));
-        scene.hSyncIntensity = entry.value("hSyncIntensity", 0.5f);
-        scene.chromaticIntensity = entry.value("chromaticIntensity", 0.5f);
-        scene.stutterEnabled = entry.value("stutterEnabled", true);
+        if (entry.contains("params")) {
+            for (const auto& [key, value] : entry.at("params").items()) {
+                scene.params[key] = value.get<float>();
+            }
+        }
         scenes.push_back(scene);
     }
     return scenes;
