@@ -6,6 +6,7 @@
 #include "fx/StutterBufferPass.h"
 #include "ofGraphics.h"
 #include "ofLog.h"
+#include "ofUtils.h"
 
 void SceneRenderer::setup(int w, int h) {
     width = w;
@@ -49,6 +50,10 @@ void SceneRenderer::loadScene(const Scene& scene) {
             runtime->loadedPath = layer.resolvedPath;
             if (!layer.resolvedPath.empty()) {
                 runtime->player->load(layer.resolvedPath);
+                if (!runtime->player->isLoaded()) {
+                    runtime->retriesLeft = 3;
+                    runtime->nextRetrySecs = ofGetElapsedTimef() + 4.0f;
+                }
             } else {
                 ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
                                               << "\" has no resolved clip -- rendering black.";
@@ -80,7 +85,18 @@ bool SceneRenderer::matchesRuntimes(const Scene& scene) const {
 
 void SceneRenderer::update() {
     for (auto& runtime : runtimes) {
-        if (runtime->player) runtime->player->update();
+        if (!runtime->player) continue;
+
+        if (!runtime->player->isLoaded() && runtime->retriesLeft > 0
+            && ofGetElapsedTimef() >= runtime->nextRetrySecs) {
+            runtime->retriesLeft--;
+            ofLogNotice("SceneRenderer") << "Retrying clip load for layer \"" << runtime->layerId << "\" ("
+                                         << runtime->retriesLeft << " retries left): " << runtime->loadedPath;
+            runtime->player->load(runtime->loadedPath);
+            runtime->nextRetrySecs = ofGetElapsedTimef() + 4.0f;
+        }
+
+        runtime->player->update();
     }
 }
 

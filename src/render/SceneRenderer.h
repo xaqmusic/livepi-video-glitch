@@ -55,6 +55,12 @@ private:
         std::string loadedPath;  // resolved clip path this runtime is playing
         std::unique_ptr<ClipPlayer> player;  // null for generator layers
         ShaderChain chain;
+        // Clip loads can time out under boot-time contention (GStreamer's
+        // preroll racing X/backend/boot tasks for the decoder) -- retry a
+        // few times instead of leaving the layer black until a scene
+        // change (observed on a real cold boot).
+        int retriesLeft = 0;
+        float nextRetrySecs = 0.0f;
     };
 
     bool layersReady() const;
