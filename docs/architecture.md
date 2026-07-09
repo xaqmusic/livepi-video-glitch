@@ -226,6 +226,26 @@ Which backend runs is chosen at runtime by `control_source` in
 compile flag -- useful for testing the mock backend on the Pi itself, or
 vice versa.
 
+**The Pi itself currently runs `MidiControlSource`, not
+`PisoundControlSource`.** Deliberate: the project doesn't want to be tied
+to Pisound specifically, and a generic USB MIDI interface + USB
+microphone are what's actually connected to this Pi 4 right now. Verified
+working end to end: a QinHeng CH345 USB MIDI adapter (`amidi -l` /
+`aconnect -l` show it as ALSA port `CH345:CH345 MIDI 1 32:0` --
+`ofxMidiIn::openPort(string)` requires an **exact** match, not a substring,
+so `midi.port_name` has to be the full `"client:port clientId:portId"`
+string, same as the desktop config already does) and a generic USB audio
+adapter (`USB Audio Device`, matched by `audio.device_name` via
+`getMatchingDevices`, which -- unlike port names -- does substring
+matching). Configured via a Pi-local `bin/data/config/app.local.json` (gitignored,
+created directly on the Pi -- `deploy-to-pi.sh`'s rsync deliberately
+excludes it, so each machine keeps its own hardware-specific overrides).
+`PisoundControlSource` and its FIFO button bridge
+remain unused until Pisound hardware is actually connected; the real
+scene-advance button is an open gap in this configuration (no keyboard is
+attached to the kiosk, and `MidiControlSource`'s button binding is
+keyboard-only).
+
 ## Corrected hardware assumption: the onboard knobs
 
 Verified directly against Blokas' own docs: Pisound's two onboard knobs are
