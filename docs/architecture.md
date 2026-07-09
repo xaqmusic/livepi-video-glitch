@@ -256,6 +256,38 @@ shaders use plain BT.601 -- fine for this project's aesthetic). **1080p30
 verified too** (also exactly 1.0x): decoder thread ~27%, copy thread ~9%,
 main thread ~36%, spread across four cores.
 
+### Simultaneous clip decode budget (Phase A.0 spike, measured on the Pi 4)
+
+The layered-scene system plays one decode pipeline per clip layer, all
+sharing the Pi's single v4l2 decoder block, memory bandwidth, and GLES
+texture-upload path. Measured with N side-by-side `ClipPlayer`s (throwaway
+spike, 2026-07-09):
+
+| Config | Result |
+|---|---|
+| 1 x 1080p30 | 60fps, 1.000x -- solid |
+| 2 x 720p30 | 60fps, 1.000x both -- solid, survives incidental GPU bursts |
+| 3 x 720p30 | ~59fps, ~1.0x while undisturbed -- but a single screenshot's GPU readback **permanently wedges the driver** |
+| 1080p + 720p | same permanent wedge at the first screenshot |
+| 2 x 1080p | render loop collapses to ~12fps (decoder threads 83%/75% CPU, superlinear vs. 27% single) |
+
+The wedge signature: the app keeps burning CPU but the main thread is
+permanently stuck in a blocking DRM ioctl inside `ofTexture::loadData`
+(Mesa v3d), the screen freezes, and it never recovers -- CMA is NOT
+exhausted when it happens (482MB free of 512MB), so it's a driver-level
+stall under combined decode + upload + readback pressure, not a memory
+shortage.
+
+**The budget: at most 2 clip layers per scene, both <=720p; a 1080p clip
+must be the only clip layer in its scene.** Configurations that run "fine"
+until a screenshot lands can't be trusted live -- the compositor and
+effect chains add more per-frame GPU work than a screenshot does.
+Generator layers are pure fragment shaders and don't count against this.
+The backend validates this as a soft warning at save time.
+
+Scene-switch load latency baseline (for the freeze-frame mitigation):
+720p clips load in ~300ms; 1080p clips ranged 370ms-3.2s under load.
+
 **The project's standard clip target is 1080p** -- that's also the Pi 4's
 hardware ceiling (`v4l2h264dec`'s probed caps top out at 1920 wide), so
 `scripts/import-clip.sh` caps there by default: H.264 High, yuv420p,
