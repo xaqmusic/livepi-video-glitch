@@ -29,27 +29,34 @@ void TelemetryWriter::setup(const std::string& statusPath) {
     path = statusPath;
     tmpPath = statusPath + ".tmp";
     ofDirectory::createDirectory(ofFilePath::getEnclosingDirectory(path, false), false, true);
-
-    lastHeartbeatMs = nowMs();
-    watchdogRunning = true;
-    watchdog = std::thread([this] {
-        while (watchdogRunning) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            long long silentMs = nowMs() - lastHeartbeatMs.load();
-            if (watchdogRunning && silentMs > static_cast<long long>(kWatchdogSecs * 1000)) {
-                // Frozen main thread (the rare v3d wedge) -- die loudly so
-                // systemd's Restart=on-failure brings the show back instead
-                // of freezing until a human notices.
-                ofLogFatalError("TelemetryWriter")
-                    << "No frame completed in " << (silentMs / 1000) << "s -- watchdog abort.";
-                std::abort();
-            }
-        }
-    });
+    // The watchdog arms on the FIRST completed frame (see update()), not
+    // here: setup() still has the scene's clip loads ahead of it, and a
+    // cold boot legitimately spends 10s+ there -- arming early aborted the
+    // app mid-startup on the first real power cycle.
 }
 
 void TelemetryWriter::update(const ControlState& state, const std::string& sceneId, const std::string& sceneName) {
     lastHeartbeatMs = nowMs();
+
+    if (!watchdogRunning) {
+        watchdogRunning = true;
+        watchdog = std::thread([this] {
+            while (watchdogRunning) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                long long silentMs = nowMs() - lastHeartbeatMs.load();
+                if (watchdogRunning && silentMs > static_cast<long long>(kWatchdogSecs * 1000)) {
+                    // Frozen main thread (the rare v3d wedge) -- die loudly
+                    // so systemd restarts the show instead of freezing until
+                    // a human notices. (Scene switches don't trip this:
+                    // their clip loads block update() for ~0.3-3s, well
+                    // under the limit.)
+                    ofLogFatalError("TelemetryWriter")
+                        << "No frame completed in " << (silentMs / 1000) << "s -- watchdog abort.";
+                    std::abort();
+                }
+            }
+        });
+    }
 
     double now = ofGetElapsedTimef();
     if (now - lastWriteSecs < kWriteIntervalSecs) return;

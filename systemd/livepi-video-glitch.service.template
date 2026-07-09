@@ -2,9 +2,7 @@
 # and installed by scripts/install-systemd-unit.sh, which fills in the
 # account and repo path below and requires no manual editing. See
 # docs/deploy.md for the full setup (X11 kiosk session, group permissions,
-# disabling any conflicting auto-login desktop). This unit is designed but
-# not yet empirically verified against real hardware -- Phase 6 in
-# docs/architecture.md.
+# disabling any conflicting auto-login desktop).
 
 [Unit]
 Description=LivePi VideoGlitcher (kiosk)
@@ -14,8 +12,13 @@ After=sound.target network.target
 Type=simple
 WorkingDirectory=__APP_DIR__
 ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- -s off -dpms
-Restart=on-failure
-RestartSec=2
+# Restart=always, NOT on-failure: the main process is startx, which exits 0
+# when its X session ends no matter how the app inside died -- a crash or a
+# watchdog abort reads as "success" and on-failure would leave the kiosk
+# down (exactly what happened on the first real power cycle). This is a
+# gig appliance: if the picture ever stops, put it back.
+Restart=always
+RestartSec=3
 User=__PI_USER__
 Group=__PI_USER__
 SupplementaryGroups=video render audio
