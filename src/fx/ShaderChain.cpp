@@ -10,10 +10,17 @@ void ShaderChain::setup(int width, int height) {
     fboA.allocate(settings);
     fboB.allocate(settings);
 
+    isSetup = true;
     for (auto& pass : passes) pass->setup();
 }
 
 void ShaderChain::addPass(std::unique_ptr<ShaderPass> pass) {
+    // Passes register in whichever order the caller finds natural relative
+    // to setup() -- a pass added to an already-set-up chain gets its
+    // setup() (shader build) immediately, instead of silently drawing with
+    // program 0 forever (which on the desktop driver renders the texcoord
+    // ramp instead of the effect -- found the hard way).
+    if (isSetup) pass->setup();
     passes.push_back(std::move(pass));
 }
 

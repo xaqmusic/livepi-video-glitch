@@ -17,17 +17,39 @@
             ],
             "mappings": [
                 {
-                    "trigger": { "type": "cc", "number": 21 },
+                    "trigger": {
+                        "type": "cc",
+                        "number": 21
+                    },
                     "targets": [
-                        { "param": "postEffects.hsync.intensity", "min": 0.0, "max": 1.0 },
-                        { "param": "postEffects.chromatic.intensity", "min": 0.0, "max": 1.0 },
-                        { "param": "postEffects.stutter.enabled", "min": 0.0, "max": 1.0 }
+                        {
+                            "param": "postEffects.hsync.intensity",
+                            "min": 0.0,
+                            "max": 1.0
+                        },
+                        {
+                            "param": "postEffects.chromatic.intensity",
+                            "min": 0.0,
+                            "max": 1.0
+                        },
+                        {
+                            "param": "postEffects.stutter.enabled",
+                            "min": 0.0,
+                            "max": 1.0
+                        }
                     ]
                 },
                 {
-                    "trigger": { "type": "audioBand", "band": "low" },
+                    "trigger": {
+                        "type": "audioBand",
+                        "band": "low"
+                    },
                     "targets": [
-                        { "param": "postEffects.chromatic.intensity", "min": 0.0, "max": 0.3 }
+                        {
+                            "param": "postEffects.chromatic.intensity",
+                            "min": 0.0,
+                            "max": 0.3
+                        }
                     ]
                 }
             ],

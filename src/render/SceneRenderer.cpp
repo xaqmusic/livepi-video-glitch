@@ -105,6 +105,7 @@ void SceneRenderer::render(const ControlState& controlState, const Scene& scene)
     ofSetColor(255);
     postChain.getOutputFbo().draw(0, 0, width, height);
     outputFbo.end();
+
 }
 
 std::string SceneRenderer::describeLayers() const {

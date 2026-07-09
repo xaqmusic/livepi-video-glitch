@@ -29,4 +29,5 @@ private:
     std::vector<std::unique_ptr<ShaderPass>> passes;
     ofFbo fboA, fboB;
     bool outputIsA = true;
+    bool isSetup = false;
 };
