@@ -62,5 +62,11 @@ export const api = {
 };
 
 export function newId(prefix: string): string {
-    return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+    // NOT crypto.randomUUID(): that API only exists in secure contexts
+    // (https / localhost), and this UI is served over plain http on the
+    // LAN -- it threw on the very first scene creation, silently eating
+    // the edit. getRandomValues works in insecure contexts everywhere.
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    return `${prefix}-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
