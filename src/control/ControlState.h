@@ -27,6 +27,9 @@ struct ControlState {
     float knobA = 0.0f;             // configured CC, remapped to -1..1 (bidirectional)
     float knobB = 0.0f;             // configured CC, 0..1 (intensity)
     float audioLevel = 0.0f;        // smoothed 0..1
+    float lowBand = 0.0f;            // smoothed 0..1, <100Hz envelope (kick/bass)
+    float midBand = 0.0f;            // smoothed 0..1, 100Hz-2kHz envelope (snare/vocal)
+    float highBand = 0.0f;          // smoothed 0..1, >2kHz envelope (hi-hat/cymbal)
 
     // Scene control
     ButtonEvent lastButtonEvent = ButtonEvent::None;

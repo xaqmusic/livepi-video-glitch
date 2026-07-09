@@ -58,6 +58,7 @@ void MidiControlSource::setup(const Config& config) {
         }
     }
     soundStream.setup(settings);
+    bandSplitter.setup(static_cast<float>(settings.sampleRate));
 }
 
 void MidiControlSource::update() {
@@ -74,6 +75,9 @@ void MidiControlSource::update() {
     std::lock_guard<std::mutex> lock(audioLevelMutex);
     // One-pole smoothing so the level doesn't jitter frame to frame.
     state.audioLevel = state.audioLevel * 0.8f + currentAudioLevel * 0.2f;
+    state.lowBand = currentLowBand;
+    state.midBand = currentMidBand;
+    state.highBand = currentHighBand;
 }
 
 void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
@@ -84,8 +88,15 @@ void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
     }
     float rms = std::sqrt(sumSquares / std::max<size_t>(1, buffer.getNumFrames()));
 
+    // numInputChannels == 1, so the interleaved buffer is already a
+    // contiguous mono sample array -- no de-interleaving needed.
+    bandSplitter.process(buffer.getBuffer().data(), buffer.getNumFrames());
+
     std::lock_guard<std::mutex> lock(audioLevelMutex);
     currentAudioLevel = rms;
+    currentLowBand = bandSplitter.getLow();
+    currentMidBand = bandSplitter.getMid();
+    currentHighBand = bandSplitter.getHigh();
 }
 
 void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {

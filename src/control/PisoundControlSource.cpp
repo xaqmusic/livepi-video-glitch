@@ -42,6 +42,7 @@ void PisoundControlSource::setup(const Config& config) {
     settings.bufferSize = 256;
     settings.setInListener(this);
     soundStream.setup(settings);
+    bandSplitter.setup(static_cast<float>(settings.sampleRate));
 
     clock.start();
 }
@@ -76,6 +77,9 @@ void PisoundControlSource::pollAudioLevel() {
     std::lock_guard<std::mutex> lock(audioLevelMutex);
     // One-pole smoothing so the level doesn't jitter frame to frame.
     state.audioLevel = state.audioLevel * 0.8f + currentAudioLevel * 0.2f;
+    state.lowBand = currentLowBand;
+    state.midBand = currentMidBand;
+    state.highBand = currentHighBand;
 }
 
 void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
@@ -114,8 +118,15 @@ void PisoundControlSource::audioIn(ofSoundBuffer& buffer) {
     }
     float rms = std::sqrt(sumSquares / std::max<size_t>(1, buffer.getNumFrames()));
 
+    // numInputChannels == 1, so the interleaved buffer is already a
+    // contiguous mono sample array -- no de-interleaving needed.
+    bandSplitter.process(buffer.getBuffer().data(), buffer.getNumFrames());
+
     std::lock_guard<std::mutex> lock(audioLevelMutex);
     currentAudioLevel = rms;
+    currentLowBand = bandSplitter.getLow();
+    currentMidBand = bandSplitter.getMid();
+    currentHighBand = bandSplitter.getHigh();
 }
 
 void PisoundControlSource::shutdown() {

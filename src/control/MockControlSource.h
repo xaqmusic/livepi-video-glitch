@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "BeatClock.h"
 #include "ControlSource.h"
 
@@ -26,10 +28,20 @@ public:
 private:
     void applyClockTicksSince(double nowSeconds);
 
+    // Fakes the low/mid/high audio-band envelopes with a fixed, obviously
+    // musical pattern instead of a real microphone -- quarter-note pulses
+    // in the low band, a 2-and-4 backbeat in the mid band, eighth notes in
+    // the high band -- so tempo/beat-sync work can be validated by eye
+    // without any audio hardware. See docs/vision.md's "The sound itself
+    // can drive it too" and docs/videosynth-backend.md's "Audio-band
+    // modulation".
+    void updateBandPulses();
+
     BeatClock clock;
     ControlState state;
     double bpm = 120.0;
     double lastTickTime = 0.0;
+    uint32_t lastPulseTicks = 0;
 
     // keyPressed() runs from GLFW's pollEvents(), which oF calls *after*
     // update()/draw() each iteration -- so a click set directly on `state`

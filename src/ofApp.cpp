@@ -67,6 +67,7 @@ void ofApp::draw() {
            << "beat: " << state.beatInBar << "  bar: " << state.barNumber << "\n"
            << "knobA: " << state.knobA << "  knobB: " << state.knobB << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
+           << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
            << "[d] toggle this overlay";
         ofSetColor(255);
         ofDrawBitmapStringHighlight(ss.str(), 20, 20);

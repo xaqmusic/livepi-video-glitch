@@ -15,6 +15,7 @@ void MockControlSource::update() {
     pendingButtonEvent = ButtonEvent::None;
 
     applyClockTicksSince(ofGetElapsedTimef());
+    updateBandPulses();
 
     state.midiClockTicks = clock.getTotalTicks();
     state.beatInBar = clock.getBeatInBar();
@@ -30,6 +31,25 @@ void MockControlSource::applyClockTicksSince(double nowSeconds) {
         lastTickTime += secondsPerTick;
         clock.tick(lastTickTime);
     }
+}
+
+void MockControlSource::updateBandPulses() {
+    constexpr uint32_t kQuarterNoteTicks = BeatClock::kPPQN;      // 1/4 note
+    constexpr uint32_t kEighthNoteTicks = BeatClock::kPPQN / 2;   // 1/8 note
+    constexpr float kPulseDecay = 0.9f;  // per update(), same feel as HSyncTearPass's beatSpike
+
+    uint32_t ticks = clock.getTotalTicks();
+    bool crossedQuarter = (lastPulseTicks / kQuarterNoteTicks) != (ticks / kQuarterNoteTicks);
+    bool crossedEighth = (lastPulseTicks / kEighthNoteTicks) != (ticks / kEighthNoteTicks);
+    lastPulseTicks = ticks;
+
+    state.highBand = crossedEighth ? 1.0f : state.highBand * kPulseDecay;
+    state.lowBand = crossedQuarter ? 1.0f : state.lowBand * kPulseDecay;
+
+    // Backbeat: only the 2nd and 4th quarter note of the bar (0-indexed
+    // beatInBar 1 and 3) pulse the mid band, everything else just decays.
+    bool isBackbeat = crossedQuarter && (clock.getBeatInBar() == 1 || clock.getBeatInBar() == 3);
+    state.midBand = isBackbeat ? 1.0f : state.midBand * kPulseDecay;
 }
 
 void MockControlSource::keyPressed(int key) {

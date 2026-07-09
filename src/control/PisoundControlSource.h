@@ -3,6 +3,7 @@
 #include <mutex>
 #include <string>
 
+#include "AudioBandSplitter.h"
 #include "BeatClock.h"
 #include "ControlSource.h"
 #include "ofSoundStream.h"
@@ -47,5 +48,9 @@ private:
 
     ofSoundStream soundStream;
     float currentAudioLevel = 0.0f;
+    AudioBandSplitter bandSplitter;
+    float currentLowBand = 0.0f;
+    float currentMidBand = 0.0f;
+    float currentHighBand = 0.0f;
     std::mutex audioLevelMutex;
 };
