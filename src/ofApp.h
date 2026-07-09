@@ -6,6 +6,7 @@
 #include "fx/ShaderChain.h"
 #include "ofMain.h"
 #include "scenes/SceneManager.h"
+#include "scenes/ShowLoader.h"
 #include "util/Config.h"
 #include "video/ClipPlayer.h"
 
@@ -21,6 +22,7 @@ private:
 
     Config config;
     std::unique_ptr<ControlSource> controlSource;
+    ShowLoader showLoader;
     SceneManager sceneManager;
     ClipPlayer clipPlayer;
     ShaderChain shaderChain;

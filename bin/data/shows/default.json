@@ -1,0 +1,41 @@
+{
+    "schemaVersion": 1,
+    "scenes": [
+        {
+            "id": "scene-default",
+            "name": "default",
+            "layers": [
+                {
+                    "id": "layer-bg",
+                    "kind": "clip",
+                    "source": "clip-sample-crt-01",
+                    "blendMode": "normal",
+                    "opacity": 1.0,
+                    "layerEffects": {},
+                    "params": {}
+                }
+            ],
+            "mappings": [
+                {
+                    "trigger": { "type": "cc", "number": 21 },
+                    "targets": [
+                        { "param": "postEffects.hsync.intensity", "min": 0.0, "max": 1.0 },
+                        { "param": "postEffects.chromatic.intensity", "min": 0.0, "max": 1.0 },
+                        { "param": "postEffects.stutter.enabled", "min": 0.0, "max": 1.0 }
+                    ]
+                },
+                {
+                    "trigger": { "type": "audioBand", "band": "low" },
+                    "targets": [
+                        { "param": "postEffects.chromatic.intensity", "min": 0.0, "max": 0.3 }
+                    ]
+                }
+            ],
+            "postEffects": {
+                "hsync.intensity": 0.5,
+                "chromatic.intensity": 0.4,
+                "stutter.enabled": 1.0
+            }
+        }
+    ]
+}

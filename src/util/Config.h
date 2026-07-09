@@ -1,10 +1,8 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "ofJson.h"
-#include "scenes/Scene.h"
 
 // Thin wrapper around oF's bundled JSON support (ofJson == nlohmann::json)
 // for bin/data/config/app.json. loadFromFile() sets the base config;
@@ -24,7 +22,6 @@ public:
     float getFloat(const std::string& key, float fallback) const;
     int getInt(const std::string& key, int fallback) const;
     bool getBool(const std::string& key, bool fallback) const;
-    std::vector<Scene> getScenes() const;
 
 private:
     ofJson json;

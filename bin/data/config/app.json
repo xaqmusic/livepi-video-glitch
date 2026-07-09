@@ -11,19 +11,12 @@
     "pisound": {
         "button_fifo": "/tmp/livepi-button.fifo"
     },
+    "ipc": {
+        "status_path": "/tmp/livepi/status.json",
+        "command_fifo": "/tmp/livepi/command.fifo"
+    },
     "window": {
         "width": 1280,
         "height": 720
-    },
-    "scenes": [
-        {
-            "name": "default",
-            "clip": "clips/samples/sample_crt_loop_01.mp4",
-            "params": {
-                "hsync.intensity": 0.5,
-                "chromatic.intensity": 0.4,
-                "stutter.enabled": 1.0
-            }
-        }
-    ]
+    }
 }

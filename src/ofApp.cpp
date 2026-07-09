@@ -21,7 +21,11 @@ void ofApp::setup() {
     controlSource = createControlSource(config);
     controlSource->setup(config);
 
-    sceneManager.setup(config);
+    // Scenes live in the active show (bin/data/shows/), not app.json --
+    // app.json is device config only. A failed load falls through to
+    // SceneManager's built-in fallback scene.
+    showLoader.load();
+    sceneManager.setScenes(showLoader.getScenes());
 
     shaderChain.addPass(std::make_unique<HSyncTearPass>());
     shaderChain.addPass(std::make_unique<ChromaticAberrationPass>());

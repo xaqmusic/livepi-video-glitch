@@ -48,21 +48,3 @@ int Config::getInt(const std::string& key, int fallback) const {
 bool Config::getBool(const std::string& key, bool fallback) const {
     return json.value(toPointer(key), fallback);
 }
-
-std::vector<Scene> Config::getScenes() const {
-    std::vector<Scene> scenes;
-    if (!json.contains("scenes")) return scenes;
-
-    for (const auto& entry : json.at("scenes")) {
-        Scene scene;
-        scene.name = entry.value("name", std::string("scene"));
-        scene.clipPath = entry.value("clip", std::string(""));
-        if (entry.contains("params")) {
-            for (const auto& [key, value] : entry.at("params").items()) {
-                scene.params[key] = value.get<float>();
-            }
-        }
-        scenes.push_back(scene);
-    }
-    return scenes;
-}
