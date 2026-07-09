@@ -1,19 +1,25 @@
 #pragma once
 
-#include <array>
+#include <string>
+#include <vector>
 
 #include "ShaderPass.h"
 #include "ofFbo.h"
 #include "ofShader.h"
 
-// Frame-Dropping & Stutter Buffer (see docs/LivePi VideoGlitcher HLD.pdf):
-// keeps a short ring buffer of recently-seen frames so it can freeze on one
-// or rapidly loop the last few, instead of a smooth handoff to the live
-// video. The GLSL side (stutter_hold.frag) is a pure passthrough -- the
-// actual "corrupted digital stream" effect is entirely which buffered frame
-// gets fed in as srcTex. The trigger is also gated on knobA (master glitch
-// intensity, shared across all three passes) so dialing it down disables
-// stutter along with the other two effects.
+// Beat-repeat stutter (per-layer). Continuously records the layer's frames
+// into a timestamped ring; when engaged ("stutter.engage" > 0.5, typically
+// mapped to a pad/note for momentary punch-ins), it captures the last
+// interval's worth of frames -- the interval set by "stutter.rate"
+// (quantized 1/16, 1/8, 1/4, 1/2 note or a full bar against the current
+// BPM) -- and loops that window at normal speed until release. Recording
+// pauses while engaged so the captured window can't be overwritten;
+// release snaps back to the live feed.
+//
+// The GLSL side (stutter_hold.frag) stays a pure passthrough -- the effect
+// is entirely which buffered frame gets fed in as srcTex. Frame lookup is
+// by timestamp, so it works identically at 60fps light scenes and ~26fps
+// heavy ones.
 class StutterBufferPass : public ShaderPass {
 public:
     void setup() override;
@@ -21,10 +27,24 @@ public:
     const std::string& getName() const override { return name; }
 
 private:
-    static constexpr int kRingSize = 4;
+    // 64 slots ~= 1-2.5s of history depending on frame rate -- enough for a
+    // full bar at typical tempos. Slots allocate lazily (one per frame as
+    // the ring first fills), so startup pays no allocation burst.
+    static constexpr int kRingCapacity = 64;
+
+    struct Slot {
+        ofFbo fbo;
+        double timeSeconds = -1.0;  // -1 = never written
+    };
+
+    const ofFbo* findFrameNear(double targetTime) const;
 
     ofShader shader;
     std::string name = "stutter_buffer";
-    std::array<ofFbo, kRingSize> ring;
+    std::vector<Slot> ring{kRingCapacity};
     int writeIndex = 0;
+
+    bool engaged = false;
+    double engageTime = 0.0;
+    double intervalSecs = 0.5;
 };

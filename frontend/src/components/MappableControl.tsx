@@ -82,6 +82,19 @@ export default function MappableControl(props: MappableControlProps) {
                     checked={value > 0.5}
                     onChange={(e) => handleChange(e.target.checked ? 1 : 0)}
                 />
+            ) : spec.type === "enum" && spec.options ? (
+                <select
+                    value={Math.round((value - spec.min) / (spec.max - spec.min) * (spec.options.length - 1))}
+                    onChange={(e) => {
+                        const index = parseInt(e.target.value, 10);
+                        handleChange(spec.min + (index / (spec.options!.length - 1)) * (spec.max - spec.min));
+                    }}
+                    style={{ flex: 1 }}
+                >
+                    {spec.options.map((opt, i) => (
+                        <option key={opt} value={i}>{opt}</option>
+                    ))}
+                </select>
             ) : (
                 <>
                     <input

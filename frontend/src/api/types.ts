@@ -64,6 +64,8 @@ export interface ParamSpec {
     min: number;
     max: number;
     default: number;
+    /** enum type: labels, mapped evenly onto min..max by index. */
+    options?: string[];
 }
 
 export interface EffectsManifest {

@@ -38,12 +38,26 @@
             "max": 1.0,
             "default": 0.0
         },
-        "stutter.amount": {
+        "stutter.engage": {
             "label": "Stutter",
-            "type": "float",
+            "type": "toggle",
             "min": 0.0,
             "max": 1.0,
             "default": 0.0
+        },
+        "stutter.rate": {
+            "label": "Stutter Rate",
+            "type": "enum",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.5,
+            "options": [
+                "1/16",
+                "1/8",
+                "1/4",
+                "1/2",
+                "1 bar"
+            ]
         }
     },
     "generators": {},
