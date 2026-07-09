@@ -96,6 +96,89 @@ GLFW (oF's Linux window backend) has no KMS/DRM path, so "boot straight to a
 bare fullscreen GL surface with zero compositor" isn't achievable with vanilla
 oF. The plan is a minimal X11 kiosk session instead -- see `deploy.md`.
 
+### Status on the Raspberry Pi 4 (confirmed working)
+
+Different physical Pi from the 3 above, fresh Raspberry Pi OS Lite (64-bit,
+Trixie) flash. **The Pi 3's blocker is gone here** -- X starts cleanly with
+no glamor crash, GLFW gets a real GL(ES) context, and the app renders
+h-sync tear visibly on the attached screen. Getting there took five more
+bugs, all now automated in `scripts/setup-pi.sh` (patched into the
+downloaded oF tree, idempotent, safe to re-run) rather than needing to be
+rediscovered on the next fresh Pi:
+
+1. **`minimal X11 packages missing`** -- Raspberry Pi OS Lite ships none of
+   `xinit`/`xserver-xorg`/`xserver-xorg-legacy`/`x11-xserver-utils` (same
+   finding as the Pi 3 section above).
+2. **oF's `linuxaarch64` release never defines `TARGET_OPENGLES`.**
+   `ofConstants.h`'s own platform detection checks `__ARM__` (uppercase) to
+   decide GLES vs desktop GL; no real compiler defines that on 64-bit ARM
+   (GCC defines `__aarch64__`). Since "linuxaarch64" is oF's generic
+   64-bit-ARM target (not Pi-specific the way the old 32-bit
+   "linuxarmv6l"/"linuxarmv7l" releases were), it silently falls through to
+   assuming desktop GL is available. This Pi 4's Mesa `v3d` driver (much
+   newer than when the "Pi 4 is GLES-only, no desktop GL at all" note above
+   was researched) turns out to *also* expose a partial desktop-GL-3.1
+   compatibility profile -- enough to link and create a context, but only
+   up to GLSL 1.40, not our shaders' `#version 150` (GLSL 1.50 needs GL
+   3.2+). Fixed by forcing `PLATFORM_DEFINES += TARGET_OPENGLES` for this
+   platform.
+3. **Forcing `TARGET_OPENGLES` on then exposed a second, previously-latent
+   bug: `ofConstants.h`'s non-ARM Linux branch unconditionally
+   `#include`s `<GL/glew.h>`** (a desktop GL function-pointer loader) even
+   when `TARGET_OPENGLES` is set, because its GLES/desktop choice is gated
+   on `TARGET_LINUX_ARM`, not `TARGET_OPENGLES` -- and our platform has the
+   latter without the former (flipping `TARGET_LINUX_ARM` on instead would
+   fix this but silently drop the `TARGET_GLFW_WINDOW`/audio defines this
+   project needs, which only the non-ARM branch sets). With glew.h
+   included, oF's own `glewInit()` call is correctly skipped for GLES
+   builds (already properly guarded) -- but that leaves every GL function
+   GLEW touches as a null, never-populated function pointer, so the first
+   real GL call **segfaults at address `0x0`** (confirmed via `gdb -batch
+   -ex run -ex bt`; crashed inside `ofShader::checkAndCreateProgram()`,
+   i.e. the very first shader oF compiles for its own internal default
+   shader collection, before `ofApp::setup()` even runs). Fixed by routing
+   to the real `<GLES2/gl2.h>`/`<GLES2/gl2ext.h>` headers instead when
+   `TARGET_OPENGLES` is set, matching what the `TARGET_LINUX_ARM` branch
+   right above it already does.
+4. **Three headers declare `EGLDisplay`/`EGLContext`/`EGLSurface`-returning
+   functions under `#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)`
+   without ever `#include`-ing `<EGL/egl.h>`** on Linux
+   (`ofAppRunner.h`, `ofAppBaseWindow.h`, `ofAppGLFWWindow.h`) -- unlike
+   `ofAppEGLWindow.h`, oF's *other* GLES window backend (used historically
+   on 32-bit Pi builds), which does. This specific combination -- GLFW
+   windowing plus GLES, rather than oF's dedicated EGL window class --
+   appears to have never been exercised upstream. `ofAppRunner.h`'s
+   declarations are free functions, so the include could go directly above
+   them; `ofAppBaseWindow.h`/`ofAppGLFWWindow.h`'s are class member
+   declarations, and `extern "C" {` (EGL's own header's first line) can't
+   open mid-class -- those includes had to go at file scope near the top
+   instead, and specifically *after* `ofConstants.h` is included, since
+   that's the file that actually defines `TARGET_LINUX`/`TARGET_OPENGLES`
+   in the first place.
+5. **`ofFbo.cpp`'s `checkStatus()` logs `GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS`**,
+   a desktop-GL-only enum core GLES 2 doesn't define, in an otherwise
+   properly-guarded `switch` (every other legacy-only case right next to it
+   already has a `#ifndef TARGET_OPENGLES`) -- just this one case was
+   missed upstream.
+6. **Our own `ShaderLoader::drawFullscreenQuad()`** (added to fix the
+   desktop shader-rendering bugs, see "Two oF renderer bugs" under
+   "Glitch effect chain" below) used `glGenVertexArrays`/`glBindVertexArray`
+   unconditionally -- VAOs don't exist in GLES 2 core at all (GLES 3+ or an
+   optional, not-guaranteed-present OES extension on GLES 2). Desktop core
+   profile *requires* a bound VAO before any draw call, so one is kept
+   there; on GLES, attribute pointers are just re-set every call instead of
+   cached in a VAO (a few extra GL calls per pass per frame, negligible,
+   correct without depending on an extension that may not be on every Pi
+   generation's driver).
+
+`docs/deploy.md`'s kiosk `startx` invocation needs a valid VT to grab --
+abruptly killing a previous X server (`kill -9`, as opposed to a clean
+`Ctrl+Alt+Backspace`-style shutdown) can leave the console in a state where
+`xinit`'s own auto-detection of which VT to use fails with "Couldn't get a
+file descriptor referring to the console." Not a real blocker (a clean
+reboot or an explicit `vtN` argument to `startx` sidesteps it), but worth
+knowing before assuming a fresh crash on the next test.
+
 ## Input abstraction
 
 `ControlState` (`src/control/ControlState.h`) is a plain per-frame snapshot:
@@ -181,6 +264,13 @@ The default trigger for the stutter effect (every 16th note, i.e. every 6
 MIDI clock ticks) is a placeholder -- exact beat-to-event mapping is scene
 content design, not architecture, and will get tuned once we're iterating on
 real footage (Phase 2/4 below).
+
+These three are the original CRT-decay effects from the HLD. See
+`docs/videosynth-effects.md` for the planned expansion into demoscene-style
+generative effects (plasma, rotozoom, color-cycling, etc.) for live
+electronic music performance, including two `Scene`/`ShaderChain` scaling
+changes that doc recommends making before that expansion grows much past a
+handful of passes.
 
 ### Two oF renderer bugs that silently ate every pass's shader
 

@@ -22,6 +22,145 @@ else
     rm "/tmp/${TARBALL}"
 fi
 
+# oF 0.12.1's own install_dependencies.sh scripts each have exactly one line
+# that's stale on Debian 13 (Trixie) -- patched here (idempotent, safe to
+# re-run) rather than worked around by hand every time this is run on a
+# freshly-flashed Pi:
+#   - debian variant: apt-get installs `libgconf-2-4`, a GNOME config
+#     library removed from Debian years ago (unrelated to anything oF
+#     actually needs to build).
+#   - ubuntu variant (the fallback below): its distro-version detection
+#     assumes it's always running on Ubuntu and parses /etc/os-release's
+#     VERSION_ID as an Ubuntu release number. Debian's VERSION_ID="13"
+#     lands in the "< 14" branch meant for old Ubuntu releases, requiring a
+#     nonexistent `g++-4.9` package instead of just using the system's
+#     already-modern default g++.
+sed -i 's/ libgconf-2-4//' "$OF_ROOT/scripts/linux/debian/install_dependencies.sh"
+sed -i 's/CXX_VER=-4\.9/CXX_VER=/g' "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
+
+# oF 0.12.1's "linuxaarch64" release (a generic 64-bit-ARM target, not
+# Pi-specific the way the old 32-bit "linuxarmv6l"/"linuxarmv7l" releases
+# were) never defines TARGET_OPENGLES at all: ofConstants.h's own platform
+# detection checks the macro `__ARM__` (uppercase), which no real compiler
+# defines on 64-bit ARM (GCC defines `__aarch64__`) -- so it silently falls
+# through to assuming desktop GL. This Pi's Mesa v3d driver happens to also
+# expose a partial desktop-GL-3.1-compatibility profile, which is just
+# enough to *link* against but not enough to compile our shaders'
+# `#version 150` (that profile only goes up to GLSL 1.40) -- and even if it
+# were enough, it's not the GLES 2.0 this project deliberately targets
+# uniformly across every Pi generation (docs/architecture.md, "GL / GLES
+# portability"). See docs/architecture.md's "Pi 4 bring-up" section for the
+# full empirical trail (a real GL context, then a segfault, then this)
+# that found the five patches below -- all idempotent, safe to re-run.
+python3 - "$OF_ROOT" << 'PATCH_OF_FOR_GLES'
+import sys
+of_root = sys.argv[1]
+
+def patch(path, find, replace, label):
+    with open(path) as f:
+        content = f.read()
+    if replace in content:
+        print(f"{label}: already patched, skipping")
+        return
+    count = content.count(find)
+    if count != 1:
+        sys.exit(f"{label}: expected exactly 1 match in {path}, found {count} -- "
+                  f"oF source may have changed, needs re-diagnosing")
+    with open(path, "w") as f:
+        f.write(content.replace(find, replace))
+    print(f"{label}: patched")
+
+# 1. Force TARGET_OPENGLES for this platform (the actual root cause above).
+patch(
+    f"{of_root}/libs/openFrameworksCompiled/project/linuxaarch64/config.linuxaarch64.default.mk",
+    "PLATFORM_LDFLAGS += -no-pie",
+    "PLATFORM_DEFINES += TARGET_OPENGLES\nPLATFORM_LDFLAGS += -no-pie",
+    "TARGET_OPENGLES define",
+)
+
+# 2. ofConstants.h's non-ARM Linux branch (what we actually take, since we
+#    force TARGET_OPENGLES without also being TARGET_LINUX_ARM -- flipping
+#    that on instead would fix this but silently drop TARGET_GLFW_WINDOW
+#    and the audio defines this project needs) still unconditionally
+#    #included <GL/glew.h> -- a desktop GL loader with no GLES awareness.
+#    Route to the real GLES headers instead when TARGET_OPENGLES is set,
+#    matching exactly what the TARGET_LINUX_ARM branch above it already
+#    does (both the ES2 core headers and the ES1 legacy header, since some
+#    oF code -- ofVbo.cpp's dead-at-runtime fixed-function fallback path --
+#    still references ES1-only fixed-function symbols like
+#    glTexCoordPointer/GL_COLOR_ARRAY that only GLES2 headers alone don't
+#    declare).
+patch(
+    f"{of_root}/libs/openFrameworks/utils/ofConstants.h",
+    "\t\t#define __LINUX_OSS__\n\t\t#include <GL/glew.h>\n\t#endif",
+    "\t\t#define __LINUX_OSS__\n"
+    "\t\t#ifdef TARGET_OPENGLES\n"
+    "\t\t\t#include <GLES/gl.h>\n"
+    "\t\t\t#include <GLES/glext.h>\n"
+    "\t\t\t#include <GLES2/gl2.h>\n"
+    "\t\t\t#include <GLES2/gl2ext.h>\n"
+    "\t\t#else\n"
+    "\t\t\t#include <GL/glew.h>\n"
+    "\t\t#endif\n"
+    "\t#endif",
+    "ofConstants.h GLES headers",
+)
+
+# 3. ofAppRunner.h/ofAppBaseWindow.h/ofAppGLFWWindow.h each declare
+#    EGLDisplay/EGLContext/EGLSurface-returning functions under
+#    `#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)`, but none of
+#    them #include <EGL/egl.h> themselves on Linux (unlike ofAppEGLWindow.h,
+#    oF's *other* GLES window backend, which does) -- this combination
+#    (GLFW windowing + GLES) seems to have never been exercised upstream.
+#    ofAppRunner.h's declarations are free functions (file scope), so the
+#    include can go directly above them. ofAppBaseWindow.h's/
+#    ofAppGLFWWindow.h's are class member declarations -- `extern "C" {`
+#    (egl.h's first line) can't open mid-class, so their includes have to
+#    go at file scope near the top instead, *after* ofConstants.h itself is
+#    included (that's the file that actually defines TARGET_LINUX/
+#    TARGET_OPENGLES -- including it before that point means the guard
+#    condition is never true yet).
+patch(
+    f"{of_root}/libs/openFrameworks/app/ofAppRunner.h",
+    "#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)\nEGLDisplay ofGetEGLDisplay();",
+    "#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)\n#include <EGL/egl.h>\n#endif\n"
+    "#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)\nEGLDisplay ofGetEGLDisplay();",
+    "ofAppRunner.h EGL include",
+)
+patch(
+    f"{of_root}/libs/openFrameworks/app/ofAppBaseWindow.h",
+    '#pragma once\n\n#include "ofWindowSettings.h"\n// MARK: Target\n#include "ofConstants.h"\n',
+    '#pragma once\n\n#include "ofWindowSettings.h"\n// MARK: Target\n#include "ofConstants.h"\n\n'
+    "#if defined(TARGET_LINUX) && defined(TARGET_OPENGLES)\n#include <EGL/egl.h>\n#endif\n",
+    "ofAppBaseWindow.h EGL include",
+)
+# ofAppGLFWWindow.h includes ofAppBaseWindow.h near its own top, so it picks
+# up the include above transitively -- nothing further needed there as long
+# as it doesn't also declare its own EGL types before that include resolves
+# (it doesn't; its own EGL method declarations come later in the file).
+
+# 4. ofFbo.cpp's checkStatus() logs GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS,
+#    which core GLES 2 doesn't define at all (desktop-GL-only enum) --
+#    every other legacy/desktop-only case in this same switch is already
+#    guarded (e.g. GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER right below it);
+#    this one case was just missed.
+patch(
+    f"{of_root}/libs/openFrameworks/gl/ofFbo.cpp",
+    "\t\tcase GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:\n"
+    '\t\t\tofLogError("ofFbo") << "FRAMEBUFFER_INCOMPLETE_DIMENSIONS";\n'
+    "\t\t\tbreak;\n",
+    "#ifndef TARGET_OPENGLES\n"
+    "\t\tcase GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:\n"
+    '\t\t\tofLogError("ofFbo") << "FRAMEBUFFER_INCOMPLETE_DIMENSIONS";\n'
+    "\t\t\tbreak;\n"
+    "#endif\n",
+    "ofFbo.cpp GLES guard",
+)
+
+print("All GLES patches applied. If oF is ever upgraded past 0.12.1, "
+      "re-check these against docs/architecture.md's \"Pi 4 bring-up\" section.")
+PATCH_OF_FOR_GLES
+
 echo "Installing Linux dependencies (requires sudo)..."
 sudo bash "$OF_ROOT/scripts/linux/debian/install_dependencies.sh" 2>/dev/null || \
     sudo bash "$OF_ROOT/scripts/linux/ubuntu/install_dependencies.sh"
@@ -35,6 +174,16 @@ else
 fi
 
 echo "Installing Pisound driver/software support..."
+# On a genuinely fresh Raspberry Pi OS flash, unattended-upgrades or the
+# apt run above can still be holding the dpkg lock for a few seconds after
+# it returns -- confirmed empirically via a from-scratch reinstall test,
+# where the Pisound installer's own `apt-get install` intermittently hit
+# "Could not get lock /var/lib/dpkg/lock-frontend". Wait for it to clear
+# rather than let that apt-get fail partway through.
+for i in $(seq 1 30); do
+    sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
+    sleep 1
+done
 curl https://blokas.io/pisound/install.sh | sh
 
 echo ""

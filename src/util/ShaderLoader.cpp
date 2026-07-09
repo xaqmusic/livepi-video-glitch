@@ -111,25 +111,37 @@ void ShaderLoader::bindMvp(ofShader& shader) {
 
 void ShaderLoader::drawFullscreenQuad(float width, float height) {
     // Bypasses oF's shared internal VBO (ofGLProgrammableRenderer::meshVbo,
-    // also used by ofMesh::draw()) entirely -- own VAO/VBO, own explicit
+    // also used by ofMesh::draw()) entirely -- own VBO, own explicit
     // glVertexAttribPointer calls, so nothing else touching that shared
     // state (oF's default shaders, the GStreamer/NVDEC GL interop used for
     // hardware video decode) can leave the texcoord attribute disabled out
     // from under a custom shader's draw call.
-    static GLuint vao = 0;
+    //
+    // Desktop core profile requires a bound VAO before any draw call, so
+    // one is kept there. GLES 2 core has no VAO concept at all (VAOs are
+    // GLES 3+ or an optional, not-guaranteed-present OES extension on
+    // GLES 2) -- on the Pi, attribute pointers are just re-set every call
+    // instead of cached in a VAO. A few extra GL calls per pass per frame,
+    // but correct without depending on an extension that may not exist on
+    // every Pi generation's driver.
     static GLuint vbo = 0;
-    if (vao == 0) {
-        glGenVertexArrays(1, &vao);
+#ifndef TARGET_OPENGLES
+    static GLuint vao = 0;
+#endif
+    if (vbo == 0) {
         glGenBuffers(1, &vbo);
-        glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, nullptr, GL_DYNAMIC_DRAW);
+#ifndef TARGET_OPENGLES
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
         glEnableVertexAttribArray(ofShader::POSITION_ATTRIBUTE);
         glVertexAttribPointer(ofShader::POSITION_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)0);
         glEnableVertexAttribArray(ofShader::TEXCOORD_ATTRIBUTE);
         glVertexAttribPointer(
             ofShader::TEXCOORD_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)(sizeof(float) * 2));
         glBindVertexArray(0);
+#endif
     }
 
     float verts[16] = {
@@ -138,10 +150,21 @@ void ShaderLoader::drawFullscreenQuad(float width, float height) {
         width, height, 1, 1,
         0,     height, 0, 1,
     };
+#ifndef TARGET_OPENGLES
     glBindVertexArray(vao);
+#endif
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+#ifdef TARGET_OPENGLES
+    glEnableVertexAttribArray(ofShader::POSITION_ATTRIBUTE);
+    glVertexAttribPointer(ofShader::POSITION_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)0);
+    glEnableVertexAttribArray(ofShader::TEXCOORD_ATTRIBUTE);
+    glVertexAttribPointer(
+        ofShader::TEXCOORD_ATTRIBUTE, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)(sizeof(float) * 2));
+#endif
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+#ifndef TARGET_OPENGLES
     glBindVertexArray(0);
+#endif
 }
