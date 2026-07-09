@@ -278,12 +278,32 @@ exhausted when it happens (482MB free of 512MB), so it's a driver-level
 stall under combined decode + upload + readback pressure, not a memory
 shortage.
 
-**The budget: at most 2 clip layers per scene, both <=720p; a 1080p clip
-must be the only clip layer in its scene.** Configurations that run "fine"
-until a screenshot lands can't be trusted live -- the compositor and
-effect chains add more per-frame GPU work than a screenshot does.
-Generator layers are pure fragment shaders and don't count against this.
-The backend validates this as a soft warning at save time.
+**Revised after re-testing under the REAL layered pipeline** (per-layer
+chains + compositor + 3 post passes -- more sustained GPU work than the
+bare-decode spike), soak-tested on the actual A.2 renderer:
+
+| Config, full pipeline | Result |
+|---|---|
+| 2 x 720p | 50-52fps -- comfortable |
+| 1080p + 720p | **29-30fps sustained** (vsync/2 lock), 6+ min soak, real-time positions, survives screenshot readbacks -- meets the project's 30fps floor |
+| 2 x 1080p | out (12fps at bare decode; not re-tested) |
+
+**The budget: at most 2 clip layers per scene; two 720p is comfortable,
+1080p + 720p works at the 30fps floor and should surface as a "heavy
+scene" warning in the editor; two 1080p is out.** Generator layers are
+pure fragment shaders and don't count. The backend validates this as a
+soft warning at save time. The project's minimum acceptable frame rate
+is 30fps (performer-confirmed) -- the editor's heaviness indicator
+should flag above ~28ms frame time, not 60fps-derived thresholds.
+
+The bare-decode wedge above was observed once with a confirmed backtrace;
+later apparent "wedge on screenshot" cases turned out to be a stale-X11-
+capture artifact (identical captures while the app was verifiably alive
+-- always double-check with a gdb liveness probe before concluding a
+freeze). Treat the wedge as rare driver instability under multi-decode
+pressure: worth a cheap self-watchdog (renderer exits if no frame
+completes for a few seconds, systemd restarts it) once the telemetry
+writer lands, rather than a reason to constrain content.
 
 Scene-switch load latency baseline (for the freeze-frame mitigation):
 720p clips load in ~300ms; 1080p clips ranged 370ms-3.2s under load.
