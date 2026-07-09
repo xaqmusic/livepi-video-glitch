@@ -254,10 +254,20 @@ screenshots), app steady at 60fps, `vqueue:src` down from 99.9% to ~9%
 CPU, and correct colors on the SMPTE-style test clip (oF's conversion
 shaders use plain BT.601 -- fine for this project's aesthetic). **1080p30
 verified too** (also exactly 1.0x): decoder thread ~27%, copy thread ~9%,
-main thread ~36%, spread across four cores -- the hardware decoder tops
-out at 1920 wide (`v4l2h264dec`'s probed caps), so 1080p is the practical
-ceiling and `scripts/import-clip.sh` caps there: H.264 High, yuv420p,
-keyframe every second, no audio.
+main thread ~36%, spread across four cores.
+
+**The project's standard clip target is 1080p** -- that's also the Pi 4's
+hardware ceiling (`v4l2h264dec`'s probed caps top out at 1920 wide), so
+`scripts/import-clip.sh` caps there by default: H.264 High, yuv420p,
+keyframe every second, no audio. The target is a knob, not an assumption:
+the app itself is resolution-agnostic (window sized to the real display,
+clips at whatever the decoder hands over), and the import cap is a
+`MAX_HEIGHT` override away from 2K/4K. What an upgrade actually requires
+is a *codec* decision plus fresh measurement on the new hardware: the
+Pi 5 dropped hardware H.264 decode entirely in favor of a 4Kp60 HEVC
+decoder, so a higher-resolution target there means switching the import
+pipeline to HEVC and re-running the playback-rate measurement (clip-pos
+advance vs. wall clock, per above) before trusting it.
 
 ## Input abstraction
 
