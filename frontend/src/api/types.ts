@@ -1,0 +1,96 @@
+// TypeScript mirrors of the backend's schema v1 (backend/livepi_backend/
+// validation.py) and the effects manifest. Keep in sync by hand -- one
+// small schema, two owners, per docs/videosynth-backend.md.
+
+export type BlendMode = "normal" | "add" | "screen" | "multiply";
+export type AudioBand = "low" | "mid" | "high";
+
+export interface MappingTrigger {
+    type: "cc" | "audioBand";
+    number?: number;
+    band?: AudioBand;
+}
+
+export interface MappingTarget {
+    layerId?: string | null;
+    param: string;
+    min: number;
+    max: number;
+}
+
+export interface Mapping {
+    trigger: MappingTrigger;
+    targets: MappingTarget[];
+}
+
+export interface Layer {
+    id: string;
+    kind: "clip" | "generator";
+    source: string;
+    blendMode: BlendMode;
+    opacity: number;
+    layerEffects: Record<string, number>;
+    params: Record<string, number>;
+}
+
+export interface Scene {
+    id: string;
+    name: string;
+    layers: Layer[];
+    mappings: Mapping[];
+    postEffects: Record<string, number>;
+}
+
+export interface Show {
+    schemaVersion: 1;
+    scenes: Scene[];
+}
+
+export interface Clip {
+    id: string;
+    path: string;
+    name?: string;
+    width?: number;
+    height?: number;
+    duration?: number;
+    thumb?: string | null;
+    thumbUrl?: string;
+    exists?: boolean;
+}
+
+export interface ParamSpec {
+    label: string;
+    type: "float" | "toggle" | "enum";
+    min: number;
+    max: number;
+    default: number;
+}
+
+export interface EffectsManifest {
+    postEffects: Record<string, ParamSpec>;
+    layerEffects: Record<string, ParamSpec>;
+    generators: Record<string, Record<string, ParamSpec>>;
+    blendModes: BlendMode[];
+    audioBands: AudioBand[];
+    layerBudget: {
+        maxClipLayers: number;
+        comfortableMaxHeight: number;
+        absoluteMaxHeight: number;
+    };
+}
+
+export interface Telemetry {
+    lastCc: { cc: number; value: number; ts: number };
+    frameTimeMs: number;
+    fps: number;
+    currentSceneId: string;
+    currentSceneName: string;
+    ts: number;
+}
+
+export interface UploadJob {
+    state: "queued" | "probing" | "transcoding" | "done" | "error";
+    progress: number;
+    error?: string | null;
+    clip?: Clip | null;
+}

@@ -1,0 +1,144 @@
+/* Dark theme via CSS variables -- practical backstage in low light, and
+   the obvious default. Deliberately plain: visual polish waits until real
+   sets have been built (docs/videosynth-frontend.md). */
+
+:root {
+    --bg: #14151a;
+    --bg-raised: #1e2027;
+    --bg-input: #262932;
+    --border: #34384433;
+    --border-strong: #3a3f4d;
+    --text: #e8eaf0;
+    --text-dim: #9aa0b0;
+    --accent: #4fc3f7;
+    --accent-dim: #4fc3f733;
+    --warn: #ffb74d;
+    --error: #ef5350;
+    --ok: #81c784;
+    --radius: 8px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    margin: 0 0 0.5em;
+}
+
+button {
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+}
+button:hover {
+    border-color: var(--accent);
+}
+button.primary {
+    background: var(--accent);
+    color: #10141a;
+    border-color: var(--accent);
+    font-weight: 600;
+}
+button.danger:hover {
+    border-color: var(--error);
+    color: var(--error);
+}
+button.icon {
+    padding: 4px 8px;
+    line-height: 1;
+}
+button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+input[type="text"], input[type="password"], input[type="number"], select {
+    background: var(--bg-input);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+input[type="range"] {
+    accent-color: var(--accent);
+    width: 100%;
+}
+
+.card {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dim {
+    color: var(--text-dim);
+}
+
+.warn {
+    color: var(--warn);
+}
+
+.error {
+    color: var(--error);
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border-strong);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.topbar a {
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+.topbar a.active, .topbar a:hover {
+    color: var(--text);
+    background: var(--bg-input);
+}
+
+.page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+@media (max-width: 720px) {
+    .page {
+        padding: 12px;
+    }
+}
