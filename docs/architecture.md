@@ -233,16 +233,31 @@ GLES+GLFW build is yet another never-exercised-upstream combination:
    installation with its own flag instead. (First attempt used
    `if(!player.getPlayer())`, which self-defeated by creating the default,
    copyPixels-off backend it was checking for.)
+4. **oF kills the pipeline on v4l2's vertically-padded 1080p buffers**
+   (setup-pi.sh patch 6, two parts). V4L2 decoders pad plane heights to
+   macroblock alignment -- 1080 becomes 1088 rows -- so the buffer is
+   bigger than the tight frame size while the row stride still equals the
+   width. `ofGstUtils` treats exactly that combination as a fatal
+   inconsistency and returns `GST_FLOW_ERROR`, which takes down the whole
+   pipeline ("Internal data stream error" from qtdemux; symptom: solid
+   green frame, position frozen at 0, duration -1). 720p only dodges it
+   because 720 is already a multiple of 16. Separately, oF's fallback
+   strided-I420 copy assumes each plane starts right after the previous
+   plane's *visible* rows, so with padded buffers it would read chroma
+   from the wrong offsets. Fixed by restricting the bail-out to
+   single-plane formats and copying I420 plane-by-plane using the
+   per-plane offsets and strides GStreamer actually reports.
 
 Verified on the Pi after the fixes: all three scenes play at a measured
 **1.000x real-time** (clip position advance vs. wall clock across two
 screenshots), app steady at 60fps, `vqueue:src` down from 99.9% to ~9%
 CPU, and correct colors on the SMPTE-style test clip (oF's conversion
-shaders use plain BT.601 -- fine for this project's aesthetic). The
-`copyPixels` copy is ~1.4MB/frame at 720p30, noise next to the removed
-conversion. `scripts/import-clip.sh` normalizes new footage to the format
-this pipeline likes: H.264 High, yuv420p, capped at 720p, keyframe every
-second, no audio.
+shaders use plain BT.601 -- fine for this project's aesthetic). **1080p30
+verified too** (also exactly 1.0x): decoder thread ~27%, copy thread ~9%,
+main thread ~36%, spread across four cores -- the hardware decoder tops
+out at 1920 wide (`v4l2h264dec`'s probed caps), so 1080p is the practical
+ceiling and `scripts/import-clip.sh` caps there: H.264 High, yuv420p,
+keyframe every second, no audio.
 
 ## Input abstraction
 

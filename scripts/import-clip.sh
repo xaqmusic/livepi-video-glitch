@@ -11,9 +11,10 @@
 #   - yuv420p decodes straight to NV12/I420, which the app now uploads
 #     as-is and converts on the GPU (see ClipPlayer::load). 4:2:2/4:4:4 or
 #     10-bit sources would force a software conversion back onto the CPU.
-#   - 1080p+ decode wastes CPU/memory bandwidth the effects chain wants;
-#     the output is capped at 720p (plenty for the 800x480 display, with
-#     headroom for a bigger screen later).
+#   - Output is capped at 1080p: measured on the Pi 4 at exactly 1.0x
+#     real-time with comfortable CPU headroom (decoder thread ~27%, copy
+#     thread ~9%). Above that the hardware decoder tops out anyway
+#     (v4l2h264dec advertises a 1920 ceiling).
 #
 # Usage: scripts/import-clip.sh <source-video> [output-name]
 #   output-name defaults to the source basename, .mp4 extension.
@@ -39,12 +40,12 @@ if [ -e "$OUT" ]; then
     exit 1
 fi
 
-# scale=-2:min(720,ih): cap height at 720, never upscale, keep aspect (width
-# rounded to even, required by yuv420p). -g 30: a keyframe every ~second so
-# the looping seek back to frame 0 restarts cleanly. -an: the app never
-# plays clip audio (it *listens* on the mic input instead).
+# scale=-2:min(1080,ih): cap height at 1080, never upscale, keep aspect
+# (width rounded to even, required by yuv420p). -g 30: a keyframe every
+# ~second so the looping seek back to frame 0 restarts cleanly. -an: the
+# app never plays clip audio (it *listens* on the mic input instead).
 ffmpeg -hide_banner -i "$SRC" \
-    -vf "scale=-2:'min(720,ih)'" \
+    -vf "scale=-2:'min(1080,ih)'" \
     -c:v libx264 -profile:v high -preset medium -crf 20 \
     -pix_fmt yuv420p -g 30 \
     -an -movflags +faststart \

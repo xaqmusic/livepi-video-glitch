@@ -198,6 +198,68 @@ patch(
     "ofPixels.cpp planar external view",
 )
 
+# 6. V4L2 decoders pad plane heights to macroblock alignment (1080 -> 1088
+#    rows), making the buffer bigger than the tight frame size while the
+#    row stride still equals the width. ofGstUtils treats exactly that
+#    combination as fatal and returns GST_FLOW_ERROR, killing the whole
+#    pipeline ("Internal data stream error" from qtdemux) -- 720p clips
+#    dodge it only because 720 is already a multiple of 16. And oF's
+#    fallback strided-I420 copy assumes each plane starts right after the
+#    previous plane's visible rows, so it would read chroma from the wrong
+#    (unpadded) offsets anyway. Both fixed: the bail-out now only applies
+#    to single-plane formats, and the I420 copy honors the per-plane
+#    offsets AND strides GStreamer actually reports. 1080p verified at
+#    1.0x real-time on the Pi 4 after this.
+patch(
+    f"{of_root}/libs/openFrameworks/video/ofGstUtils.cpp",
+    "\t\tstride = v_info.stride[0];\n"
+    "\n"
+    "\t\tif(stride == (pixels.getWidth() * pixels.getBytesPerPixel())) {\n"
+    "\t\t\tofLogError(\"ofGstVideoUtils\") << \"buffer_cb(): error on new buffer, buffer size: \" << size << \"!= init size: \" << pixels.getTotalBytes();\n"
+    "\t\t\treturn GST_FLOW_ERROR;\n"
+    "\t\t}",
+    "\t\tstride = v_info.stride[0];\n"
+    "\n"
+    "\t\t// planar formats can be bigger than the tight frame size with the\n"
+    "\t\t// row stride still equal to the width: v4l2 decoders pad the plane\n"
+    "\t\t// HEIGHT to macroblock alignment (1080 -> 1088), which moves the\n"
+    "\t\t// chroma plane offsets instead of widening rows. Only single-plane\n"
+    "\t\t// formats make this combination inexplicable.\n"
+    "\t\tif(pixels.getNumPlanes() <= 1 && stride == (pixels.getWidth() * pixels.getBytesPerPixel())) {\n"
+    "\t\t\tofLogError(\"ofGstVideoUtils\") << \"buffer_cb(): error on new buffer, buffer size: \" << size << \"!= init size: \" << pixels.getTotalBytes();\n"
+    "\t\t\treturn GST_FLOW_ERROR;\n"
+    "\t\t}",
+    "ofGstUtils.cpp planar size-mismatch bail",
+)
+patch(
+    f"{of_root}/libs/openFrameworks/video/ofGstUtils.cpp",
+    "\t\t\tif(pixels.getPixelFormat() == OF_PIXELS_I420){\n"
+    "\t\t\t\tGstVideoInfo v_info = getVideoInfo(sample.get());\n"
+    "\t\t\t\tstd::vector<size_t> strides{size_t(v_info.stride[0]),size_t(v_info.stride[1]),size_t(v_info.stride[2])};\n"
+    "\t\t\t\tbackPixels.setFromAlignedPixels(mapinfo.data,pixels.getWidth(),pixels.getHeight(),pixels.getPixelFormat(),strides);\n"
+    "\t\t\t} else {",
+    "\t\t\tif(pixels.getPixelFormat() == OF_PIXELS_I420){\n"
+    "\t\t\t\t// copy honoring BOTH per-plane strides and per-plane OFFSETS:\n"
+    "\t\t\t\t// v4l2 decoders pad the plane height (1080 -> 1088), so the\n"
+    "\t\t\t\t// chroma planes do NOT start where width*height would put them\n"
+    "\t\t\t\t// (which is what setFromAlignedPixels assumes).\n"
+    "\t\t\t\tGstVideoInfo v_info = getVideoInfo(sample.get());\n"
+    "\t\t\t\tbackPixels.allocate(pixels.getWidth(),pixels.getHeight(),OF_PIXELS_I420);\n"
+    "\t\t\t\tunsigned char * dst = backPixels.getData();\n"
+    "\t\t\t\tfor(size_t p=0;p<3;p++){\n"
+    "\t\t\t\t\tsize_t pw = p==0 ? size_t(pixels.getWidth()) : size_t(pixels.getWidth())/2;\n"
+    "\t\t\t\t\tsize_t ph = p==0 ? size_t(pixels.getHeight()) : size_t(pixels.getHeight())/2;\n"
+    "\t\t\t\t\tconst unsigned char * src = ((const unsigned char*)mapinfo.data) + GST_VIDEO_INFO_PLANE_OFFSET(&v_info,p);\n"
+    "\t\t\t\t\tsize_t srcStride = GST_VIDEO_INFO_PLANE_STRIDE(&v_info,p);\n"
+    "\t\t\t\t\tfor(size_t y=0;y<ph;y++){\n"
+    "\t\t\t\t\t\tmemcpy(dst, src + y*srcStride, pw);\n"
+    "\t\t\t\t\t\tdst += pw;\n"
+    "\t\t\t\t\t}\n"
+    "\t\t\t\t}\n"
+    "\t\t\t} else {",
+    "ofGstUtils.cpp I420 plane-offset copy",
+)
+
 # NOTE: OF_USE_GST_GL (routing GStreamer video decode straight into a GL
 # texture) was tried as the first fix for slow video playback -- the V4L2
 # hardware decoder keeps up fine, but oF's default demand for RGB at the
