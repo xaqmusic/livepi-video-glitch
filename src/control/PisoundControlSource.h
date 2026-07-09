@@ -59,5 +59,8 @@ private:
     float currentLowBand = 0.0f;
     float currentMidBand = 0.0f;
     float currentHighBand = 0.0f;
+    float currentLowPeakRaw = 0.0f;
+    float currentMidPeakRaw = 0.0f;
+    float currentHighPeakRaw = 0.0f;
     std::mutex audioLevelMutex;
 };

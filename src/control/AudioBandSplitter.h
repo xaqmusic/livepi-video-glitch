@@ -24,6 +24,12 @@ public:
     float getMid() const { return normalize(midEnvelope, midPeak); }
     float getHigh() const { return normalize(highEnvelope, highPeak); }
 
+    // Raw rolling peaks (pre-normalization scale) -- surfaced on the debug
+    // overlay so normalization behavior is observable, not guessed at.
+    float getLowPeakRaw() const { return lowPeak; }
+    float getMidPeakRaw() const { return midPeak; }
+    float getHighPeakRaw() const { return highPeak; }
+
 private:
     struct Biquad {
         float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;

@@ -17,7 +17,16 @@ constexpr float kReleaseTimeSeconds = 0.15f;
 // every ~20s so the scale adapts to the room/set volume, with a noise
 // floor so silence outputs 0 instead of amplifying hiss to full scale.
 constexpr float kPeakHalfLifeSeconds = 20.0f;
-constexpr float kNoiseFloor = 0.003f;
+// The floor only exists to keep SILENCE from normalizing hiss to full
+// scale -- it must sit just above the mic's actual noise, not above quiet
+// music. Measured silent-room envelopes on the real USB mic are ~5e-5;
+// the original guess of 3e-3 was 60x that and zeroed everything but loud
+// input (the "pulse only works when very loud" bug).
+constexpr float kNoiseFloor = 0.0005f;
+// Beats rarely re-touch the exact recent maximum; treating anything
+// within 70% of the peak as full deflection keeps pulses punchy at every
+// volume instead of only on the single loudest hit.
+constexpr float kHeadroom = 0.7f;
 }  // namespace
 
 void AudioBandSplitter::setup(float sampleRate) {
@@ -95,6 +104,6 @@ void AudioBandSplitter::process(const float* samples, size_t numFrames) {
 
 float AudioBandSplitter::normalize(float envelope, float peak) {
     if (peak < kNoiseFloor) return 0.0f;
-    float v = envelope / peak;
+    float v = envelope / (peak * kHeadroom);
     return v > 1.0f ? 1.0f : v;
 }

@@ -159,6 +159,8 @@ void ofApp::draw() {
            << "  chromatic: " << liveParams.getParam("chromatic.intensity", 0.5f) << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
+           << "band peaks (raw)  low: " << state.lowPeakRaw << "  mid: " << state.midPeakRaw
+           << "  high: " << state.highPeakRaw << "\n"
            << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  layers: " << sceneRenderer.getLayerCount()
            << "\n"
            << sceneRenderer.describeLayers() << "\n"

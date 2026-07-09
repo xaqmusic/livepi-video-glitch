@@ -44,9 +44,13 @@ struct ControlState {
     float knobA = 0.0f;
     float knobB = 0.0f;
     float audioLevel = 0.0f;        // smoothed 0..1
-    float lowBand = 0.0f;            // smoothed 0..1, <100Hz envelope (kick/bass)
-    float midBand = 0.0f;            // smoothed 0..1, 100Hz-2kHz envelope (snare/vocal)
-    float highBand = 0.0f;          // smoothed 0..1, >2kHz envelope (hi-hat/cymbal)
+    float lowBand = 0.0f;            // normalized 0..1, <100Hz (kick/bass)
+    float midBand = 0.0f;            // normalized 0..1, 100Hz-2kHz (snare/vocal)
+    float highBand = 0.0f;          // normalized 0..1, >2kHz (hi-hat/cymbal)
+    // Raw (pre-normalization) rolling band peaks, for the debug overlay.
+    float lowPeakRaw = 0.0f;
+    float midPeakRaw = 0.0f;
+    float highPeakRaw = 0.0f;
 
     // Scene control
     ButtonEvent lastButtonEvent = ButtonEvent::None;

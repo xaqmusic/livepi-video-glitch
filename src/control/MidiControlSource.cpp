@@ -78,6 +78,9 @@ void MidiControlSource::update() {
     state.lowBand = currentLowBand;
     state.midBand = currentMidBand;
     state.highBand = currentHighBand;
+    state.lowPeakRaw = currentLowPeakRaw;
+    state.midPeakRaw = currentMidPeakRaw;
+    state.highPeakRaw = currentHighPeakRaw;
 }
 
 void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
@@ -97,6 +100,9 @@ void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
     currentLowBand = bandSplitter.getLow();
     currentMidBand = bandSplitter.getMid();
     currentHighBand = bandSplitter.getHigh();
+    currentLowPeakRaw = bandSplitter.getLowPeakRaw();
+    currentMidPeakRaw = bandSplitter.getMidPeakRaw();
+    currentHighPeakRaw = bandSplitter.getHighPeakRaw();
 }
 
 void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {

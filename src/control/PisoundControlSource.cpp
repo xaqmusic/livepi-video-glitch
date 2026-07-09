@@ -80,6 +80,9 @@ void PisoundControlSource::pollAudioLevel() {
     state.lowBand = currentLowBand;
     state.midBand = currentMidBand;
     state.highBand = currentHighBand;
+    state.lowPeakRaw = currentLowPeakRaw;
+    state.midPeakRaw = currentMidPeakRaw;
+    state.highPeakRaw = currentHighPeakRaw;
 }
 
 void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
@@ -160,6 +163,9 @@ void PisoundControlSource::audioIn(ofSoundBuffer& buffer) {
     currentLowBand = bandSplitter.getLow();
     currentMidBand = bandSplitter.getMid();
     currentHighBand = bandSplitter.getHigh();
+    currentLowPeakRaw = bandSplitter.getLowPeakRaw();
+    currentMidPeakRaw = bandSplitter.getMidPeakRaw();
+    currentHighPeakRaw = bandSplitter.getHighPeakRaw();
 }
 
 void PisoundControlSource::shutdown() {
