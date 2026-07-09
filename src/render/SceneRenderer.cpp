@@ -44,6 +44,7 @@ void SceneRenderer::loadScene(const Scene& scene) {
 
         if (layer.kind == LayerKind::Clip) {
             runtime->player = std::make_unique<ClipPlayer>();
+            runtime->loadedPath = layer.resolvedPath;
             if (!layer.resolvedPath.empty()) {
                 runtime->player->load(layer.resolvedPath);
             } else {
@@ -53,6 +54,17 @@ void SceneRenderer::loadScene(const Scene& scene) {
         }
         runtimes.push_back(std::move(runtime));
     }
+}
+
+bool SceneRenderer::matchesRuntimes(const Scene& scene) const {
+    if (scene.layers.size() != runtimes.size()) return false;
+    for (size_t i = 0; i < scene.layers.size(); i++) {
+        const Layer& layer = scene.layers[i];
+        const LayerRuntime& runtime = *runtimes[i];
+        if (layer.id != runtime.layerId || layer.kind != runtime.kind) return false;
+        if (layer.kind == LayerKind::Clip && layer.resolvedPath != runtime.loadedPath) return false;
+    }
+    return true;
 }
 
 void SceneRenderer::update() {

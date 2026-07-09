@@ -48,6 +48,21 @@ void ofApp::update() {
         loadCurrentScene();
     }
 
+    // Show hot-reload: the backend (or a hand edit) atomically replaced a
+    // show file. Stay on the current scene by stable id; rebuild the layer
+    // runtimes ONLY if the scene's layer structure actually changed --
+    // param/mapping-only edits must never restart running clips (the
+    // seam-aware reload rule the editor's save loop depends on).
+    if (showLoader.pollForChanges()) {
+        sceneManager.retainSceneById(showLoader.getScenes());
+        const Scene& scene = sceneManager.getCurrentScene();
+        if (!sceneRenderer.matchesRuntimes(scene)) {
+            sceneRenderer.loadScene(scene);
+        }
+        mappingResolver.onSceneEnter(scene, controlSource->getState().ccValues);
+        lastLoadedSceneIndex = sceneManager.getCurrentIndex();
+    }
+
     liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), controlSource->getState());
     sceneRenderer.update();
 }

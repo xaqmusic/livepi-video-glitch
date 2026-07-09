@@ -24,13 +24,38 @@ public:
     // Returns false (keeping any previous scenes) if nothing loadable.
     bool load();
 
+    // Called every frame (a stat() is microseconds -- the cost of NOT
+    // polling per frame is up to a second of dead wait in the editor's
+    // save->see loop, which is a hard requirement). Detects changes to
+    // active.json or the active show file by mtime+inode+size -- the
+    // backend replaces files via atomic rename, which changes the inode,
+    // so the path is re-stat()ed fresh every poll and no fd is ever held.
+    // Returns true when a reload actually replaced the scene list.
+    bool pollForChanges();
+
     const std::vector<Scene>& getScenes() const { return scenes; }
     const std::string& getActiveShowName() const { return activeShowName; }
 
 private:
+    struct FileSig {
+        bool valid = false;
+        unsigned long inode = 0;
+        long long size = 0;
+        long long mtimeSec = 0;
+        long long mtimeNsec = 0;
+        bool operator!=(const FileSig& other) const {
+            return valid != other.valid || inode != other.inode || size != other.size
+                || mtimeSec != other.mtimeSec || mtimeNsec != other.mtimeNsec;
+        }
+    };
+
     bool parseShowFile(const std::string& absPath);
     std::map<std::string, std::string> loadClipLibrary() const;
+    FileSig statPath(const std::string& absPath) const;
+    void captureSignatures();
 
     std::vector<Scene> scenes;
     std::string activeShowName;
+    std::string pointedShowPath;  // abs path active.json currently points at
+    FileSig activeSig, showSig, librarySig;
 };

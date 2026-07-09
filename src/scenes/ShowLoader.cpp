@@ -1,5 +1,7 @@
 #include "ShowLoader.h"
 
+#include <sys/stat.h>
+
 #include "ofFileUtils.h"
 #include "ofJson.h"
 #include "ofLog.h"
@@ -38,9 +40,13 @@ std::map<std::string, float> parseParamMap(const ofJson& node) {
 }  // namespace
 
 bool ShowLoader::load() {
+    // Every return path captures signatures first, so a broken state is
+    // logged once per file change, not re-attempted (and re-warned) every
+    // frame by pollForChanges().
     std::string activePath = ofToDataPath("shows/active.json", true);
     if (!ofFile::doesFileExist(activePath)) {
         ofLogWarning("ShowLoader") << "shows/active.json not found -- no show loaded.";
+        captureSignatures();
         return false;
     }
 
@@ -48,20 +54,72 @@ bool ShowLoader::load() {
     std::string showName = active.value("activeShow", std::string(""));
     if (showName.empty()) {
         ofLogError("ShowLoader") << "shows/active.json has no \"activeShow\" -- no show loaded.";
+        captureSignatures();
         return false;
     }
 
     std::string showPath = ofToDataPath("shows/" + showName + ".json", true);
     if (!ofFile::doesFileExist(showPath)) {
         ofLogError("ShowLoader") << "Active show file missing: " << showPath;
+        captureSignatures();
         return false;
     }
 
-    if (!parseShowFile(showPath)) return false;
+    if (!parseShowFile(showPath)) {
+        captureSignatures();  // don't re-parse a known-bad file every frame
+        return false;
+    }
 
     activeShowName = showName;
+    captureSignatures();
     ofLogNotice("ShowLoader") << "Loaded show \"" << showName << "\" (" << scenes.size() << " scenes)";
     return true;
+}
+
+ShowLoader::FileSig ShowLoader::statPath(const std::string& absPath) const {
+    FileSig sig;
+    struct stat st{};
+    if (stat(absPath.c_str(), &st) == 0) {
+        sig.valid = true;
+        sig.inode = static_cast<unsigned long>(st.st_ino);
+        sig.size = static_cast<long long>(st.st_size);
+        sig.mtimeSec = static_cast<long long>(st.st_mtim.tv_sec);
+        sig.mtimeNsec = static_cast<long long>(st.st_mtim.tv_nsec);
+    }
+    return sig;
+}
+
+void ShowLoader::captureSignatures() {
+    activeSig = statPath(ofToDataPath("shows/active.json", true));
+    // The pointer may name a different show than what's loaded (e.g. after
+    // a failed parse) -- sign whatever it currently points at, so fixing
+    // THAT file is what triggers the retry. Parsing active.json happens
+    // only here (on load/attempt), never in the per-frame poll.
+    ofJson active;
+    std::string activePath = ofToDataPath("shows/active.json", true);
+    if (ofFile::doesFileExist(activePath)) active = ofLoadJson(activePath);
+    std::string pointedShow = active.value("activeShow", std::string(""));
+    pointedShowPath = pointedShow.empty() ? std::string("") : ofToDataPath("shows/" + pointedShow + ".json", true);
+    showSig = pointedShowPath.empty() ? FileSig{} : statPath(pointedShowPath);
+    librarySig = statPath(ofToDataPath("clips/library.json", true));
+}
+
+bool ShowLoader::pollForChanges() {
+    // Three stat() calls per frame -- microseconds, and what buys the
+    // sub-second editor save->see loop.
+    if (statPath(ofToDataPath("shows/active.json", true)) != activeSig) {
+        ofLogNotice("ShowLoader") << "shows/active.json changed -- reloading show.";
+        return load();
+    }
+    if (!pointedShowPath.empty() && statPath(pointedShowPath) != showSig) {
+        ofLogNotice("ShowLoader") << "Show file changed -- reloading.";
+        return load();
+    }
+    if (statPath(ofToDataPath("clips/library.json", true)) != librarySig) {
+        ofLogNotice("ShowLoader") << "clips/library.json changed -- reloading show.";
+        return load();
+    }
+    return false;
 }
 
 bool ShowLoader::parseShowFile(const std::string& absPath) {

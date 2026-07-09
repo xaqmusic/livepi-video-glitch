@@ -36,6 +36,12 @@ public:
     void update();
     void render(const ControlState& controlState, const LiveParams& liveParams);
 
+    // True when the scene's layer STRUCTURE (ordered ids, kinds, clip
+    // sources) matches the current runtimes -- i.e., a hot-reloaded edit
+    // only touched params/mappings and the running players must NOT be
+    // rebuilt (no clip restart, no flicker: the seam-aware reload rule).
+    bool matchesRuntimes(const Scene& scene) const;
+
     ofFbo& getOutputFbo() { return outputFbo; }
 
     // Debug-overlay helpers.
@@ -46,6 +52,7 @@ private:
     struct LayerRuntime {
         std::string layerId;
         LayerKind kind = LayerKind::Clip;
+        std::string loadedPath;  // resolved clip path this runtime is playing
         std::unique_ptr<ClipPlayer> player;  // null for generator layers
         ShaderChain chain;
     };
