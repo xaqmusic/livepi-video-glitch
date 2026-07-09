@@ -3,12 +3,11 @@
 #include <memory>
 
 #include "control/ControlSource.h"
-#include "fx/ShaderChain.h"
 #include "ofMain.h"
+#include "render/SceneRenderer.h"
 #include "scenes/SceneManager.h"
 #include "scenes/ShowLoader.h"
 #include "util/Config.h"
-#include "video/ClipPlayer.h"
 
 class ofApp : public ofBaseApp {
 public:
@@ -24,8 +23,7 @@ private:
     std::unique_ptr<ControlSource> controlSource;
     ShowLoader showLoader;
     SceneManager sceneManager;
-    ClipPlayer clipPlayer;
-    ShaderChain shaderChain;
+    SceneRenderer sceneRenderer;
 
     size_t lastLoadedSceneIndex = static_cast<size_t>(-1);
     bool showDebugOverlay = true;

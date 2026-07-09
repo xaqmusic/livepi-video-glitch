@@ -36,6 +36,36 @@
                 "chromatic.intensity": 0.4,
                 "stutter.enabled": 1.0
             }
+        },
+        {
+            "id": "scene-blend-test",
+            "name": "blend-test",
+            "layers": [
+                {
+                    "id": "layer-bt-bg",
+                    "kind": "clip",
+                    "source": "clip-sample-crt-01",
+                    "blendMode": "normal",
+                    "opacity": 1.0,
+                    "layerEffects": {},
+                    "params": {}
+                },
+                {
+                    "id": "layer-bt-top",
+                    "kind": "clip",
+                    "source": "clip-sample-crt-01",
+                    "blendMode": "add",
+                    "opacity": 0.5,
+                    "layerEffects": {},
+                    "params": {}
+                }
+            ],
+            "mappings": [],
+            "postEffects": {
+                "hsync.intensity": 0.0,
+                "chromatic.intensity": 0.0,
+                "stutter.enabled": 0.0
+            }
         }
     ]
 }

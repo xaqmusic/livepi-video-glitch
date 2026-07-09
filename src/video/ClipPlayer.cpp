@@ -39,6 +39,7 @@ void ClipPlayer::load(const std::string& relativePath) {
     // that wait entirely (see ofGstUtils::close()'s bPaused check).
     player.setPaused(true);
     player.close();
+    firstFrameSeen = false;
     // OF_PIXELS_NATIVE accepts whatever pixel format the decoder already
     // produces (NV12/I420 for H.264) instead of oF's default of demanding
     // RGB at the appsink. Demanding RGB makes playbin auto-plug a software
@@ -79,7 +80,9 @@ std::string ClipPlayer::getPixelFormatName() const {
 }
 
 void ClipPlayer::update() {
-    if (loaded) player.update();
+    if (!loaded) return;
+    player.update();
+    if (player.isFrameNew()) firstFrameSeen = true;
 }
 
 ofTexture& ClipPlayer::getTexture() {

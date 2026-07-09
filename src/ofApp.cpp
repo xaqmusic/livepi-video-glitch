@@ -27,15 +27,15 @@ void ofApp::setup() {
     showLoader.load();
     sceneManager.setScenes(showLoader.getScenes());
 
-    shaderChain.addPass(std::make_unique<HSyncTearPass>());
-    shaderChain.addPass(std::make_unique<ChromaticAberrationPass>());
-    shaderChain.addPass(std::make_unique<StutterBufferPass>());
     // The window itself (size, fullscreen-vs-windowed) is already set up in
     // main.cpp before this runs -- ofGetWidth/Height reflect its actual
     // current size (the real display's native resolution in fullscreen
-    // mode), so the effect chain always matches whatever's really on
+    // mode), so the render pipeline always matches whatever's really on
     // screen instead of a second, possibly-mismatched config read.
-    shaderChain.setup(ofGetWidth(), ofGetHeight());
+    sceneRenderer.setup(ofGetWidth(), ofGetHeight());
+    sceneRenderer.addPostPass(std::make_unique<HSyncTearPass>());
+    sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
+    sceneRenderer.addPostPass(std::make_unique<StutterBufferPass>());
 
     loadCurrentScene();
 }
@@ -48,37 +48,33 @@ void ofApp::update() {
         loadCurrentScene();
     }
 
-    clipPlayer.update();
+    sceneRenderer.update();
 }
 
 void ofApp::loadCurrentScene() {
-    const Scene& scene = sceneManager.getCurrentScene();
-    clipPlayer.load(scene.clipPath);
+    sceneRenderer.loadScene(sceneManager.getCurrentScene());
     lastLoadedSceneIndex = sceneManager.getCurrentIndex();
 }
 
 void ofApp::draw() {
-    if (clipPlayer.isLoaded()) {
-        shaderChain.process(clipPlayer.getDrawable(), controlSource->getState(), sceneManager.getCurrentScene());
-        shaderChain.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
-    }
+    sceneRenderer.render(controlSource->getState(), sceneManager.getCurrentScene());
+    ofSetColor(255);
+    sceneRenderer.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
 
     if (showDebugOverlay) {
         const ControlState& state = controlSource->getState();
         std::stringstream ss;
         ss << "scene: " << sceneManager.getCurrentScene().name << " (" << sceneManager.getCurrentIndex() + 1 << "/"
-           << sceneManager.getSceneCount() << ")\n"
+           << sceneManager.getSceneCount() << ")  show: " << showLoader.getActiveShowName() << "\n"
            << "bpm: " << state.bpmEstimate << (state.clockPresent ? "" : "  (free-running, no clock)") << "\n"
            << "beat: " << state.beatInBar << "  bar: " << state.barNumber << "\n"
            << "knobA: " << state.knobA << "  knobB: " << state.knobB << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
-           << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  fbo: " << shaderChain.getOutputFbo().getWidth()
-           << "x" << shaderChain.getOutputFbo().getHeight() << "  clip: " << clipPlayer.getTexture().getWidth() << "x"
-           << clipPlayer.getTexture().getHeight() << " " << clipPlayer.getPixelFormatName() << "\n"
-           << "app fps: " << ofGetFrameRate() << "\n"
-           << "clip pos: " << (clipPlayer.getPosition() * clipPlayer.getDuration()) << "s / "
-           << clipPlayer.getDuration() << "s  (t=" << ofGetElapsedTimef() << ")\n"
+           << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  layers: " << sceneRenderer.getLayerCount()
+           << "\n"
+           << sceneRenderer.describeLayers() << "\n"
+           << "app fps: " << ofGetFrameRate() << "  (t=" << ofGetElapsedTimef() << ")\n"
            << "[d] toggle this overlay";
         ofSetColor(255);
         ofDrawBitmapStringHighlight(ss.str(), 20, 20);
