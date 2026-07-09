@@ -3,7 +3,16 @@
 # a hole out of.
 + bin/data/clips/samples/
 + bin/data/clips/samples/**
++ bin/data/clips/library.json
 - bin/data/clips/*
 - .git/
 - .env
 - bin/data/config/app.local.json
+# Never transfer build artifacts: obj/ is per-arch (desktop linux64 vs Pi
+# linuxaarch64 -- syncing with --delete was wiping the Pi's objects and
+# forcing a full rebuild every deploy), and the binary is the wrong arch
+# for the Pi anyway (the remote make relinks it; an interrupted deploy once
+# left an x86 binary in place, which startx "runs" via /bin/sh -> syntax
+# error).
+- obj/
+- bin/livepi-video-glitch
