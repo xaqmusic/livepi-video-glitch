@@ -21,6 +21,9 @@ void ofApp::setup() {
     controlSource = createControlSource(config);
     controlSource->setup(config);
 
+    telemetryWriter.setup(config.getString("ipc.status_path", "/tmp/livepi/status.json"));
+    commandFifo.setup(config.getString("ipc.command_fifo", "/tmp/livepi/command.fifo"));
+
     // Scenes live in the active show (bin/data/shows/), not app.json --
     // app.json is device config only. A failed load falls through to
     // SceneManager's built-in fallback scene.
@@ -42,6 +45,33 @@ void ofApp::setup() {
 
 void ofApp::update() {
     controlSource->update();
+
+    // Browser commands (Live mode next/back, editor instant-feedback
+    // nudges) -- applied before the scene-index check below so a
+    // click/goto loads its scene this same frame.
+    for (const auto& cmd : commandFifo.poll()) {
+        switch (cmd.type) {
+            case CommandFifo::Command::Type::Click:
+                sceneManager.injectButtonEvent(ButtonEvent::Click);
+                break;
+            case CommandFifo::Command::Type::Hold:
+                sceneManager.injectButtonEvent(ButtonEvent::Hold);
+                break;
+            case CommandFifo::Command::Type::Goto:
+                sceneManager.gotoSceneById(cmd.sceneId);
+                break;
+            case CommandFifo::Command::Type::Cc:
+                mappingResolver.setManualCc(cmd.ccNumber, cmd.value);
+                break;
+            case CommandFifo::Command::Type::Param:
+                // sceneId guards against a stale nudge racing a scene switch.
+                if (cmd.sceneId == sceneManager.getCurrentSceneId()) {
+                    mappingResolver.setManualParam(cmd.layerId, cmd.param, cmd.value);
+                }
+                break;
+        }
+    }
+
     sceneManager.update(controlSource->getState());
 
     if (sceneManager.getCurrentIndex() != lastLoadedSceneIndex) {
@@ -65,6 +95,9 @@ void ofApp::update() {
 
     liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), controlSource->getState());
     sceneRenderer.update();
+
+    telemetryWriter.update(controlSource->getState(), sceneManager.getCurrentSceneId(),
+                           sceneManager.getCurrentScene().name);
 }
 
 void ofApp::loadCurrentScene() {

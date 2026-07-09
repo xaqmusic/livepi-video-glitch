@@ -98,6 +98,7 @@ void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_CONTROL_CHANGE: {
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
+            state.lastCcEvent = {message.control, normalized, ofGetElapsedTimef()};
             if (message.control == knobACcNumber) {
                 state.knobA = normalized * 2.0f - 1.0f;  // 0..1 -> -1..1, center-detent feel
             } else if (message.control == knobBCcNumber) {

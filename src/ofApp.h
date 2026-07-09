@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "control/CommandFifo.h"
 #include "control/ControlSource.h"
 #include "control/MappingResolver.h"
 #include "ofMain.h"
@@ -10,6 +11,7 @@
 #include "scenes/SceneManager.h"
 #include "scenes/ShowLoader.h"
 #include "util/Config.h"
+#include "util/TelemetryWriter.h"
 
 class ofApp : public ofBaseApp {
 public:
@@ -28,6 +30,8 @@ private:
     SceneRenderer sceneRenderer;
     MappingResolver mappingResolver;
     LiveParams liveParams;
+    TelemetryWriter telemetryWriter;
+    CommandFifo commandFifo;
 
     size_t lastLoadedSceneIndex = static_cast<size_t>(-1);
     bool showDebugOverlay = true;
