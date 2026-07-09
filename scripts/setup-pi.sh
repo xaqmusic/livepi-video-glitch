@@ -157,17 +157,61 @@ patch(
     "ofFbo.cpp GLES guard",
 )
 
+# 5. ofPixels sizes its allocation by w*h*channels, but planar YUV formats
+#    (what ClipPlayer negotiates from the hardware decoder via
+#    OF_PIXELS_NATIVE) pack more than one byte per pixel per "channel" --
+#    I420 is 12 bits/pixel across 3 planes. The Y plane fits exactly; both
+#    chroma planes land past the end of the allocation. Everything that
+#    *consumes* planar pixels (getTotalBytes, copyFrom, setFromPixels)
+#    already uses the format-aware bytesFromPixelFormat(), so copies are
+#    heap-overflow writes and plane texture uploads read unowned memory:
+#    segfaults inside the GL driver on the Pi (crashed the kiosk 3s after
+#    boot), silent garbage chroma on desktop where the stray reads happen
+#    to hit mapped memory. Same fix in both the owning allocate() and the
+#    non-owning setFromExternalPixels().
+patch(
+    f"{of_root}/libs/openFrameworks/graphics/ofPixels.cpp",
+    "\tpixelsSize = w * h * getNumChannels();\n"
+    "\n"
+    "\t// we have some incongruence here, if we use PixelType\n"
+    "\t// we are not able to use RGB565 format\n"
+    "\tpixels = new PixelType[pixelsSize];",
+    "\t// planar formats (I420/NV12/...) carry more data than w*h*channels --\n"
+    "\t// size by the format-aware byte count like getTotalBytes() does, or the\n"
+    "\t// chroma planes overflow the allocation\n"
+    "\tpixelsSize = bytesFromPixelFormat(w,h,format) / sizeof(PixelType);\n"
+    "\n"
+    "\t// we have some incongruence here, if we use PixelType\n"
+    "\t// we are not able to use RGB565 format\n"
+    "\tpixels = new PixelType[pixelsSize];",
+    "ofPixels.cpp planar allocate",
+)
+patch(
+    f"{of_root}/libs/openFrameworks/graphics/ofPixels.cpp",
+    "\tpixelsSize = w * h * getNumChannels();\n"
+    "\n"
+    "\tpixels = newPixels;",
+    "\t// same planar-format sizing fix as in allocate() above\n"
+    "\tpixelsSize = bytesFromPixelFormat(w,h,_pixelFormat) / sizeof(PixelType);\n"
+    "\n"
+    "\tpixels = newPixels;",
+    "ofPixels.cpp planar external view",
+)
+
 # NOTE: OF_USE_GST_GL (routing GStreamer video decode straight into a GL
-# texture) was tried here to fix a real, confirmed bug -- the V4L2 hardware
-# decoder keeps up fine, but oF's default CPU-side color conversion from its
-# native output format into RGBA pegs an entire Pi 4 core and plays every
-# clip back at roughly 40% of real speed. Enabling USE_GST_GL got past
-# three separate latent oF bugs in this never-before-exercised code path
-# (a missing ofTexture.h include, missing EGL/iostream includes, unqualified
-# cout/endl), but the resulting texture never actually allocates (blank
-# screen, clip 0x0) -- a fourth, deeper bug not worth chasing further right
-# now. Reverted; still playing back slow. See docs/architecture.md's Pi 4
-# section for the current state of this investigation before trying again.
+# texture) was tried as the first fix for slow video playback -- the V4L2
+# hardware decoder keeps up fine, but oF's default demand for RGB at the
+# appsink makes playbin auto-plug a software videoconvert that pegs an
+# entire Pi 4 core and plays every clip at roughly 40% of real speed.
+# USE_GST_GL got past three separate latent oF bugs in that
+# never-before-exercised code path (a missing ofTexture.h include, missing
+# EGL/iostream includes, unqualified cout/endl), but the resulting texture
+# never allocates (blank screen, clip 0x0) -- a fourth, deeper bug not
+# worth chasing. Reverted. The actual fix ships in the app instead:
+# ClipPlayer requests OF_PIXELS_NATIVE (so the pipeline stays in the
+# decoder's own YUV format, no CPU conversion) and draws the player through
+# oF's built-in GPU YUV->RGB video shaders. Patch 5 above is what makes
+# that path survive on the Pi.
 
 print("All GLES patches applied. If oF is ever upgraded past 0.12.1, "
       "re-check these against docs/architecture.md's \"Pi 4 bring-up\" section.")

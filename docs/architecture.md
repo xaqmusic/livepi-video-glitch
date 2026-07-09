@@ -179,6 +179,71 @@ file descriptor referring to the console." Not a real blocker (a clean
 reboot or an explicit `vtN` argument to `startx` sidesteps it), but worth
 knowing before assuming a fresh crash on the next test.
 
+### Video playback: native YUV + GPU color conversion (confirmed working)
+
+Real clips initially played at ~40% of real-time speed on the Pi 4 while
+the app itself rendered a smooth 60fps. The V4L2 hardware decoder was never
+the problem (a raw `gst-launch playbin` with a sync'd `fakesink` played a
+10s clip in 10.001s) -- the bottleneck was that oF's video player defaults
+to demanding **RGB** at its appsink, which makes playbin auto-plug a
+*software* `videoconvert` doing YUV->RGB on the CPU for every frame. That
+one element pegged an entire core (a `vqueue:src` GStreamer thread at
+99.9%) and the picture backlogged behind the pipeline clock.
+
+The fix keeps the pipeline in the decoder's own format end to end:
+
+- `ClipPlayer` requests `OF_PIXELS_NATIVE`, so the appsink negotiates
+  whatever the decoder produces (I420 from `v4l2h264dec` on the Pi, NV12
+  from NVDEC on the desktop) and `videoconvert` becomes a passthrough.
+- `ShaderChain` seeds its first FBO by **drawing the player** rather than
+  sampling `getTexture()` -- drawing routes through the renderer, which
+  binds oF's built-in per-format YUV->RGB *fragment shaders* (they have
+  explicit GLES2 variants), so color conversion happens on the GPU. The
+  rest of the effect chain still sees a plain RGB FBO. (`getTexture()` on
+  a planar frame would return only the Y plane.)
+
+Getting that path to survive on the Pi surfaced three more latent oF
+0.12.1 bugs -- unsurprising, since planar video through the generic Linux
+GLES+GLFW build is yet another never-exercised-upstream combination:
+
+1. **`ofPixels` under-allocates every planar format** (`ofPixels.cpp`'s
+   `allocate()` sizes by `w*h*channels`, but I420 is 12 bits/pixel across
+   three planes): the Y plane fills the whole allocation and both chroma
+   planes land past its end. All the *consumers* (`getTotalBytes()`,
+   `copyFrom()`, `setFromPixels()`) already size by the format-aware
+   `bytesFromPixelFormat()`, so planar copies were heap-overflow writes and
+   plane texture uploads read unowned memory -- an instant segfault inside
+   the GL driver on the Pi, and silent garbage chroma on desktop, where the
+   stray reads happen to land in mapped heap. Patched (both `allocate()`
+   and `setFromExternalPixels()`) as patch 5 in `scripts/setup-pi.sh`;
+   diagnosed via `gdb` + an `LD_PRELOAD` shim that touch-read every
+   `glTexSubImage2D` source buffer before forwarding it to Mesa.
+2. **`ofGstUtils` points its pixels into a GstBuffer it maps and then
+   immediately unmaps** (`process_sample()`: `gst_buffer_map` ->
+   `setFromExternalPixels` -> `gst_buffer_unmap`). Software decoders hand
+   over malloc-backed buffers where the stale pointer happens to keep
+   working; the Pi's `v4l2h264dec` hands over V4L2 mmap'd memory that
+   genuinely goes away on unmap -> segfault on the next texture upload.
+   oF ships an opt-in fix -- `ofGstVideoUtils::setCopyPixels(true)`, whose
+   own doc comment cites the upstream v4l2 bug (GNOME #737427) -- which
+   `ClipPlayer` enables by installing its own `ofGstVideoPlayer` backend.
+3. **`ofVideoPlayer::getPlayer()` is not a query** -- it lazily creates and
+   installs a default backend when none exists, so "do I already have a
+   player?" can never be answered with it. `ClipPlayer` tracks backend
+   installation with its own flag instead. (First attempt used
+   `if(!player.getPlayer())`, which self-defeated by creating the default,
+   copyPixels-off backend it was checking for.)
+
+Verified on the Pi after the fixes: all three scenes play at a measured
+**1.000x real-time** (clip position advance vs. wall clock across two
+screenshots), app steady at 60fps, `vqueue:src` down from 99.9% to ~9%
+CPU, and correct colors on the SMPTE-style test clip (oF's conversion
+shaders use plain BT.601 -- fine for this project's aesthetic). The
+`copyPixels` copy is ~1.4MB/frame at 720p30, noise next to the removed
+conversion. `scripts/import-clip.sh` normalizes new footage to the format
+this pipeline likes: H.264 High, yuv420p, capped at 720p, keyframe every
+second, no audio.
+
 ## Input abstraction
 
 `ControlState` (`src/control/ControlState.h`) is a plain per-frame snapshot:

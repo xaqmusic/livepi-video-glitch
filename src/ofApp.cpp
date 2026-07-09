@@ -55,7 +55,7 @@ void ofApp::loadCurrentScene() {
 
 void ofApp::draw() {
     if (clipPlayer.isLoaded()) {
-        shaderChain.process(clipPlayer.getTexture(), controlSource->getState(), sceneManager.getCurrentScene());
+        shaderChain.process(clipPlayer.getDrawable(), controlSource->getState(), sceneManager.getCurrentScene());
         shaderChain.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
     }
 
@@ -71,7 +71,7 @@ void ofApp::draw() {
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
            << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  fbo: " << shaderChain.getOutputFbo().getWidth()
            << "x" << shaderChain.getOutputFbo().getHeight() << "  clip: " << clipPlayer.getTexture().getWidth() << "x"
-           << clipPlayer.getTexture().getHeight() << "\n"
+           << clipPlayer.getTexture().getHeight() << " " << clipPlayer.getPixelFormatName() << "\n"
            << "app fps: " << ofGetFrameRate() << "\n"
            << "clip pos: " << (clipPlayer.getPosition() * clipPlayer.getDuration()) << "s / "
            << clipPlayer.getDuration() << "s  (t=" << ofGetElapsedTimef() << ")\n"

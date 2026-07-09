@@ -17,6 +17,11 @@ ifneq ($(wildcard config.make),)
 	include config.make
 endif
 
-OF_ROOT ?= ../openFrameworks
+# abspath matters: oF's build caches the exact compiler flags (including
+# -I$(OF_ROOT)/... include paths) and does a FULL core-lib rebuild whenever
+# they change as a string. A relative default here made `./run.sh` (plain
+# `make`) and `make OF_ROOT=/abs/path` (scripts, docs) alternate between two
+# flag spellings of the same directory, each flipping the cache.
+OF_ROOT ?= $(abspath ../openFrameworks)
 
 include $(OF_ROOT)/libs/openFrameworksCompiled/project/makefileCommon/compile.project.mk
