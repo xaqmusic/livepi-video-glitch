@@ -55,6 +55,9 @@ export default function ShowLibrary() {
                         {active === name && <span style={{ color: "var(--ok)", fontSize: 12 }}>● active on the box</span>}
                     </div>
                     <div className="row">
+                        <button className="primary" onClick={() => navigate(`/edit/${name}`)}>
+                            Edit
+                        </button>
                         {active !== name && (
                             <button
                                 onClick={() => void api.setActiveShow(name).then(refresh).catch((e) => alert(String(e)))}

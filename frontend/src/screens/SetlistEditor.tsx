@@ -94,6 +94,9 @@ export default function SetlistEditor() {
                         </span>
                     </div>
                     <div className="row">
+                        <button className="primary" onClick={() => navigate(`/edit/${showName}/scene/${scene.id}`)}>
+                            Edit
+                        </button>
                         <button className="icon" disabled={i === 0} onClick={() => move(i, -1)}>▲</button>
                         <button className="icon" disabled={i === show.scenes.length - 1} onClick={() => move(i, 1)}>▼</button>
                         <button onClick={() => duplicateScene(i)}>Duplicate</button>
