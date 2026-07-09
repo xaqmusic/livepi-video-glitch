@@ -34,6 +34,7 @@ public:
     // instant-feedback). A `cc` command is indistinguishable from the same
     // CC arriving over MIDI; a `param` command pins one target directly.
     void setManualCc(int ccNumber, float value01);
+    void setManualNote(int noteNumber, float value01);
     void setManualParam(const std::string& layerId, const std::string& param, float value);
 
     LiveParams resolve(const Scene& scene, const ControlState& controlState);
@@ -41,9 +42,11 @@ public:
 private:
     using TargetKey = std::pair<std::string, std::string>;  // {layerId ("" = scene scope), param}
 
-    void applyCcValue(const Scene& scene, int ccNumber, float value01);
+    void applyTriggerValue(const Scene& scene, TriggerType type, int number, float value01);
 
     std::map<TargetKey, float> absoluteStore;
     std::map<int, float> prevCcValues;
+    std::map<int, float> prevNoteValues;
     std::map<int, float> pendingManualCc;
+    std::map<int, float> pendingManualNote;
 };

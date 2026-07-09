@@ -40,14 +40,19 @@ void MappingResolver::onSceneEnter(const Scene& scene, const std::map<int, float
     pendingManualCc.clear();
     prevCcValues = ccValues;
 
+    prevNoteValues.clear();
+    pendingManualNote.clear();
+
     // Seed CC-mapped targets from wherever each knob is currently latched --
     // but only for CCs that have actually been seen; untouched knobs leave
-    // the scene's static baselines in effect.
+    // the scene's static baselines in effect. Notes deliberately DON'T
+    // seed: a note released before the scene switch shouldn't pin its
+    // targets at 0 over the scene's own baseline.
     for (const auto& mapping : scene.mappings) {
         if (mapping.trigger.type != TriggerType::CC) continue;
-        auto it = ccValues.find(mapping.trigger.ccNumber);
+        auto it = ccValues.find(mapping.trigger.number);
         if (it == ccValues.end()) continue;
-        applyCcValue(scene, mapping.trigger.ccNumber, it->second);
+        applyTriggerValue(scene, TriggerType::CC, mapping.trigger.number, it->second);
     }
 }
 
@@ -55,13 +60,17 @@ void MappingResolver::setManualCc(int ccNumber, float value01) {
     pendingManualCc[ccNumber] = ofClamp(value01, 0.0f, 1.0f);
 }
 
+void MappingResolver::setManualNote(int noteNumber, float value01) {
+    pendingManualNote[noteNumber] = ofClamp(value01, 0.0f, 1.0f);
+}
+
 void MappingResolver::setManualParam(const std::string& layerId, const std::string& param, float value) {
     absoluteStore[{layerId, param}] = value;
 }
 
-void MappingResolver::applyCcValue(const Scene& scene, int ccNumber, float value01) {
+void MappingResolver::applyTriggerValue(const Scene& scene, TriggerType type, int number, float value01) {
     for (const auto& mapping : scene.mappings) {
-        if (mapping.trigger.type != TriggerType::CC || mapping.trigger.ccNumber != ccNumber) continue;
+        if (mapping.trigger.type != type || mapping.trigger.number != number) continue;
         for (const auto& target : mapping.targets) {
             absoluteStore[{target.layerId, target.param}] = ofLerp(target.min, target.max, value01);
         }
@@ -74,15 +83,27 @@ LiveParams MappingResolver::resolve(const Scene& scene, const ControlState& cont
     for (const auto& [cc, value] : controlState.ccValues) {
         auto prev = prevCcValues.find(cc);
         if (prev == prevCcValues.end() || prev->second != value) {
-            applyCcValue(scene, cc, value);
+            applyTriggerValue(scene, TriggerType::CC, cc, value);
         }
     }
     prevCcValues = controlState.ccValues;
 
+    for (const auto& [note, value] : controlState.noteValues) {
+        auto prev = prevNoteValues.find(note);
+        if (prev == prevNoteValues.end() || prev->second != value) {
+            applyTriggerValue(scene, TriggerType::Note, note, value);
+        }
+    }
+    prevNoteValues = controlState.noteValues;
+
     for (const auto& [cc, value] : pendingManualCc) {
-        applyCcValue(scene, cc, value);
+        applyTriggerValue(scene, TriggerType::CC, cc, value);
     }
     pendingManualCc.clear();
+    for (const auto& [note, value] : pendingManualNote) {
+        applyTriggerValue(scene, TriggerType::Note, note, value);
+    }
+    pendingManualNote.clear();
 
     // 2. Base view = the absolute store.
     LiveParams live;

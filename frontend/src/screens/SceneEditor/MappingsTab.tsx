@@ -42,7 +42,9 @@ export default function MappingsTab({ scene, manifest }: { scene: Scene; manifes
                         <strong>
                             {mapping.trigger.type === "cc"
                                 ? `CC ${mapping.trigger.number}`
-                                : `Audio ${mapping.trigger.band} band`}
+                                : mapping.trigger.type === "note"
+                                  ? `Note ${mapping.trigger.number}`
+                                  : `Audio ${mapping.trigger.band} band`}
                         </strong>
                         <button
                             className="danger icon"

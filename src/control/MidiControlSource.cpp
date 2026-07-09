@@ -112,10 +112,20 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_STOP:
             clock.stop();
             break;
+        case MIDI_NOTE_ON:
+        case MIDI_NOTE_OFF: {
+            // Notes are bindable triggers just like CCs: press drives the
+            // mapping by velocity, release drops it to 0 -- momentary-button
+            // semantics (a stutter punch on a drum pad, say).
+            float velocity = message.status == MIDI_NOTE_ON ? message.velocity / 127.0f : 0.0f;
+            state.noteValues[message.pitch] = velocity;
+            state.lastControlEvent = {LastControlEvent::Kind::Note, message.pitch, velocity, ofGetElapsedTimef()};
+            break;
+        }
         case MIDI_CONTROL_CHANGE: {
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
-            state.lastCcEvent = {message.control, normalized, ofGetElapsedTimef()};
+            state.lastControlEvent = {LastControlEvent::Kind::CC, message.control, normalized, ofGetElapsedTimef()};
             ofLogNotice("MidiControlSource")
                 << "CC " << message.control << " = " << normalized
                 << "  (set midi.knobA_cc / midi.knobB_cc in app.local.json to map it, or press 'a'/'b' to learn it)";

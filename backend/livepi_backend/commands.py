@@ -16,7 +16,7 @@ router = APIRouter(dependencies=[Depends(require_session)])
 
 
 class CommandBody(BaseModel):
-    type: Literal["click", "hold", "goto", "cc", "param"]
+    type: Literal["click", "hold", "goto", "cc", "note", "param"]
     sceneId: Optional[str] = None
     number: Optional[int] = Field(default=None, ge=0, le=127)
     value: Optional[float] = None
@@ -30,10 +30,10 @@ def _to_line(body: CommandBody) -> str:
         if not body.sceneId:
             raise HTTPException(422, "goto needs sceneId")
         return f"goto {body.sceneId}"
-    if body.type == "cc":
+    if body.type in ("cc", "note"):
         if body.number is None or body.value is None:
-            raise HTTPException(422, "cc needs number and value")
-        return f"cc {body.number} {body.value}"
+            raise HTTPException(422, f"{body.type} needs number and value")
+        return f"{body.type} {body.number} {body.value}"
     if body.type == "param":
         if not (body.sceneId and body.targetPath) or body.value is None:
             raise HTTPException(422, "param needs sceneId, targetPath, value")

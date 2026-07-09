@@ -22,4 +22,17 @@ public:
     virtual void setup() = 0;
     virtual void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) = 0;
     virtual const std::string& getName() const = 0;
+
+    // A pass instantiated inside a LAYER's chain reads that layer's params
+    // instead of scene-scope post-effect params -- SceneRenderer sets this
+    // when it builds layer runtimes; scene-level post passes leave it empty.
+    void setLayerId(const std::string& id) { layerId = id; }
+
+protected:
+    float readParam(const LiveParams& liveParams, const std::string& key, float fallback) const {
+        return layerId.empty() ? liveParams.getParam(key, fallback)
+                               : liveParams.getLayerParam(layerId, key, fallback);
+    }
+
+    std::string layerId;
 };

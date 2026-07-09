@@ -44,9 +44,9 @@ export default function MappableControl(props: MappableControlProps) {
 
     useEffect(() => {
         if (!armed || !telemetry) return;
-        const { cc, ts } = telemetry.lastCc;
-        if (cc >= 0 && ts > armedAt.current) {
-            onBind({ type: "cc", number: cc });
+        const { kind, number, ts } = telemetry.lastControl;
+        if (kind !== "none" && ts > armedAt.current) {
+            onBind({ type: kind, number });
             setArmed(false);
         }
     }, [armed, telemetry, onBind]);
@@ -54,7 +54,7 @@ export default function MappableControl(props: MappableControlProps) {
     const arm = () => {
         // Renderer clock: compare against the telemetry we already have so
         // "newer than arming" is measured in the renderer's own time base.
-        armedAt.current = telemetry?.lastCc.ts ?? 0;
+        armedAt.current = telemetry?.lastControl.ts ?? 0;
         setArmed(true);
         setMenuOpen(false);
     };
@@ -62,7 +62,9 @@ export default function MappableControl(props: MappableControlProps) {
     const badge = mapping
         ? mapping.trigger.type === "cc"
             ? `CC ${mapping.trigger.number}`
-            : `♪ ${mapping.trigger.band}`
+            : mapping.trigger.type === "note"
+              ? `N${mapping.trigger.number}`
+              : `♪ ${mapping.trigger.band}`
         : null;
 
     const handleChange = (v: number) => {
@@ -98,7 +100,7 @@ export default function MappableControl(props: MappableControlProps) {
             <div style={{ position: "relative" }}>
                 <button
                     className="icon"
-                    title={armed ? "Listening for CC… (turn a knob)" : "Map to MIDI CC or audio band"}
+                    title={armed ? "Listening… (turn a knob or press a key)" : "Map to a MIDI knob, key, or audio band"}
                     style={{
                         borderColor: armed ? "var(--warn)" : badge ? "var(--accent)" : undefined,
                         color: armed ? "var(--warn)" : badge ? "var(--accent)" : "var(--text-dim)",

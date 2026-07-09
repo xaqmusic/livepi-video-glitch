@@ -1,7 +1,9 @@
 #include "SceneRenderer.h"
 
+#include <algorithm>
 #include <sstream>
 
+#include "fx/StutterBufferPass.h"
 #include "ofGraphics.h"
 #include "ofLog.h"
 
@@ -51,6 +53,15 @@ void SceneRenderer::loadScene(const Scene& scene) {
                 ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
                                               << "\" has no resolved clip -- rendering black.";
             }
+
+            // The first real per-layer effect: stutter belongs to a clip,
+            // not the composited frame (performer feedback -- "that specific
+            // clip performs the stutter"). setLayerId routes its param
+            // reads to this layer's layerEffects/mappings; the chain is
+            // already set up, so addPass builds the shader immediately.
+            auto stutter = std::make_unique<StutterBufferPass>();
+            stutter->setLayerId(layer.id);
+            runtime->chain.addPass(std::move(stutter));
         }
         runtimes.push_back(std::move(runtime));
     }
@@ -103,7 +114,25 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
         if (!layer) continue;  // runtime for a layer the scene no longer has
 
         if (runtime->player && runtime->player->isLoaded()) {
-            runtime->chain.process(runtime->player->getDrawable(), controlState, liveParams);
+            // Layer transform: contain-fit the clip's native aspect ratio
+            // (portrait footage pillarboxes instead of stretching), then
+            // user scale and x/y position on top -- all live-mappable.
+            // x/y are normalized: ±1 moves the clip's center to the screen
+            // edge, so three portrait clips sit side by side at roughly
+            // x = -0.6 / 0 / +0.6.
+            float texW = runtime->player->getTexture().getWidth();
+            float texH = runtime->player->getTexture().getHeight();
+            ofRectangle dest(0, 0, width, height);
+            if (texW > 0 && texH > 0) {
+                float fit = std::min(width / texW, height / texH);
+                float scale = fit * liveParams.getLayerParam(layer->id, "transform.scale", 1.0f);
+                float w = texW * scale;
+                float h = texH * scale;
+                float cx = width * 0.5f + liveParams.getLayerParam(layer->id, "transform.x", 0.0f) * width * 0.5f;
+                float cy = height * 0.5f + liveParams.getLayerParam(layer->id, "transform.y", 0.0f) * height * 0.5f;
+                dest.set(cx - w * 0.5f, cy - h * 0.5f, w, h);
+            }
+            runtime->chain.process(runtime->player->getDrawable(), dest, controlState, liveParams);
         } else {
             // Generator placeholder / unresolved clip: black.
             runtime->chain.process(blackFbo, controlState, liveParams);

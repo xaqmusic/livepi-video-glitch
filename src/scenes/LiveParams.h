@@ -23,14 +23,26 @@ struct LiveParams {
         return scene ? scene->getParam(key, fallback) : fallback;
     }
 
-    // Layer-scope param. The static baseline differs per param (a layer's
-    // opacity field vs a layerEffects entry), so the caller passes it in.
-    float getLayerParam(const std::string& layerId, const std::string& key, float staticBaseline) const {
+    // Layer-scope param: live overlay first, then the layer's own statics
+    // (opacity field, layerEffects, generator params), then the caller's
+    // fallback (the reading pass's built-in default).
+    float getLayerParam(const std::string& layerId, const std::string& key, float fallback) const {
         auto layerIt = layerOverlay.find(layerId);
         if (layerIt != layerOverlay.end()) {
             auto it = layerIt->second.find(key);
             if (it != layerIt->second.end()) return it->second;
         }
-        return staticBaseline;
+        if (scene) {
+            for (const auto& layer : scene->layers) {
+                if (layer.id != layerId) continue;
+                if (key == "opacity") return layer.opacity;
+                auto it = layer.layerEffects.find(key);
+                if (it != layer.layerEffects.end()) return it->second;
+                auto pit = layer.params.find(key);
+                if (pit != layer.params.end()) return pit->second;
+                break;
+            }
+        }
+        return fallback;
     }
 };

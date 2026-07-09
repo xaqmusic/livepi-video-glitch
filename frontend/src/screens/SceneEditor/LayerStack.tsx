@@ -4,7 +4,7 @@
 // reversed.
 
 import { newId } from "../../api/client";
-import type { BlendMode, Clip, EffectsManifest, Scene } from "../../api/types";
+import type { BlendMode, Clip, EffectsManifest, ParamSpec, Scene } from "../../api/types";
 import MappableControl, { makePreviewSender } from "../../components/MappableControl";
 import { useShowStore } from "../../state/showStore";
 
@@ -41,15 +41,25 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
     const clipCount = scene.layers.filter((l) => l.kind === "clip").length;
     const overBudget = clipCount > manifest.layerBudget.maxClipLayers;
 
-    const opacityMapping = (layerId: string) =>
-        scene.mappings.find((m) => m.targets.some((t) => t.layerId === layerId && t.param === "opacity")) ?? null;
+    const layerParamMapping = (layerId: string, param: string) =>
+        scene.mappings.find((m) => m.targets.some((t) => t.layerId === layerId && t.param === param)) ?? null;
 
-    const bindOpacity = (layerId: string, trigger: Scene["mappings"][number]["trigger"]) => {
+    const bindLayerParam = (layerId: string, param: string, trigger: Scene["mappings"][number]["trigger"], spec?: ParamSpec) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
-            s.mappings = s.mappings.filter((m) => !m.targets.some((t) => t.layerId === layerId && t.param === "opacity"));
-            s.mappings.push({ trigger, targets: [{ layerId, param: "opacity", min: 0, max: 1 }] });
+            s.mappings = s.mappings.filter((m) => !m.targets.some((t) => t.layerId === layerId && t.param === param));
+            s.mappings.push({ trigger, targets: [{ layerId, param, min: spec?.min ?? 0, max: spec?.max ?? 1 }] });
+        });
+    };
+
+    const unbindLayerParam = (layerId: string, param: string) => {
+        edit((draft) => {
+            const s = draft.scenes.find((x) => x.id === scene.id);
+            if (!s) return;
+            s.mappings = s.mappings
+                .map((m) => ({ ...m, targets: m.targets.filter((t) => !(t.layerId === layerId && t.param === param)) }))
+                .filter((m) => m.targets.length > 0);
         });
     };
 
@@ -131,17 +141,24 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                             spec={{ label: "Opacity", type: "float", min: 0, max: 1, default: 1 }}
                             value={layer.opacity}
                             onChange={(v) => editLayer(layer.id, (l) => { l.opacity = v; })}
-                            mapping={opacityMapping(layer.id)}
-                            onBind={(trigger) => bindOpacity(layer.id, trigger)}
-                            onUnbind={() => edit((draft) => {
-                                const s = draft.scenes.find((x) => x.id === scene.id);
-                                if (!s) return;
-                                s.mappings = s.mappings
-                                    .map((m) => ({ ...m, targets: m.targets.filter((t) => !(t.layerId === layer.id && t.param === "opacity")) }))
-                                    .filter((m) => m.targets.length > 0);
-                            })}
+                            mapping={layerParamMapping(layer.id, "opacity")}
+                            onBind={(trigger) => bindLayerParam(layer.id, "opacity", trigger)}
+                            onUnbind={() => unbindLayerParam(layer.id, "opacity")}
                             sendPreview={makePreviewSender(scene.id, `layer.${layer.id}.opacity`)}
                         />
+                        {Object.entries(manifest.layerEffects).map(([key, spec]) => (
+                            <MappableControl
+                                key={key}
+                                label={spec.label}
+                                spec={spec}
+                                value={layer.layerEffects[key] ?? spec.default}
+                                onChange={(v) => editLayer(layer.id, (l) => { l.layerEffects[key] = v; })}
+                                mapping={layerParamMapping(layer.id, key)}
+                                onBind={(trigger) => bindLayerParam(layer.id, key, trigger, spec)}
+                                onUnbind={() => unbindLayerParam(layer.id, key)}
+                                sendPreview={makePreviewSender(scene.id, `layer.${layer.id}.${key}`)}
+                            />
+                        ))}
                     </div>
                 );
             })}

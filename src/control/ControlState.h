@@ -9,12 +9,14 @@ enum class ButtonEvent {
     Hold
 };
 
-// The most recent CC message seen, whenever it arrived -- what Learn mode
-// binds against (the telemetry writer publishes it for the backend).
-// timeSeconds is ofGetElapsedTimef() at arrival so consumers can tell a
-// fresh wiggle from a stale latched value.
-struct LastCcEvent {
-    int number = -1;  // -1 = no CC ever seen
+// The most recent bindable control event (a CC wiggle or a note press) --
+// what Learn mode binds against (the telemetry writer publishes it for the
+// backend). timeSeconds is ofGetElapsedTimef() at arrival so consumers can
+// tell a fresh gesture from a stale latched value.
+struct LastControlEvent {
+    enum class Kind { None, CC, Note };
+    Kind kind = Kind::None;
+    int number = -1;
     float value01 = 0.0f;
     double timeSeconds = 0.0;
 };
@@ -33,8 +35,9 @@ struct ControlState {
     bool clockPresent = false;
 
     // Modulation
-    std::map<int, float> ccValues;  // raw CC number -> normalized 0..1
-    LastCcEvent lastCcEvent;
+    std::map<int, float> ccValues;    // raw CC number -> normalized 0..1
+    std::map<int, float> noteValues;  // note number -> velocity 0..1 (0 = released)
+    LastControlEvent lastControlEvent;
     // DEPRECATED: knobA/knobB predate scene-scoped mappings (MappingResolver)
     // and are no longer read by any pass -- kept only so the keyboard
     // bindings in Mock/Midi sources still compile until removed.

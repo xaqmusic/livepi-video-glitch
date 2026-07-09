@@ -5,6 +5,7 @@
 
 #include "ShaderPass.h"
 #include "ofFbo.h"
+#include "ofRectangle.h"
 
 class ofBaseDraws;
 
@@ -23,6 +24,12 @@ public:
     // routes planar YUV frames through the renderer's GPU conversion shader
     // -- see ClipPlayer::getDrawable().
     void process(const ofBaseDraws& input, const ControlState& controlState, const LiveParams& liveParams);
+    // Same, but seeds the input at an explicit rectangle instead of
+    // stretched over the whole FBO -- how layer transforms (contain-fit
+    // aspect, scale, x/y position) enter the pipeline. Everything outside
+    // the rect is black.
+    void process(const ofBaseDraws& input, const ofRectangle& destRect, const ControlState& controlState,
+                 const LiveParams& liveParams);
     ofFbo& getOutputFbo();
 
 private:

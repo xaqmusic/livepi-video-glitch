@@ -95,10 +95,17 @@ void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_STOP:
             clock.stop();
             break;
+        case MIDI_NOTE_ON:
+        case MIDI_NOTE_OFF: {
+            float velocity = message.status == MIDI_NOTE_ON ? message.velocity / 127.0f : 0.0f;
+            state.noteValues[message.pitch] = velocity;
+            state.lastControlEvent = {LastControlEvent::Kind::Note, message.pitch, velocity, ofGetElapsedTimef()};
+            break;
+        }
         case MIDI_CONTROL_CHANGE: {
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
-            state.lastCcEvent = {message.control, normalized, ofGetElapsedTimef()};
+            state.lastControlEvent = {LastControlEvent::Kind::CC, message.control, normalized, ofGetElapsedTimef()};
             if (message.control == knobACcNumber) {
                 state.knobA = normalized * 2.0f - 1.0f;  // 0..1 -> -1..1, center-detent feel
             } else if (message.control == knobBCcNumber) {

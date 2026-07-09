@@ -14,19 +14,50 @@
             "min": 0.0,
             "max": 1.0,
             "default": 0.4
-        },
-        "stutter.enabled": {
-            "label": "Stutter",
-            "type": "toggle",
-            "min": 0.0,
-            "max": 1.0,
-            "default": 1.0
         }
     },
-    "layerEffects": {},
+    "layerEffects": {
+        "transform.scale": {
+            "label": "Scale",
+            "type": "float",
+            "min": 0.05,
+            "max": 3.0,
+            "default": 1.0
+        },
+        "transform.x": {
+            "label": "Position X",
+            "type": "float",
+            "min": -1.0,
+            "max": 1.0,
+            "default": 0.0
+        },
+        "transform.y": {
+            "label": "Position Y",
+            "type": "float",
+            "min": -1.0,
+            "max": 1.0,
+            "default": 0.0
+        },
+        "stutter.amount": {
+            "label": "Stutter",
+            "type": "float",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.0
+        }
+    },
     "generators": {},
-    "blendModes": ["normal", "add", "screen", "multiply"],
-    "audioBands": ["low", "mid", "high"],
+    "blendModes": [
+        "normal",
+        "add",
+        "screen",
+        "multiply"
+    ],
+    "audioBands": [
+        "low",
+        "mid",
+        "high"
+    ],
     "layerBudget": {
         "_comment": "Measured on the Pi 4 (docs/architecture.md, decode budget): 2x720p comfortable, 1080p+720p at the 30fps floor, 2x1080p out.",
         "maxClipLayers": 2,

@@ -17,6 +17,8 @@
 //   goto <sceneId>                          -- jump directly (Live mode Back)
 //   cc <number> <value01>                   -- inject a CC, indistinguishable
 //                                              from the same knob over MIDI
+//   note <number> <value01>                 -- inject a note (velocity;
+//                                              0 = release)
 //   param <sceneId> <targetPath> <value>    -- pin one param; targetPath is
 //                                              postEffects.<key> or
 //                                              layer.<layerId>.<key>; ignored
@@ -24,10 +26,10 @@
 class CommandFifo {
 public:
     struct Command {
-        enum class Type { Click, Hold, Goto, Cc, Param };
+        enum class Type { Click, Hold, Goto, Cc, Note, Param };
         Type type;
         std::string sceneId;   // Goto / Param
-        int ccNumber = 0;      // Cc
+        int ccNumber = 0;      // Cc / Note
         float value = 0.0f;    // Cc / Param
         std::string layerId;   // Param ("" = scene scope)
         std::string param;     // Param

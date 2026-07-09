@@ -44,6 +44,7 @@ struct Layer {
 
 enum class TriggerType {
     CC,        // absolute: the resolved value IS the target's value
+    Note,      // absolute like CC: velocity on press, 0 on release (momentary)
     AudioBand  // additive: summed onto the target's current value, then clamped
 };
 
@@ -55,7 +56,7 @@ enum class AudioBandChoice {
 
 struct MappingTrigger {
     TriggerType type = TriggerType::CC;
-    int ccNumber = 0;                                // when type == CC
+    int number = 0;                                  // CC number or note number
     AudioBandChoice band = AudioBandChoice::Low;     // when type == AudioBand
 };
 

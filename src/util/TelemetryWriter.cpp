@@ -60,10 +60,14 @@ void TelemetryWriter::update(const ControlState& state, const std::string& scene
 void TelemetryWriter::writeStatus(const ControlState& state, const std::string& sceneId,
                                   const std::string& sceneName) {
     ofJson status;
-    status["lastCc"] = {
-        {"cc", state.lastCcEvent.number},
-        {"value", state.lastCcEvent.value01},
-        {"ts", state.lastCcEvent.timeSeconds},
+    const char* kind = state.lastControlEvent.kind == LastControlEvent::Kind::CC     ? "cc"
+                       : state.lastControlEvent.kind == LastControlEvent::Kind::Note ? "note"
+                                                                                     : "none";
+    status["lastControl"] = {
+        {"kind", kind},
+        {"number", state.lastControlEvent.number},
+        {"value", state.lastControlEvent.value01},
+        {"ts", state.lastControlEvent.timeSeconds},
     };
     status["frameTimeMs"] = ofGetLastFrameTime() * 1000.0;
     status["fps"] = ofGetFrameRate();

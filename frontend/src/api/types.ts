@@ -6,7 +6,7 @@ export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export type AudioBand = "low" | "mid" | "high";
 
 export interface MappingTrigger {
-    type: "cc" | "audioBand";
+    type: "cc" | "note" | "audioBand";
     number?: number;
     band?: AudioBand;
 }
@@ -80,7 +80,7 @@ export interface EffectsManifest {
 }
 
 export interface Telemetry {
-    lastCc: { cc: number; value: number; ts: number };
+    lastControl: { kind: "cc" | "note" | "none"; number: number; value: number; ts: number };
     frameTimeMs: number;
     fps: number;
     currentSceneId: string;

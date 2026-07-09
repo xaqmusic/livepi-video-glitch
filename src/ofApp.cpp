@@ -4,7 +4,6 @@
 #include "control/MockControlSource.h"
 #include "fx/ChromaticAberrationPass.h"
 #include "fx/HSyncTearPass.h"
-#include "fx/StutterBufferPass.h"
 
 void ofApp::setup() {
     ofSetVerticalSync(true);
@@ -36,9 +35,10 @@ void ofApp::setup() {
     // mode), so the render pipeline always matches whatever's really on
     // screen instead of a second, possibly-mismatched config read.
     sceneRenderer.setup(ofGetWidth(), ofGetHeight());
+    // Stutter is a per-layer effect now (SceneRenderer adds it to each
+    // clip layer's chain) -- the post chain is the frame-wide CRT decay.
     sceneRenderer.addPostPass(std::make_unique<HSyncTearPass>());
     sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
-    sceneRenderer.addPostPass(std::make_unique<StutterBufferPass>());
 
     loadCurrentScene();
 }
@@ -62,6 +62,9 @@ void ofApp::update() {
                 break;
             case CommandFifo::Command::Type::Cc:
                 mappingResolver.setManualCc(cmd.ccNumber, cmd.value);
+                break;
+            case CommandFifo::Command::Type::Note:
+                mappingResolver.setManualNote(cmd.ccNumber, cmd.value);
                 break;
             case CommandFifo::Command::Type::Param:
                 // sceneId guards against a stale nudge racing a scene switch.
@@ -122,11 +125,11 @@ void ofApp::draw() {
            << sceneManager.getSceneCount() << ")  show: " << showLoader.getActiveShowName() << "\n"
            << "bpm: " << state.bpmEstimate << (state.clockPresent ? "" : "  (free-running, no clock)") << "\n"
            << "beat: " << state.beatInBar << "  bar: " << state.barNumber << "\n"
-           << "mappings: " << sceneManager.getCurrentScene().mappings.size()
-           << "  lastCC: " << state.lastCcEvent.number << "=" << state.lastCcEvent.value01 << "\n"
+           << "mappings: " << sceneManager.getCurrentScene().mappings.size() << "  last: "
+           << (state.lastControlEvent.kind == LastControlEvent::Kind::Note ? "note " : "cc ")
+           << state.lastControlEvent.number << "=" << state.lastControlEvent.value01 << "\n"
            << "hsync: " << liveParams.getParam("hsync.intensity", 0.5f)
-           << "  chromatic: " << liveParams.getParam("chromatic.intensity", 0.5f)
-           << "  stutter: " << liveParams.getParam("stutter.enabled", 1.0f) << "\n"
+           << "  chromatic: " << liveParams.getParam("chromatic.intensity", 0.5f) << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
            << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  layers: " << sceneRenderer.getLayerCount()

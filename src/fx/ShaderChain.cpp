@@ -25,12 +25,17 @@ void ShaderChain::addPass(std::unique_ptr<ShaderPass> pass) {
 }
 
 void ShaderChain::process(const ofBaseDraws& input, const ControlState& controlState, const LiveParams& liveParams) {
+    process(input, ofRectangle(0, 0, fboA.getWidth(), fboA.getHeight()), controlState, liveParams);
+}
+
+void ShaderChain::process(const ofBaseDraws& input, const ofRectangle& destRect, const ControlState& controlState,
+                          const LiveParams& liveParams) {
     // Seed fboA with the raw input frame so the first pass has something to
     // read regardless of how many passes are configured (including zero).
     fboA.begin();
     ofClear(0, 0, 0, 255);
     ofSetColor(255);  // the video shaders multiply by globalColor
-    input.draw(0, 0, fboA.getWidth(), fboA.getHeight());
+    input.draw(destRect.x, destRect.y, destRect.width, destRect.height);
     fboA.end();
     outputIsA = true;
 

@@ -69,6 +69,9 @@ std::vector<CommandFifo::Command> CommandFifo::poll() {
         } else if (verb == "cc") {
             cmd.type = Command::Type::Cc;
             in >> cmd.ccNumber >> cmd.value;
+        } else if (verb == "note") {
+            cmd.type = Command::Type::Note;
+            in >> cmd.ccNumber >> cmd.value;
         } else if (verb == "param") {
             cmd.type = Command::Type::Param;
             std::string targetPath;

@@ -92,7 +92,7 @@ void MockControlSource::keyPressed(int key) {
         case '9': {
             float value = (key - '1') / 8.0f;
             state.ccValues[21] = value;
-            state.lastCcEvent = {21, value, ofGetElapsedTimef()};
+            state.lastControlEvent = {LastControlEvent::Kind::CC, 21, value, ofGetElapsedTimef()};
             break;
         }
         default:

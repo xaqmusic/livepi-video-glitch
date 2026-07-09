@@ -12,7 +12,7 @@ from .effects import load_manifest
 
 
 class MappingTrigger(BaseModel):
-    type: Literal["cc", "audioBand"]
+    type: Literal["cc", "note", "audioBand"]
     number: Optional[int] = Field(default=None, ge=0, le=127)
     band: Optional[Literal["low", "mid", "high"]] = None
 
@@ -73,6 +73,7 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
 
     manifest = load_manifest()
     post_specs = manifest.get("postEffects", {})
+    layer_specs = manifest.get("layerEffects", {})
     generator_names = set(manifest.get("generators", {}).keys())
     library = storage.read_library()
     clip_ids = {c["id"] for c in library.get("clips", [])}
@@ -101,6 +102,19 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                         f'Scene "{scene.name}" layer "{layer.id}": unknown generator "{layer.source}"'
                     )
 
+        for layer in scene.layers:
+            for key, value in layer.layerEffects.items():
+                spec = layer_specs.get(key)
+                if spec is None:
+                    errors.append(
+                        f'Scene "{scene.name}" layer "{layer.id}": unknown layerEffects param "{key}"'
+                    )
+                elif not (spec["min"] <= value <= spec["max"]):
+                    errors.append(
+                        f'Scene "{scene.name}" layer "{layer.id}": {key}={value} outside '
+                        f'[{spec["min"]}, {spec["max"]}]'
+                    )
+
         for key, value in scene.postEffects.items():
             spec = post_specs.get(key)
             if spec is None:
@@ -111,14 +125,18 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                 )
 
         for mapping in scene.mappings:
-            if mapping.trigger.type == "cc" and mapping.trigger.number is None:
-                errors.append(f'Scene "{scene.name}": cc mapping missing "number"')
+            if mapping.trigger.type in ("cc", "note") and mapping.trigger.number is None:
+                errors.append(f'Scene "{scene.name}": {mapping.trigger.type} mapping missing "number"')
             if mapping.trigger.type == "audioBand" and mapping.trigger.band is None:
                 errors.append(f'Scene "{scene.name}": audioBand mapping missing "band"')
             for target in mapping.targets:
                 if target.layerId and target.layerId not in layer_ids:
                     errors.append(
                         f'Scene "{scene.name}": mapping targets unknown layerId "{target.layerId}"'
+                    )
+                if target.layerId and target.param != "opacity" and target.param not in layer_specs:
+                    errors.append(
+                        f'Scene "{scene.name}": mapping targets unknown layer param "{target.param}"'
                     )
                 if not target.layerId:
                     bare = target.param.removeprefix("postEffects.")

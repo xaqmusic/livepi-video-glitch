@@ -1,6 +1,7 @@
 #include "StutterBufferPass.h"
 
 #include "ofGraphics.h"
+#include "ofMath.h"
 #include "ofUtils.h"
 #include "util/ShaderLoader.h"
 
@@ -23,16 +24,25 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
     src.draw(0, 0);
     ring[writeIndex].end();
 
-    // Placeholder trigger: loop the last 3 buffered frames on every 16th
-    // note (6 MIDI clock ticks), per the HLD's "loops 3 frames rapidly over
-    // a 16th note." Exact beat-to-event mapping is scene content design, not
-    // architecture -- see docs/architecture.md -- and will get tuned once
-    // we're iterating on real footage. Gated on clockPresent: without a real
-    // clock, midiClockTicks never advances past 0, and 0 % 6 < 2 would
-    // otherwise make this permanently true instead of gracefully idle.
-    // "stutter.enabled" resolves live, so a mapping can gate it from a knob.
-    bool stutterActive = liveParams.getParam("stutter.enabled", 1.0f) > 0.5f && controlState.clockPresent
-        && (controlState.midiClockTicks % 6 < 2);
+    // Per-layer "stutter.amount" (0..1): 0 = off; rising amount makes the
+    // hold windows both denser and longer, until ~1.0 is a near-constant
+    // 3-frame loop. Deliberately TIME-based, not MIDI-clock-based -- the
+    // original clock-gated trigger meant stutter silently never fired
+    // without a running clock (exactly what happened in the first real
+    // walkthrough). When a clock IS present, the window period snaps to a
+    // 16th note so the chops land musically; free-run uses a fixed period.
+    float amount = readParam(liveParams, "stutter.amount", 0.0f);
+    bool stutterActive = false;
+    if (amount > 0.01f) {
+        float period;
+        if (controlState.clockPresent && controlState.bpmEstimate > 1.0) {
+            period = static_cast<float>(60.0 / controlState.bpmEstimate / 4.0);  // 16th note
+        } else {
+            period = ofLerp(0.7f, 0.16f, amount);
+        }
+        float holdFraction = ofLerp(0.2f, 0.97f, amount);
+        stutterActive = fmodf(ofGetElapsedTimef(), period) < period * holdFraction;
+    }
     ofFbo& sourceForOutput = stutterActive ? ring[writeIndex % 3] : src;
 
     writeIndex = (writeIndex + 1) % kRingSize;

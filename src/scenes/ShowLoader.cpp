@@ -180,7 +180,10 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
             std::string type = triggerNode.value("type", std::string(""));
             if (type == "cc") {
                 mapping.trigger.type = TriggerType::CC;
-                mapping.trigger.ccNumber = triggerNode.value("number", 0);
+                mapping.trigger.number = triggerNode.value("number", 0);
+            } else if (type == "note") {
+                mapping.trigger.type = TriggerType::Note;
+                mapping.trigger.number = triggerNode.value("number", 0);
             } else if (type == "audioBand") {
                 mapping.trigger.type = TriggerType::AudioBand;
                 std::string band = triggerNode.value("band", std::string("low"));
