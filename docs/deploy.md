@@ -86,12 +86,16 @@ should run the kiosk. The unit runs `startx <binary> -- -s off -dpms` in the
 `video`/`render`/`audio` groups needed for `/dev/dri` and ALSA access, with
 `Restart=on-failure`.
 
-**This is designed but not yet empirically verified against real
-hardware** -- Phase 6 in `architecture.md`. Checklist for that first real
-pass: confirm VT ownership (nothing else grabs the console), confirm group
-permissions actually grant `/dev/dri` + ALSA access, confirm no
-Raspberry-Pi-OS-Lite default service starts a conflicting getty/X session on
-the same VT.
+**Verified against real hardware on the Pi 4** (with the fixes below already
+applied): `sudo systemctl enable --now livepi-video-glitch` brought up X on
+`:0` and the app rendered successfully with zero manual steps, stable and
+still running a minute later at full CPU (not crash-looping). Confirmed:
+VT ownership was never an issue (Raspberry Pi OS Lite's default `getty@tty1`
+auto-login didn't conflict -- `startx` picked its own VT), group
+permissions granted `/dev/dri` access (GL context initialized fine), no
+default service grabbed a conflicting X session. One harmless line to
+expect in the journal: `error: XDG_RUNTIME_DIR is invalid or not set in
+the environment` -- logged once at startup, doesn't stop the app.
 
 **Found while first bringing this up on a Pi 3** (see "GL / GLES
 portability" in `architecture.md` for the fuller story -- X itself crashed
