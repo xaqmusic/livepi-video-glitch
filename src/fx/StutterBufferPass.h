@@ -17,7 +17,7 @@
 class StutterBufferPass : public ShaderPass {
 public:
     void setup() override;
-    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const Scene& scene) override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
     const std::string& getName() const override { return name; }
 
 private:

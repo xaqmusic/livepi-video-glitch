@@ -9,6 +9,16 @@ enum class ButtonEvent {
     Hold
 };
 
+// The most recent CC message seen, whenever it arrived -- what Learn mode
+// binds against (the telemetry writer publishes it for the backend).
+// timeSeconds is ofGetElapsedTimef() at arrival so consumers can tell a
+// fresh wiggle from a stale latched value.
+struct LastCcEvent {
+    int number = -1;  // -1 = no CC ever seen
+    float value01 = 0.0f;
+    double timeSeconds = 0.0;
+};
+
 // Plain per-frame snapshot shared by both ControlSource backends. See
 // docs/architecture.md ("Input abstraction") for the reasoning behind each
 // field. lastButtonEvent is latched for exactly one update() cycle -- each
@@ -24,8 +34,12 @@ struct ControlState {
 
     // Modulation
     std::map<int, float> ccValues;  // raw CC number -> normalized 0..1
-    float knobA = 0.0f;             // configured CC, remapped to -1..1 (bidirectional)
-    float knobB = 0.0f;             // configured CC, 0..1 (intensity)
+    LastCcEvent lastCcEvent;
+    // DEPRECATED: knobA/knobB predate scene-scoped mappings (MappingResolver)
+    // and are no longer read by any pass -- kept only so the keyboard
+    // bindings in Mock/Midi sources still compile until removed.
+    float knobA = 0.0f;
+    float knobB = 0.0f;
     float audioLevel = 0.0f;        // smoothed 0..1
     float lowBand = 0.0f;            // smoothed 0..1, <100Hz envelope (kick/bass)
     float midBand = 0.0f;            // smoothed 0..1, 100Hz-2kHz envelope (snare/vocal)

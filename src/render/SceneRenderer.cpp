@@ -70,16 +70,17 @@ bool SceneRenderer::layersReady() const {
     return !runtimes.empty();
 }
 
-void SceneRenderer::render(const ControlState& controlState, const Scene& scene) {
+void SceneRenderer::render(const ControlState& controlState, const LiveParams& liveParams) {
     // Freeze-frame during scene switches: leave the previous output alone
     // until every new clip layer has a real decoded frame to show.
-    if (!layersReady()) return;
+    if (!layersReady() || !liveParams.scene) return;
+    const Scene& scene = *liveParams.scene;
 
     compositor.reset();
     for (const auto& runtime : runtimes) {
-        // Blend mode / opacity read fresh from the Scene each frame (looked
-        // up by stable layerId) so hot-reloaded param edits apply without
-        // touching the runtime.
+        // Blend mode / opacity read fresh each frame (looked up by stable
+        // layerId, opacity through the live-param overlay) so mappings and
+        // hot-reloaded edits apply without touching the runtime.
         const Layer* layer = nullptr;
         for (const auto& l : scene.layers) {
             if (l.id == runtime->layerId) {
@@ -90,15 +91,16 @@ void SceneRenderer::render(const ControlState& controlState, const Scene& scene)
         if (!layer) continue;  // runtime for a layer the scene no longer has
 
         if (runtime->player && runtime->player->isLoaded()) {
-            runtime->chain.process(runtime->player->getDrawable(), controlState, scene);
+            runtime->chain.process(runtime->player->getDrawable(), controlState, liveParams);
         } else {
             // Generator placeholder / unresolved clip: black.
-            runtime->chain.process(blackFbo, controlState, scene);
+            runtime->chain.process(blackFbo, controlState, liveParams);
         }
-        compositor.addLayer(runtime->chain.getOutputFbo().getTexture(), layer->blendMode, layer->opacity);
+        float opacity = liveParams.getLayerParam(layer->id, "opacity", layer->opacity);
+        compositor.addLayer(runtime->chain.getOutputFbo().getTexture(), layer->blendMode, opacity);
     }
 
-    postChain.process(compositor.getResult(), controlState, scene);
+    postChain.process(compositor.getResult(), controlState, liveParams);
 
     outputFbo.begin();
     ofClear(0, 0, 0, 255);

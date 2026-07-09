@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "control/ControlState.h"
+#include "scenes/LiveParams.h"
 #include "fx/LayerCompositor.h"
 #include "fx/ShaderChain.h"
 #include "fx/ShaderPass.h"
@@ -33,7 +34,7 @@ public:
 
     void loadScene(const Scene& scene);
     void update();
-    void render(const ControlState& controlState, const Scene& scene);
+    void render(const ControlState& controlState, const LiveParams& liveParams);
 
     ofFbo& getOutputFbo() { return outputFbo; }
 

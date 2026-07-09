@@ -78,6 +78,23 @@ void MockControlSource::keyPressed(int key) {
         case '=':
             bpm = ofClamp(bpm + 2.0, 40.0, 300.0);
             break;
+        // Keyboard-synthesized CC 21 in nine steps ('1' = 0.0 ... '9' = 1.0)
+        // so the mapping resolver is exercisable with zero MIDI hardware --
+        // the starter show maps CC 21 across all three post-effect params.
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': {
+            float value = (key - '1') / 8.0f;
+            state.ccValues[21] = value;
+            state.lastCcEvent = {21, value, ofGetElapsedTimef()};
+            break;
+        }
         default:
             break;
     }

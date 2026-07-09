@@ -22,7 +22,7 @@ public:
     // lets the video player draw itself into the first FBO, which is what
     // routes planar YUV frames through the renderer's GPU conversion shader
     // -- see ClipPlayer::getDrawable().
-    void process(const ofBaseDraws& input, const ControlState& controlState, const Scene& scene);
+    void process(const ofBaseDraws& input, const ControlState& controlState, const LiveParams& liveParams);
     ofFbo& getOutputFbo();
 
 private:

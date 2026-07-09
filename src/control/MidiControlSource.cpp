@@ -115,6 +115,7 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_CONTROL_CHANGE: {
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
+            state.lastCcEvent = {message.control, normalized, ofGetElapsedTimef()};
             ofLogNotice("MidiControlSource")
                 << "CC " << message.control << " = " << normalized
                 << "  (set midi.knobA_cc / midi.knobB_cc in app.local.json to map it, or press 'a'/'b' to learn it)";

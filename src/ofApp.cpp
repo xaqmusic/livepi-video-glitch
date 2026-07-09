@@ -48,16 +48,22 @@ void ofApp::update() {
         loadCurrentScene();
     }
 
+    liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), controlSource->getState());
     sceneRenderer.update();
 }
 
 void ofApp::loadCurrentScene() {
-    sceneRenderer.loadScene(sceneManager.getCurrentScene());
+    const Scene& scene = sceneManager.getCurrentScene();
+    sceneRenderer.loadScene(scene);
+    // Swap the mapping table with the scene: the store clears and CC-mapped
+    // targets snap to wherever each knob currently sits, hardware-synth
+    // patch-change style.
+    mappingResolver.onSceneEnter(scene, controlSource->getState().ccValues);
     lastLoadedSceneIndex = sceneManager.getCurrentIndex();
 }
 
 void ofApp::draw() {
-    sceneRenderer.render(controlSource->getState(), sceneManager.getCurrentScene());
+    sceneRenderer.render(controlSource->getState(), liveParams);
     ofSetColor(255);
     sceneRenderer.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
 
@@ -68,7 +74,11 @@ void ofApp::draw() {
            << sceneManager.getSceneCount() << ")  show: " << showLoader.getActiveShowName() << "\n"
            << "bpm: " << state.bpmEstimate << (state.clockPresent ? "" : "  (free-running, no clock)") << "\n"
            << "beat: " << state.beatInBar << "  bar: " << state.barNumber << "\n"
-           << "knobA: " << state.knobA << "  knobB: " << state.knobB << "\n"
+           << "mappings: " << sceneManager.getCurrentScene().mappings.size()
+           << "  lastCC: " << state.lastCcEvent.number << "=" << state.lastCcEvent.value01 << "\n"
+           << "hsync: " << liveParams.getParam("hsync.intensity", 0.5f)
+           << "  chromatic: " << liveParams.getParam("chromatic.intensity", 0.5f)
+           << "  stutter: " << liveParams.getParam("stutter.enabled", 1.0f) << "\n"
            << "audioLevel: " << state.audioLevel << "\n"
            << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
            << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  layers: " << sceneRenderer.getLayerCount()

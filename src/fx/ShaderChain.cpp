@@ -24,7 +24,7 @@ void ShaderChain::addPass(std::unique_ptr<ShaderPass> pass) {
     passes.push_back(std::move(pass));
 }
 
-void ShaderChain::process(const ofBaseDraws& input, const ControlState& controlState, const Scene& scene) {
+void ShaderChain::process(const ofBaseDraws& input, const ControlState& controlState, const LiveParams& liveParams) {
     // Seed fboA with the raw input frame so the first pass has something to
     // read regardless of how many passes are configured (including zero).
     fboA.begin();
@@ -37,7 +37,7 @@ void ShaderChain::process(const ofBaseDraws& input, const ControlState& controlS
     for (auto& pass : passes) {
         ofFbo& src = outputIsA ? fboA : fboB;
         ofFbo& dst = outputIsA ? fboB : fboA;
-        pass->apply(src, dst, controlState, scene);
+        pass->apply(src, dst, controlState, liveParams);
         outputIsA = !outputIsA;
     }
 }

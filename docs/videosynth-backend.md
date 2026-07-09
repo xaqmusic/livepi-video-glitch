@@ -240,10 +240,13 @@ one thing at once (a CC mapping *and* an audio-band mapping on the same
 param, or an audio-band mapping on top of a scene's static baseline
 value). CC mappings are **absolute** -- the resolved value *is* the
 target's value for that frame, full stop, matching how a hardware knob
-works. Audio-band mappings are **additive** -- the band's contribution is
-summed on top of whatever the param's value already is that frame
-(the scene's static baseline, or a CC mapping's resolved value),
-then clamped to `[min, max]`. That's the "layers right on top of
+works. Audio-band mappings are **additive** -- the band's contribution
+(`band * (max - min)`, so `min`/`max` size how much of the band touches
+the param) is summed on top of whatever the param's value already is that
+frame (the scene's static baseline, or a CC mapping's resolved value),
+then clamped to the parameter's valid 0..1 domain -- NOT to `[min, max]`,
+which would cap a param below its own baseline whenever the baseline sits
+above `max` (found while implementing). That's the "layers right on top of
 whatever's already happening to that parameter" behavior described in
 `vision.md` -- a performer dials in a subtle bass pulse without it fighting
 or overriding a CC knob they're also riding on the same parameter.
