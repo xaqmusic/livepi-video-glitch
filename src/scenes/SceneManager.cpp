@@ -18,8 +18,10 @@ void SceneManager::setup(const Config& config) {
 void SceneManager::update(const ControlState& controlState) {
     if (controlState.lastButtonEvent == ButtonEvent::Click) {
         currentIndex = (currentIndex + 1) % scenes.size();
+        ofLogNotice("SceneManager") << "Click -> scene " << currentIndex << " (" << scenes[currentIndex].name << ")";
     } else if (controlState.lastButtonEvent == ButtonEvent::Hold) {
         currentIndex = 0;
+        ofLogNotice("SceneManager") << "Hold -> scene " << currentIndex << " (" << scenes[currentIndex].name << ")";
     }
 }
 
