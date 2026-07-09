@@ -142,3 +142,36 @@ input[type="range"] {
         padding: 12px;
     }
 }
+
+/* Collapsible per-layer control sections (LayerStack). The hot dot on a
+   closed section means something inside is non-default or bound. */
+details.param-group {
+    border: 1px solid var(--bg-input);
+    border-radius: 6px;
+}
+details.param-group > summary {
+    cursor: pointer;
+    padding: 6px 10px;
+    font-size: 13px;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+details.param-group[open] > summary {
+    border-bottom: 1px solid var(--bg-input);
+}
+details.param-group > .param-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px;
+}
+.hot-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+    flex-shrink: 0;
+}

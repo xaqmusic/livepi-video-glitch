@@ -53,6 +53,8 @@ private:
         std::string layerId;
         LayerKind kind = LayerKind::Clip;
         std::string loadedPath;  // resolved clip path this runtime is playing
+        std::string generatorSource;  // generator name (kind==Generator); a
+                                      // source change must rebuild the chain
         std::unique_ptr<ClipPlayer> player;  // null for generator layers
         ShaderChain chain;
         // Clip loads can time out under boot-time contention (GStreamer's

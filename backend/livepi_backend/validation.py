@@ -84,7 +84,8 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
     manifest = load_manifest()
     post_specs = manifest.get("postEffects", {})
     layer_specs = manifest.get("layerEffects", {})
-    generator_names = set(manifest.get("generators", {}).keys())
+    generators = manifest.get("generators", {})
+    generator_names = set(generators.keys())
     library = storage.read_library()
     clip_ids = {c["id"] for c in library.get("clips", [])}
     clip_meta = {c["id"]: c for c in library.get("clips", [])}
@@ -126,6 +127,27 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                         f'[{spec["min"]}, {spec["max"]}]'
                     )
 
+            # Generator params live in layer.params, validated against the
+            # layer's OWN generator spec (same sanitize-don't-reject rule:
+            # switching a layer's generator retires the old one's params).
+            gen_specs = (
+                generators.get(layer.source, {}).get("params", {})
+                if layer.kind == "generator"
+                else {}
+            )
+            for key in [k for k in layer.params if k not in gen_specs]:
+                layer.params.pop(key)
+                warnings.append(
+                    f'Scene "{scene.name}" layer "{layer.id}": dropped retired param "{key}"'
+                )
+            for key, value in layer.params.items():
+                spec = gen_specs[key]
+                if not (spec["min"] <= value <= spec["max"]):
+                    errors.append(
+                        f'Scene "{scene.name}" layer "{layer.id}": {key}={value} outside '
+                        f'[{spec["min"]}, {spec["max"]}]'
+                    )
+
         for key in [k for k in scene.postEffects if k not in post_specs]:
             scene.postEffects.pop(key)
             warnings.append(f'Scene "{scene.name}": dropped retired param "{key}"')
@@ -136,6 +158,7 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                     f'Scene "{scene.name}": {key}={value} outside [{spec["min"]}, {spec["max"]}]'
                 )
 
+        layer_by_id = {l.id: l for l in scene.layers}
         for mapping in scene.mappings:
             if mapping.trigger.type in ("cc", "note") and mapping.trigger.number is None:
                 errors.append(f'Scene "{scene.name}": {mapping.trigger.type} mapping missing "number"')
@@ -149,10 +172,17 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
                         f'Scene "{scene.name}": mapping targets unknown layerId "{target.layerId}"'
                     )
                 elif target.layerId and target.param != "opacity" and target.param not in layer_specs:
-                    warnings.append(
-                        f'Scene "{scene.name}": dropped mapping target to retired param "{target.param}"'
+                    target_layer = layer_by_id.get(target.layerId)
+                    target_gen_specs = (
+                        generators.get(target_layer.source, {}).get("params", {})
+                        if target_layer and target_layer.kind == "generator"
+                        else {}
                     )
-                    continue
+                    if target.param not in target_gen_specs:
+                        warnings.append(
+                            f'Scene "{scene.name}": dropped mapping target to retired param "{target.param}"'
+                        )
+                        continue
                 elif not target.layerId and target.param.removeprefix("postEffects.") not in post_specs:
                     warnings.append(
                         f'Scene "{scene.name}": dropped mapping target to retired param "{target.param}"'

@@ -66,12 +66,19 @@ export interface ParamSpec {
     default: number;
     /** enum type: labels, mapped evenly onto min..max by index. */
     options?: string[];
+    /** layerEffects: which collapsible section this control files into. */
+    group?: string;
+}
+
+export interface GeneratorSpec {
+    label: string;
+    params: Record<string, ParamSpec>;
 }
 
 export interface EffectsManifest {
     postEffects: Record<string, ParamSpec>;
     layerEffects: Record<string, ParamSpec>;
-    generators: Record<string, Record<string, ParamSpec>>;
+    generators: Record<string, GeneratorSpec>;
     blendModes: BlendMode[];
     audioBands: AudioBand[];
     layerBudget: {

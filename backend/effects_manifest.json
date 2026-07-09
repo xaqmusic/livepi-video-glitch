@@ -1,5 +1,5 @@
 {
-    "_comment": "Hand-maintained effect/generator catalog served at GET /api/effects. The UI builds parameter controls from these specs; backend validation checks param keys/ranges against them. Add an entry when a new ShaderPass lands (docs/videosynth-effects.md catalogs what's coming). Params here are the POST-effect scope; generators (kind=generator layer sources) get their own section as they're built.",
+    "_comment": "Hand-maintained effect/generator catalog served at GET /api/effects. The UI builds parameter controls from these specs; backend validation checks param keys/ranges against them. Add an entry when a new ShaderPass lands (docs/videosynth-effects.md catalogs what's coming). `group` buckets layerEffects into the UI's collapsible sections. `generators` entries are layer sources (kind=generator); their params live in the layer's `params` map, addressed by the same dotted keys.",
     "postEffects": {
         "hsync.intensity": {
             "label": "H-Sync Tear",
@@ -29,28 +29,32 @@
             "type": "float",
             "min": 0.05,
             "max": 3.0,
-            "default": 1.0
+            "default": 1.0,
+            "group": "Transform"
         },
         "transform.x": {
             "label": "Position X",
             "type": "float",
             "min": -1.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Transform"
         },
         "transform.y": {
             "label": "Position Y",
             "type": "float",
             "min": -1.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Transform"
         },
         "stutter.engage": {
             "label": "Stutter",
             "type": "toggle",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Stutter"
         },
         "stutter.rate": {
             "label": "Stutter Rate",
@@ -65,70 +69,80 @@
                 "1/8",
                 "1/16",
                 "1/32"
-            ]
+            ],
+            "group": "Stutter"
         },
         "rotozoom.speed": {
             "label": "Rotozoom Speed",
             "type": "float",
             "min": -1.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Warp FX"
         },
         "rotozoom.zoom": {
             "label": "Rotozoom Depth",
             "type": "float",
             "min": -1.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Warp FX"
         },
         "kaleido.segments": {
             "label": "Kaleidoscope",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Warp FX"
         },
         "twister.intensity": {
             "label": "Twister Bars",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Warp FX"
         },
         "tunnel.amount": {
             "label": "Tunnel",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Warp FX"
         },
         "tunnel.speed": {
             "label": "Tunnel Speed",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.3
+            "default": 0.3,
+            "group": "Warp FX"
         },
         "posterize.amount": {
             "label": "Color Cycle",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.0
+            "default": 0.0,
+            "group": "Color"
         },
         "posterize.levels": {
             "label": "Color Bins",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.5
+            "default": 0.5,
+            "group": "Color"
         },
         "posterize.speed": {
             "label": "Cycle Speed",
             "type": "float",
             "min": 0.0,
             "max": 1.0,
-            "default": 0.2
+            "default": 0.2,
+            "group": "Color"
         },
         "posterize.palette": {
             "label": "Palette",
@@ -140,10 +154,100 @@
                 "lava",
                 "vaporwave",
                 "phosphor"
-            ]
+            ],
+            "group": "Color"
         }
     },
-    "generators": {},
+    "generators": {
+        "plasma": {
+            "label": "Plasma",
+            "params": {
+                "plasma.scale": {
+                    "label": "Scale",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.4
+                },
+                "plasma.speed": {
+                    "label": "Speed",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.3
+                },
+                "plasma.palette": {
+                    "label": "Palette",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "lava",
+                        "vaporwave",
+                        "phosphor"
+                    ]
+                }
+            }
+        },
+        "copper": {
+            "label": "Copper Bars",
+            "params": {
+                "copper.bars": {
+                    "label": "Bars",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.3
+                },
+                "copper.sharpness": {
+                    "label": "Sharpness",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5
+                },
+                "copper.speed": {
+                    "label": "Speed",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.3
+                },
+                "copper.palette": {
+                    "label": "Palette",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "lava",
+                        "vaporwave",
+                        "phosphor"
+                    ]
+                }
+            }
+        },
+        "starfield": {
+            "label": "Starfield",
+            "params": {
+                "star.density": {
+                    "label": "Density",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5
+                },
+                "star.speed": {
+                    "label": "Speed",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.3
+                }
+            }
+        }
+    },
     "blendModes": [
         "normal",
         "add",

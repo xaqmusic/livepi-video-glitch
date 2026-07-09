@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "fx/FilterPasses.h"
+#include "fx/GeneratorPasses.h"
 #include "fx/StutterBufferPass.h"
 #include "ofGraphics.h"
 #include "ofImage.h"
@@ -48,6 +49,11 @@ void SceneRenderer::loadScene(const Scene& scene) {
         runtime->kind = layer.kind;
         runtime->chain.setup(width, height);  // empty pass list: seed-only until layerEffects passes exist
 
+        auto addLayerPass = [&](std::unique_ptr<ShaderPass> pass) {
+            pass->setLayerId(layer.id);
+            runtime->chain.addPass(std::move(pass));
+        };
+
         if (layer.kind == LayerKind::Clip) {
             runtime->player = std::make_unique<ClipPlayer>();
             runtime->loadedPath = layer.resolvedPath;
@@ -61,24 +67,33 @@ void SceneRenderer::loadScene(const Scene& scene) {
                 ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
                                               << "\" has no resolved clip -- rendering black.";
             }
-
-            // Per-layer effect chain. Order matters: stutter records/loops
-            // the RAW clip first (so warps keep animating over a held
-            // loop), warps resample, palette quantizes last (posterizing
-            // after warps avoids banded edges getting smeared by
-            // resampling). Idle passes cost nothing -- the chain skips any
-            // pass whose isActive() says its params are at neutral.
-            auto addLayerPass = [&](std::unique_ptr<ShaderPass> pass) {
-                pass->setLayerId(layer.id);
-                runtime->chain.addPass(std::move(pass));
-            };
-            addLayerPass(std::make_unique<StutterBufferPass>());
-            addLayerPass(std::make_unique<RotozoomPass>());
-            addLayerPass(std::make_unique<KaleidoscopePass>());
-            addLayerPass(std::make_unique<TwisterBarsPass>());
-            addLayerPass(std::make_unique<TunnelPass>());
-            addLayerPass(std::make_unique<PosterizeCyclePass>());
+        } else {
+            // Generator: a paint pass sits FIRST in the chain (it ignores
+            // the black seed and fills the layer), so the same effect
+            // stack below applies to generated content as to footage.
+            runtime->generatorSource = layer.source;
+            auto generator = makeGeneratorPass(layer.source);
+            if (generator) {
+                addLayerPass(std::move(generator));
+            } else {
+                ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
+                                              << "\": unknown generator \"" << layer.source
+                                              << "\" -- rendering black.";
+            }
         }
+
+        // Per-layer effect chain. Order matters: stutter records/loops the
+        // RAW source first (so warps keep animating over a held loop),
+        // warps resample, palette quantizes last (posterizing after warps
+        // avoids banded edges getting smeared by resampling). Idle passes
+        // cost nothing -- the chain skips any pass whose isActive() says
+        // its params are at neutral.
+        addLayerPass(std::make_unique<StutterBufferPass>());
+        addLayerPass(std::make_unique<RotozoomPass>());
+        addLayerPass(std::make_unique<KaleidoscopePass>());
+        addLayerPass(std::make_unique<TwisterBarsPass>());
+        addLayerPass(std::make_unique<TunnelPass>());
+        addLayerPass(std::make_unique<PosterizeCyclePass>());
         runtimes.push_back(std::move(runtime));
     }
 }
@@ -90,6 +105,7 @@ bool SceneRenderer::matchesRuntimes(const Scene& scene) const {
         const LayerRuntime& runtime = *runtimes[i];
         if (layer.id != runtime.layerId || layer.kind != runtime.kind) return false;
         if (layer.kind == LayerKind::Clip && layer.resolvedPath != runtime.loadedPath) return false;
+        if (layer.kind == LayerKind::Generator && layer.source != runtime.generatorSource) return false;
     }
     return true;
 }
@@ -161,7 +177,8 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
             }
             runtime->chain.process(runtime->player->getDrawable(), dest, controlState, liveParams);
         } else {
-            // Generator placeholder / unresolved clip: black.
+            // Generator (its paint pass overwrites the black seed) or
+            // unresolved clip (chain has no paint pass: stays black).
             runtime->chain.process(blackFbo, controlState, liveParams);
         }
         float opacity = liveParams.getLayerParam(layer->id, "opacity", layer->opacity);
@@ -201,7 +218,7 @@ std::string SceneRenderer::describeLayers() const {
                << (runtime->player->getPosition() * runtime->player->getDuration()) << "s /"
                << runtime->player->getDuration() << "s";
         } else {
-            ss << "generator (placeholder)";
+            ss << "generator: " << (runtime->generatorSource.empty() ? "?" : runtime->generatorSource);
         }
         if (i + 1 < runtimes.size()) ss << "\n";
     }
