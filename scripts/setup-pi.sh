@@ -291,6 +291,13 @@ else
     git clone --depth 1 https://github.com/danomatika/ofxMidi.git "$ADDON_DIR"
 fi
 
+echo "Installing backend dependencies (python venv + ffmpeg)..."
+sudo apt-get install -y python3-venv ffmpeg
+if [ ! -d "$REPO_DIR/backend/.venv" ]; then
+    python3 -m venv "$REPO_DIR/backend/.venv"
+fi
+"$REPO_DIR/backend/.venv/bin/pip" install -q -r "$REPO_DIR/backend/requirements.txt"
+
 echo "Installing Pisound driver/software support..."
 # On a genuinely fresh Raspberry Pi OS flash, unattended-upgrades or the
 # apt run above can still be holding the dpkg lock for a few seconds after

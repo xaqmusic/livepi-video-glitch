@@ -24,6 +24,16 @@ bin/data/clips/*
 !bin/data/clips/samples/
 !bin/data/clips/samples/**
 !bin/data/clips/README.md
+# The clip-id registry fixture IS tracked (dev seed; the Pi's copy is
+# backend-owned and protected from deploys via .rsyncfilter)
+!bin/data/clips/library.json
+
+# Backend (Python) and frontend (Node) local state
+backend/.venv/
+backend/.env
+__pycache__/
+frontend/node_modules/
+frontend/dist/
 
 # OS / editor cruft
 .DS_Store

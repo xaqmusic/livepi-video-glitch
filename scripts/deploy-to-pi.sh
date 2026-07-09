@@ -32,9 +32,19 @@ rsync -avz --delete --filter="merge $REPO_DIR/.rsyncfilter" "$REPO_DIR/" "$PI_US
 echo "Building natively on the Pi..."
 ssh "$PI_USER@$PI_HOST" "cd '$PI_APP_DIR' && make OF_ROOT='$PI_OF_ROOT' -j\$(nproc)"
 
+echo "Syncing backend dependencies..."
+# Idempotent and fast when nothing changed; the venv lives only on the Pi
+# (excluded from rsync -- it's arch-specific).
+ssh "$PI_USER@$PI_HOST" "cd '$PI_APP_DIR/backend' \
+    && { [ -d .venv ] || python3 -m venv .venv; } \
+    && .venv/bin/pip install -q -r requirements.txt"
+
 if [ "${1:-}" = "--restart" ]; then
     echo "Restarting livepi-video-glitch.service..."
     ssh "$PI_USER@$PI_HOST" "sudo systemctl restart livepi-video-glitch.service"
+    # The backend unit only exists once install-backend-unit.sh has run.
+    ssh "$PI_USER@$PI_HOST" "systemctl list-unit-files livepi-backend.service --no-legend | grep -q . \
+        && sudo systemctl restart livepi-backend.service || true"
 fi
 
 echo "Done."

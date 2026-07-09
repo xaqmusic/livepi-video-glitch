@@ -1,0 +1,23 @@
+# LivePi videosynth backend (show designer API + web UI).
+# Install with scripts/install-backend-unit.sh, which fills in __APP_DIR__
+# and __USER__ from .env and copies this to /etc/systemd/system/.
+#
+# No X/display dependency -- this is a plain LAN web service. The renderer
+# (livepi-video-glitch.service) runs independently; the backend degrades
+# gracefully (503 on commands, stale telemetry) when the renderer is down.
+
+[Unit]
+Description=LivePi Videosynth Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__APP_DIR__/backend
+EnvironmentFile=-__APP_DIR__/backend/.env
+ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

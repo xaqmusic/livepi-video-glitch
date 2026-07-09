@@ -1,13 +1,24 @@
 # Rules for `rsync --filter='merge .rsyncfilter'` in scripts/deploy-to-pi.sh.
 # Order matters: includes must come before the broader exclude they carve
 # a hole out of.
+
+# --- Pi-authored show data (Phase B data-ownership flip) ---------------
+# Once the backend runs on the Pi, shows, the clip registry, and thumbnails
+# are written THERE by the web editor. Excluding them protects them from
+# --delete and stops the desktop's dev fixtures overwriting real setlists.
+# Both the renderer and the backend self-seed a default show when these
+# are missing, so a fresh Pi still boots to something.
+- bin/data/shows/
+- bin/data/clips/library.json
+- bin/data/clips/.thumbs/
+
 + bin/data/clips/samples/
 + bin/data/clips/samples/**
-+ bin/data/clips/library.json
 - bin/data/clips/*
 - .git/
 - .env
 - bin/data/config/app.local.json
+
 # Never transfer build artifacts: obj/ is per-arch (desktop linux64 vs Pi
 # linuxaarch64 -- syncing with --delete was wiping the Pi's objects and
 # forcing a full rebuild every deploy), and the binary is the wrong arch
@@ -16,3 +27,10 @@
 # error).
 - obj/
 - bin/livepi-video-glitch
+
+# Backend/frontend local state (venv is arch-specific, node_modules huge;
+# frontend/dist DOES deploy -- it's built on the desktop, never on the Pi)
+- backend/.venv/
+- backend/.env
+- __pycache__/
+- frontend/node_modules/

@@ -1,0 +1,36 @@
+{
+    "_comment": "Hand-maintained effect/generator catalog served at GET /api/effects. The UI builds parameter controls from these specs; backend validation checks param keys/ranges against them. Add an entry when a new ShaderPass lands (docs/videosynth-effects.md catalogs what's coming). Params here are the POST-effect scope; generators (kind=generator layer sources) get their own section as they're built.",
+    "postEffects": {
+        "hsync.intensity": {
+            "label": "H-Sync Tear",
+            "type": "float",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.5
+        },
+        "chromatic.intensity": {
+            "label": "Chromatic Aberration",
+            "type": "float",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.4
+        },
+        "stutter.enabled": {
+            "label": "Stutter",
+            "type": "toggle",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 1.0
+        }
+    },
+    "layerEffects": {},
+    "generators": {},
+    "blendModes": ["normal", "add", "screen", "multiply"],
+    "audioBands": ["low", "mid", "high"],
+    "layerBudget": {
+        "_comment": "Measured on the Pi 4 (docs/architecture.md, decode budget): 2x720p comfortable, 1080p+720p at the 30fps floor, 2x1080p out.",
+        "maxClipLayers": 2,
+        "comfortableMaxHeight": 720,
+        "absoluteMaxHeight": 1080
+    }
+}
