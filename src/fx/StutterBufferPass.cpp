@@ -10,13 +10,15 @@
 namespace {
 
 // "stutter.rate" (0..1) quantizes to musical note lengths, in beats.
-// Matches the manifest's enum labels: 1/16, 1/8, 1/4, 1/2, 1 bar (4/4).
+// HIGH = FAST: a velocity-mapped key stutters quicker the harder it's
+// hit (performer request). Matches the manifest's enum label order:
+// 1 bar, 1/2, 1/4, 1/8, 1/16.
 float rateToBeats(float rate) {
-    if (rate < 0.125f) return 0.25f;  // 1/16 note
-    if (rate < 0.375f) return 0.5f;   // 1/8 note
+    if (rate < 0.125f) return 4.0f;   // full bar
+    if (rate < 0.375f) return 2.0f;   // 1/2 note
     if (rate < 0.625f) return 1.0f;   // 1/4 note
-    if (rate < 0.875f) return 2.0f;   // 1/2 note
-    return 4.0f;                      // full bar
+    if (rate < 0.875f) return 0.5f;   // 1/8 note
+    return 0.25f;                     // 1/16 note
 }
 
 }  // namespace
