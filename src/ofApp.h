@@ -19,6 +19,7 @@ public:
     void update() override;
     void draw() override;
     void keyPressed(int key) override;
+    void exit() override;
 
 private:
     void loadCurrentScene();

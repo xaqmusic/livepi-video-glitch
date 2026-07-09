@@ -1,13 +1,28 @@
 #include "ofApp.h"
 
+#include <atomic>
+#include <csignal>
+
 #include "control/MidiControlSource.h"
 #include "control/MockControlSource.h"
 #include "fx/ChromaticAberrationPass.h"
 #include "fx/HSyncTearPass.h"
 
+namespace {
+// systemd stops the kiosk with SIGTERM (to the whole cgroup). Dying
+// abruptly leaks VideoCore decoder components firmware-side -- enough
+// restarts and v4l2h264dec starts failing with "Failed to allocate
+// required memory" until a reboot (observed on real hardware). Convert
+// the signal into a clean oF exit so ClipPlayer/GStreamer teardown runs.
+std::atomic<bool> quitRequested{false};
+}  // namespace
+
 void ofApp::setup() {
     ofSetVerticalSync(true);
     ofBackground(0);
+
+    std::signal(SIGTERM, [](int) { quitRequested = true; });
+    std::signal(SIGINT, [](int) { quitRequested = true; });
 
     // Cheap to log, expensive to debug blind -- see "GL / GLES portability"
     // in docs/architecture.md for why the actual negotiated context/version
@@ -44,6 +59,11 @@ void ofApp::setup() {
 }
 
 void ofApp::update() {
+    if (quitRequested) {
+        ofExit();
+        return;
+    }
+
     controlSource->update();
 
     // Browser commands (Live mode next/back, editor instant-feedback
@@ -101,6 +121,13 @@ void ofApp::update() {
 
     telemetryWriter.update(controlSource->getState(), sceneManager.getCurrentSceneId(),
                            sceneManager.getCurrentScene().name);
+}
+
+void ofApp::exit() {
+    // Destroy decoder sessions deliberately (pause -> close in ClipPlayer's
+    // teardown) before the process goes away.
+    sceneRenderer.loadScene(Scene{});
+    controlSource->shutdown();
 }
 
 void ofApp::loadCurrentScene() {
