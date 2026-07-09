@@ -40,6 +40,7 @@ void ShaderChain::process(const ofBaseDraws& input, const ofRectangle& destRect,
     outputIsA = true;
 
     for (auto& pass : passes) {
+        if (!pass->isActive(liveParams)) continue;
         ofFbo& src = outputIsA ? fboA : fboB;
         ofFbo& dst = outputIsA ? fboB : fboA;
         pass->apply(src, dst, controlState, liveParams);

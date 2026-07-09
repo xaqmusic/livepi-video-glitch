@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
+#include "fx/FilterPasses.h"
 #include "fx/StutterBufferPass.h"
 #include "ofGraphics.h"
 #include "ofLog.h"
@@ -59,14 +60,22 @@ void SceneRenderer::loadScene(const Scene& scene) {
                                               << "\" has no resolved clip -- rendering black.";
             }
 
-            // The first real per-layer effect: stutter belongs to a clip,
-            // not the composited frame (performer feedback -- "that specific
-            // clip performs the stutter"). setLayerId routes its param
-            // reads to this layer's layerEffects/mappings; the chain is
-            // already set up, so addPass builds the shader immediately.
-            auto stutter = std::make_unique<StutterBufferPass>();
-            stutter->setLayerId(layer.id);
-            runtime->chain.addPass(std::move(stutter));
+            // Per-layer effect chain. Order matters: stutter records/loops
+            // the RAW clip first (so warps keep animating over a held
+            // loop), warps resample, palette quantizes last (posterizing
+            // after warps avoids banded edges getting smeared by
+            // resampling). Idle passes cost nothing -- the chain skips any
+            // pass whose isActive() says its params are at neutral.
+            auto addLayerPass = [&](std::unique_ptr<ShaderPass> pass) {
+                pass->setLayerId(layer.id);
+                runtime->chain.addPass(std::move(pass));
+            };
+            addLayerPass(std::make_unique<StutterBufferPass>());
+            addLayerPass(std::make_unique<RotozoomPass>());
+            addLayerPass(std::make_unique<KaleidoscopePass>());
+            addLayerPass(std::make_unique<TwisterBarsPass>());
+            addLayerPass(std::make_unique<TunnelPass>());
+            addLayerPass(std::make_unique<PosterizeCyclePass>());
         }
         runtimes.push_back(std::move(runtime));
     }

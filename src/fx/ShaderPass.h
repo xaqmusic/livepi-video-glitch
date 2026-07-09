@@ -23,6 +23,17 @@ public:
     virtual void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) = 0;
     virtual const std::string& getName() const = 0;
 
+    // Chains SKIP inactive passes entirely -- no draw, no ping-pong flip --
+    // so a dozen effects existing costs nothing until a scene dials one up
+    // (docs/videosynth-effects.md, architecture implication #2). Default is
+    // always-active; effect passes override to check their master param
+    // against its neutral value. Passes with side effects every frame
+    // (StutterBufferPass records history while idle) must stay always-on.
+    virtual bool isActive(const LiveParams& liveParams) const {
+        (void)liveParams;
+        return true;
+    }
+
     // A pass instantiated inside a LAYER's chain reads that layer's params
     // instead of scene-scope post-effect params -- SceneRenderer sets this
     // when it builds layer runtimes; scene-level post passes leave it empty.

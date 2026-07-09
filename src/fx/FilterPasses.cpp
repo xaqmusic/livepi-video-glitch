@@ -1,0 +1,159 @@
+#include "FilterPasses.h"
+
+#include <cmath>
+
+#include "ofAppRunner.h"
+#include "ofGraphics.h"
+#include "util/ShaderLoader.h"
+
+namespace {
+
+constexpr float kNeutral = 0.005f;
+
+// Shared draw boilerplate: every filter renders src -> dst through its
+// shader with whatever uniforms the caller bound in `bindUniforms`.
+template <typename BindUniforms>
+void drawPass(ofShader& shader, ofFbo& src, ofFbo& dst, BindUniforms bindUniforms) {
+    dst.begin();
+    ofClear(0, 0, 0, 255);
+    shader.begin();
+    ShaderLoader::bindMvp(shader);
+    shader.setUniformTexture("srcTex", src.getTexture(), 0);
+    bindUniforms(shader);
+    ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
+    shader.end();
+    dst.end();
+}
+
+}  // namespace
+
+// --- Rotozoom ---------------------------------------------------------
+
+void RotozoomPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/rotozoom.frag");
+}
+
+bool RotozoomPass::isActive(const LiveParams& liveParams) const {
+    return std::fabs(readParam(liveParams, "rotozoom.speed", 0.0f)) > kNeutral
+        || std::fabs(readParam(liveParams, "rotozoom.zoom", 0.0f)) > kNeutral;
+}
+
+void RotozoomPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float speed = readParam(liveParams, "rotozoom.speed", 0.0f);
+    float zoom = readParam(liveParams, "rotozoom.zoom", 0.0f);
+    angle += speed * 2.0f * static_cast<float>(ofGetLastFrameTime());
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("angle", angle);
+        sh.setUniform1f("zoomScale", std::exp2(-zoom * 1.5f));
+    });
+}
+
+// --- Kaleidoscope ------------------------------------------------------
+
+void KaleidoscopePass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/kaleidoscope.frag");
+}
+
+bool KaleidoscopePass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "kaleido.segments", 0.0f) > 0.02f;
+}
+
+void KaleidoscopePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float raw = readParam(liveParams, "kaleido.segments", 0.0f);
+    // 0..1 -> 3..12 wedges, integer-quantized: one knob, a completely
+    // different symmetry per step.
+    float segments = 3.0f + std::floor(raw * 9.99f);
+
+    drawPass(shader, src, dst, [&](ofShader& sh) { sh.setUniform1f("segments", segments); });
+}
+
+// --- Twister bars ------------------------------------------------------
+
+void TwisterBarsPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/twister_bars.frag");
+}
+
+bool TwisterBarsPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "twister.intensity", 0.0f) > kNeutral;
+}
+
+void TwisterBarsPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlState,
+                            const LiveParams& liveParams) {
+    if (controlState.beatInBar != lastBeatSeen) {
+        lastBeatSeen = controlState.beatInBar;
+        beatSpike = 1.0f;
+    } else {
+        beatSpike *= 0.9f;
+    }
+    noisePhase += static_cast<float>(ofGetLastFrameTime());
+    float intensity = readParam(liveParams, "twister.intensity", 0.0f);
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("noisePhase", noisePhase);
+        sh.setUniform1f("beatSpike", beatSpike);
+        sh.setUniform1f("intensity", intensity);
+    });
+}
+
+// --- Tunnel ------------------------------------------------------------
+
+void TunnelPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/tunnel.frag");
+}
+
+bool TunnelPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "tunnel.amount", 0.0f) > kNeutral;
+}
+
+void TunnelPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float amount = readParam(liveParams, "tunnel.amount", 0.0f);
+    float speed = readParam(liveParams, "tunnel.speed", 0.3f);
+    phase += speed * 0.5f * static_cast<float>(ofGetLastFrameTime());
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("tunnelPhase", phase);
+        sh.setUniform1f("amount", amount);
+    });
+}
+
+// --- Posterize + color cycle -------------------------------------------
+
+void PosterizeCyclePass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/posterize_cycle.frag");
+}
+
+bool PosterizeCyclePass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "posterize.amount", 0.0f) > kNeutral;
+}
+
+void PosterizeCyclePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float amount = readParam(liveParams, "posterize.amount", 0.0f);
+    float levelsRaw = readParam(liveParams, "posterize.levels", 0.5f);
+    float speed = readParam(liveParams, "posterize.speed", 0.2f);
+    float paletteRaw = readParam(liveParams, "posterize.palette", 0.0f);
+    cyclePhase += speed * 0.3f * static_cast<float>(ofGetLastFrameTime());
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        // 0..1 -> 2..8 bins; coarser reads more retro.
+        sh.setUniform1f("levels", 2.0f + std::floor(levelsRaw * 6.99f));
+        sh.setUniform1f("cyclePhase", cyclePhase);
+        sh.setUniform1i("paletteId", static_cast<int>(std::lround(paletteRaw * 2.0f)));
+        sh.setUniform1f("amount", amount);
+    });
+}
+
+// --- Barrel ------------------------------------------------------------
+
+void BarrelPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/barrel.frag");
+}
+
+bool BarrelPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "barrel.amount", 0.0f) > kNeutral;
+}
+
+void BarrelPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float amount = readParam(liveParams, "barrel.amount", 0.0f);
+    drawPass(shader, src, dst, [&](ofShader& sh) { sh.setUniform1f("amount", amount); });
+}

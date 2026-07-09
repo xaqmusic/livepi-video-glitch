@@ -6,6 +6,7 @@
 #include "control/MidiControlSource.h"
 #include "control/MockControlSource.h"
 #include "fx/ChromaticAberrationPass.h"
+#include "fx/FilterPasses.h"
 #include "fx/HSyncTearPass.h"
 
 namespace {
@@ -54,6 +55,8 @@ void ofApp::setup() {
     // clip layer's chain) -- the post chain is the frame-wide CRT decay.
     sceneRenderer.addPostPass(std::make_unique<HSyncTearPass>());
     sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
+    // Barrel is the tube itself, so it comes after every signal effect.
+    sceneRenderer.addPostPass(std::make_unique<BarrelPass>());
 
     loadCurrentScene();
 }
