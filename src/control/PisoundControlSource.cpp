@@ -103,9 +103,34 @@ void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
             break;
         }
         case MIDI_CONTROL_CHANGE: {
+            // 14-bit CC pairing: hi-res controllers send a coarse MSB on CC
+            // N and a fine LSB on CC N+32 (observed live: CC 3 + CC 35,
+            // CC 71 + CC 103). Without pairing, the LSB half looks like an
+            // independent knob that sweeps the whole 0..1 range every
+            // 1/128th of physical travel -- and Learn almost always caught
+            // that half, since the LSB arrives last in each pair. If this
+            // CC's N-32 partner spoke recently, fold this value into the
+            // partner as its fine half and never surface the LSB number as
+            // a control of its own.
+            double nowSecs = ofGetElapsedTimef();
+            if (message.control >= 32) {
+                auto msbIt = recentMsbRaw.find(message.control - 32);
+                auto timeIt = recentMsbTime.find(message.control - 32);
+                if (msbIt != recentMsbRaw.end() && timeIt != recentMsbTime.end()
+                    && nowSecs - timeIt->second < 0.5) {
+                    int primary = message.control - 32;
+                    float combined = (msbIt->second * 128 + message.value) / 16383.0f;
+                    state.ccValues[primary] = combined;
+                    state.lastControlEvent = {LastControlEvent::Kind::CC, primary, combined, nowSecs};
+                    break;
+                }
+            }
+            recentMsbRaw[message.control] = message.value;
+            recentMsbTime[message.control] = nowSecs;
+
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
-            state.lastControlEvent = {LastControlEvent::Kind::CC, message.control, normalized, ofGetElapsedTimef()};
+            state.lastControlEvent = {LastControlEvent::Kind::CC, message.control, normalized, nowSecs};
             if (message.control == knobACcNumber) {
                 state.knobA = normalized * 2.0f - 1.0f;  // 0..1 -> -1..1, center-detent feel
             } else if (message.control == knobBCcNumber) {

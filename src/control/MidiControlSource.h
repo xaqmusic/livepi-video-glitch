@@ -1,5 +1,7 @@
 #pragma once
 
+#include <map>
+
 #include <mutex>
 
 #include "AudioBandSplitter.h"
@@ -53,6 +55,11 @@ public:
 
 private:
     enum class LearnTarget { None, KnobA, KnobB };
+
+    // 14-bit CC pairing state (see newMidiMessage): raw MSB values and
+    // arrival times, keyed by CC number.
+    std::map<int, int> recentMsbRaw;
+    std::map<int, double> recentMsbTime;
 
     BeatClock clock;
     ControlState state;
