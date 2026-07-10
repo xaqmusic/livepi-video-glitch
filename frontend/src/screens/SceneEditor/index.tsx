@@ -44,6 +44,41 @@ export default function SceneEditor() {
                     {" / "}{scene.name}
                 </h2>
                 <div className="row">
+                    <span className="dim" style={{ fontSize: 12 }}>transition in</span>
+                    <select
+                        value={scene.transition?.style ?? "none"}
+                        title="Effect ramp used when switching INTO this scene (masks the decoder spin-up)"
+                        onChange={(e) => {
+                            const style = e.target.value as "none" | "fade" | "tear" | "shatter";
+                            useShowStore.getState().edit((draft) => {
+                                const s = draft.scenes.find((x) => x.id === scene.id);
+                                if (s) s.transition = { style, duration: s.transition?.duration ?? 0.8 };
+                            });
+                        }}
+                    >
+                        <option value="none">none</option>
+                        <option value="fade">fade</option>
+                        <option value="tear">tear</option>
+                        <option value="shatter">shatter</option>
+                    </select>
+                    {(scene.transition?.style ?? "none") !== "none" && (
+                        <input
+                            type="number"
+                            min={0.1}
+                            max={5}
+                            step={0.1}
+                            style={{ width: 64 }}
+                            title="Transition duration, seconds"
+                            value={scene.transition?.duration ?? 0.8}
+                            onChange={(e) => {
+                                const duration = Math.min(5, Math.max(0.1, parseFloat(e.target.value) || 0.8));
+                                useShowStore.getState().edit((draft) => {
+                                    const s = draft.scenes.find((x) => x.id === scene.id);
+                                    if (s?.transition) s.transition.duration = duration;
+                                });
+                            }}
+                        />
+                    )}
                     <SaveStatus />
                     <button
                         title="Jump the renderer to this scene"

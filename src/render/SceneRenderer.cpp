@@ -40,6 +40,21 @@ void SceneRenderer::addPostPass(std::unique_ptr<ShaderPass> pass) {
 }
 
 void SceneRenderer::loadScene(const Scene& scene) {
+    // Arm the entering scene's transition (not on first boot, not on
+    // hot-reload rebuilds -- those call loadScene with the SAME scene id
+    // and shouldn't flash; a real switch always changes the scene id).
+    if (firstSceneLoaded && scene.id != lastLoadedSceneId
+        && scene.transition.style != TransitionStyle::None) {
+        transition.spec = scene.transition;
+        transition.startSecs = ofGetElapsedTimef();
+        transition.outDone = false;
+        transition.inStartSecs = -1.0f;
+        ofLogNotice("SceneRenderer") << "transition: style " << static_cast<int>(scene.transition.style)
+                                     << " duration " << scene.transition.duration << "s into \"" << scene.name << "\"";
+    }
+    firstSceneLoaded = true;
+    lastLoadedSceneId = scene.id;
+
     // Destroy old runtimes (and their decoder sessions) BEFORE creating new
     // ones -- never overlap scenes' pipelines on the shared v4l2 block.
     runtimes.clear();
@@ -187,10 +202,70 @@ bool SceneRenderer::layersReady() const {
     return !runtimes.empty();
 }
 
-void SceneRenderer::render(const ControlState& controlState, const LiveParams& liveParams) {
+namespace {
+float smoothRamp(float t) { return t * t * (3.0f - 2.0f * t); }
+}  // namespace
+
+float SceneRenderer::transitionValue(float now) {
+    if (transition.spec.style == TransitionStyle::None) return 0.0f;
+    float outDur = std::max(0.15f, transition.spec.duration * 0.4f);
+    float inDur = std::max(0.2f, transition.spec.duration * 0.6f);
+    if (!transition.outDone) {
+        float t = (now - transition.startSecs) / outDur;
+        if (t < 1.0f) return smoothRamp(t);
+        transition.outDone = true;
+    }
+    if (transition.inStartSecs < 0.0f) {
+        if (!layersReady()) return 1.0f;  // hold obliteration while decoders spin up
+        transition.inStartSecs = now;
+    }
+    float t = (now - transition.inStartSecs) / inDur;
+    if (t >= 1.0f) {
+        transition.spec.style = TransitionStyle::None;
+        return 0.0f;
+    }
+    return smoothRamp(1.0f - t);
+}
+
+void SceneRenderer::render(const ControlState& controlState, const LiveParams& liveParamsIn) {
+    // Transition ramp injects into a COPY of the frame's params -- the
+    // resolver's own state is never touched.
+    LiveParams liveParams = liveParamsIn;
+    float tv = transitionValue(ofGetElapsedTimef());
+    if (tv > 0.0f) {
+        switch (transition.spec.style) {
+            case TransitionStyle::Tear:
+                liveParams.sceneOverlay["hsync.intensity"] =
+                    std::max(liveParams.getParam("hsync.intensity", 0.5f), tv);
+                break;
+            case TransitionStyle::Fade:
+                liveParams.sceneOverlay["transition.fade"] = tv;
+                break;
+            case TransitionStyle::Shatter:
+                // The dispersal tail makes amount 1 pure void: the old
+                // scene breaks apart completely, the new one reassembles.
+                liveParams.sceneOverlay["fracture.amount"] = tv;
+                break;
+            default:
+                break;
+        }
+    }
+
     // Freeze-frame during scene switches: leave the previous output alone
-    // until every new clip layer has a real decoded frame to show.
-    if (!layersReady() || !liveParams.scene) return;
+    // until every new clip layer has a real decoded frame to show --
+    // UNLESS a transition is ramping, which re-post-processes the held
+    // composite each frame so the obliteration animates over the freeze.
+    if (!layersReady() || !liveParams.scene) {
+        if (tv > 0.0f && liveParams.scene) {
+            postChain.process(compositor.getResult(), controlState, liveParams);
+            outputFbo.begin();
+            ofClear(0, 0, 0, 255);
+            ofSetColor(255);
+            postChain.getOutputFbo().draw(0, 0, width, height);
+            outputFbo.end();
+        }
+        return;
+    }
     const Scene& scene = *liveParams.scene;
 
     compositor.reset();

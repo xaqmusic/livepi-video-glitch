@@ -216,6 +216,21 @@ void ColorAdjustPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const L
     });
 }
 
+// --- Fade (transition) ----------------------------------------------------
+
+void FadePass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/fade.frag");
+}
+
+bool FadePass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "transition.fade", 0.0f) > kNeutral;
+}
+
+void FadePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float fade = readParam(liveParams, "transition.fade", 0.0f);
+    drawPass(shader, src, dst, [&](ofShader& sh) { sh.setUniform1f("fade", fade); });
+}
+
 // --- Barrel ------------------------------------------------------------
 
 void BarrelPass::setup() {

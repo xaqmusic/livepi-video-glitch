@@ -39,12 +39,18 @@ class Layer(BaseModel):
     params: dict[str, float] = {}
 
 
+class TransitionSpec(BaseModel):
+    style: Literal["none", "fade", "tear", "shatter"] = "none"
+    duration: float = Field(default=0.8, ge=0.1, le=5.0)
+
+
 class Scene(BaseModel):
     id: str
     name: str
     layers: list[Layer] = []
     mappings: list[Mapping] = []
     postEffects: dict[str, float] = {}
+    transition: TransitionSpec | None = None
 
 
 class Show(BaseModel):

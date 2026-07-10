@@ -122,6 +122,20 @@ private:
     std::string name = "color_adjust";
 };
 
+// Transition dip-to-black (scene-scope "transition.fade", driven by the
+// renderer's transition ramp, not user mappings). Very last post pass.
+class FadePass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "fade";
+};
+
 // The curved tube itself -- belongs LAST in the post chain.
 class BarrelPass : public ShaderPass {
 public:

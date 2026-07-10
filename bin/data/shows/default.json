@@ -46,25 +46,11 @@
                             "max": 0.3
                         }
                     ]
-                },
-                {
-                    "trigger": {
-                        "type": "audioBand",
-                        "band": "low"
-                    },
-                    "targets": [
-                        {
-                            "param": "postEffects.barrel.amount",
-                            "min": 0.0,
-                            "max": 0.5
-                        }
-                    ]
                 }
             ],
             "postEffects": {
-                "hsync.intensity": 0.06,
-                "chromatic.intensity": 0.0,
-                "barrel.amount": 0.0
+                "hsync.intensity": 0.5,
+                "chromatic.intensity": 0.4
             }
         },
         {
@@ -73,21 +59,21 @@
             "layers": [
                 {
                     "id": "layer-bt-bg",
-                    "kind": "generator",
-                    "source": "laser",
+                    "kind": "clip",
+                    "source": "clip-sample-crt-01",
                     "blendMode": "normal",
                     "opacity": 1.0,
-                    "layerEffects": {
-                        "kaleido.segments": 0.0,
-                        "twister.intensity": 0.0,
-                        "tunnel.amount": 0.325,
-                        "rotozoom.zoom": 0.92,
-                        "rotozoom.speed": 0.04
-                    },
-                    "params": {
-                        "laser.width": 0.56,
-                        "laser.fade": 0.595
-                    }
+                    "layerEffects": {},
+                    "params": {}
+                },
+                {
+                    "id": "layer-bt-top",
+                    "kind": "clip",
+                    "source": "clip-sample-crt-01",
+                    "blendMode": "add",
+                    "opacity": 0.5,
+                    "layerEffects": {},
+                    "params": {}
                 }
             ],
             "mappings": [],

@@ -62,6 +62,11 @@ void ofApp::setup() {
     sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
     // Barrel is the tube itself, so it comes after every signal effect.
     sceneRenderer.addPostPass(std::make_unique<BarrelPass>());
+    // Transition-only passes (idle-skipped like everything else): a
+    // scene-scoped fracture for the "shatter" style, and the dip-to-black
+    // fade dead last so it darkens the finished frame.
+    sceneRenderer.addPostPass(std::make_unique<FracturePass>());
+    sceneRenderer.addPostPass(std::make_unique<FadePass>());
 
     loadCurrentScene();
 }

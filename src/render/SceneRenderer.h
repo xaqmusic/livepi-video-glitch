@@ -68,6 +68,22 @@ private:
 
     bool layersReady() const;
 
+    // Effect-masked scene transition (docs decision: a crossfade needs two
+    // live decode pipelines, which the Pi's budget forbids -- instead the
+    // entering scene's transition style ramps an effect to obliteration
+    // over the held last frame, holds peak while the new decoders spin
+    // up, and ramps back down over the incoming scene).
+    struct Transition {
+        TransitionSpec spec;       // style None = inactive
+        float startSecs = 0.0f;
+        bool outDone = false;      // reached peak
+        float inStartSecs = -1.0f; // set when layers became ready at peak
+    };
+    Transition transition;
+    bool firstSceneLoaded = false;
+    std::string lastLoadedSceneId;
+    float transitionValue(float now);
+
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;
     LayerCompositor compositor;
     ShaderChain postChain;

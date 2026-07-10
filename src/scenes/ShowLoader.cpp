@@ -1,5 +1,6 @@
 #include "ShowLoader.h"
 
+#include <algorithm>
 #include <sys/stat.h>
 
 #include "ofFileUtils.h"
@@ -214,6 +215,16 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
         }
 
         if (sceneNode.contains("postEffects")) scene.params = parseParamMap(sceneNode.at("postEffects"));
+
+        if (sceneNode.contains("transition")) {
+            const auto& t = sceneNode.at("transition");
+            std::string style = t.value("style", std::string("none"));
+            if (style == "fade") scene.transition.style = TransitionStyle::Fade;
+            else if (style == "tear") scene.transition.style = TransitionStyle::Tear;
+            else if (style == "shatter") scene.transition.style = TransitionStyle::Shatter;
+            else scene.transition.style = TransitionStyle::None;
+            scene.transition.duration = std::clamp(t.value("duration", 0.8f), 0.1f, 5.0f);
+        }
 
         // Transitional single-clip bridge until the layered SceneRenderer
         // lands (Phase A.2): the first resolvable clip layer is what the

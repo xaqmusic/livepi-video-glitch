@@ -84,12 +84,24 @@ struct Mapping {
 // as 0.0f/1.0f (see docs/videosynth-effects.md "Architecture implications").
 // Passes read it through LiveParams, which overlays the mapping resolver's
 // live values on top of these baselines; getParam() is the static fallback.
+// How a scene is ENTERED: the outgoing frame ramps into an effect peak
+// (masking the decoder spin-up freeze), then the new scene ramps out of
+// it. Styles map to post passes: fade dips to black, tear is the h-sync
+// shred at full, shatter fractures to void and reassembles.
+enum class TransitionStyle { None, Fade, Tear, Shatter };
+
+struct TransitionSpec {
+    TransitionStyle style = TransitionStyle::None;
+    float duration = 0.8f;  // seconds, total out+in (hold excluded)
+};
+
 struct Scene {
     std::string id;
     std::string name;
     std::vector<Layer> layers;
     std::vector<Mapping> mappings;
     std::map<std::string, float> params;
+    TransitionSpec transition;
 
     // Transitional (removed with the layered SceneRenderer in Phase A.2):
     // the first clip layer's resolved path, so the current single-clip
