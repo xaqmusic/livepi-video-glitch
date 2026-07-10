@@ -105,3 +105,11 @@ export interface UploadJob {
     error?: string | null;
     clip?: Clip | null;
 }
+
+export interface JobSummary {
+    id: string;
+    name: string;
+    state: "queued" | "probing" | "transcoding" | "done" | "error";
+    progress: number;
+    error: string | null;
+}

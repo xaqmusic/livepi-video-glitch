@@ -1,7 +1,7 @@
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 
-import type { Clip, EffectsManifest, Show, UploadJob } from "./types";
+import type { Clip, EffectsManifest, JobSummary, Show, UploadJob } from "./types";
 
 export class ApiError extends Error {
     status: number;
@@ -49,6 +49,7 @@ export const api = {
         request<{ ok: boolean; active: string }>("/api/shows-active", { method: "POST", body: JSON.stringify({ name }) }),
 
     listClips: () => request<{ clips: Clip[] }>("/api/clips"),
+    listJobs: () => request<{ jobs: JobSummary[] }>("/api/clips/jobs"),
     uploadClip: (file: File) => {
         const form = new FormData();
         form.append("file", file);

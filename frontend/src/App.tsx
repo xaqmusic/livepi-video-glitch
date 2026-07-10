@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 
+import JobsBanner from "./components/JobsBanner";
 import PasswordDialog from "./components/PasswordDialog";
 import ClipLibrary from "./screens/ClipLibrary";
 import LiveMode from "./screens/LiveMode";
@@ -30,6 +31,7 @@ export default function App() {
                         onClick={() => setShowPassword(true)}>🔑</button>
                 </nav>
             )}
+            {!isLive && !isLogin && <JobsBanner />}
             {showPassword && <PasswordDialog onClose={() => setShowPassword(false)} />}
             <Routes>
                 <Route path="/login" element={<Login />} />

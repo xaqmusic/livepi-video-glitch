@@ -52,11 +52,18 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
 /** Mount-scoped subscription to live telemetry. */
 export function useTelemetry(): Telemetry | null {
-    const { latest, acquire, release } = useTelemetryStore();
+    // Per-field selectors, NOT a whole-store subscription: a scene screen
+    // holds dozens of MappableControls, and subscribing them all to every
+    // store write (including acquire/release's refs bookkeeping) multiplies
+    // renders across the board -- the churn behind the "maximum update
+    // depth" crash hunt. latest is the only field a consumer renders from;
+    // acquire/release are stable references from create().
+    const latest = useTelemetryStore((s) => s.latest);
+    const acquire = useTelemetryStore((s) => s.acquire);
+    const release = useTelemetryStore((s) => s.release);
     useEffect(() => {
         acquire();
         return release;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [acquire, release]);
     return latest;
 }

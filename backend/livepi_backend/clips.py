@@ -62,6 +62,11 @@ def upload_clip(file: UploadFile):
     return {"jobId": job.id}
 
 
+@router.get("/api/clips/jobs")
+def list_jobs():
+    return {"jobs": transcode.list_jobs()}
+
+
 @router.get("/api/clips/jobs/{job_id}")
 def job_status(job_id: str):
     job = transcode.get_job(job_id)
@@ -73,6 +78,7 @@ def job_status(job_id: str):
             "progress": job.progress,
             "error": job.error,
             "clip": job.clip,
+            "name": job.display_name,
         }
 
 

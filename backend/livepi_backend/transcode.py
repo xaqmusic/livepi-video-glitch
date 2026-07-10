@@ -169,6 +169,22 @@ def _register_clip(job: Job) -> dict:
     return clip
 
 
+def list_jobs() -> list[dict]:
+    """All jobs this backend process has seen, oldest first -- the UI's
+    global activity banner filters for the live ones."""
+    out = []
+    for job in _jobs.values():
+        with job.lock:
+            out.append({
+                "id": job.id,
+                "name": job.display_name,
+                "state": job.state,
+                "progress": job.progress,
+                "error": job.error,
+            })
+    return out
+
+
 def _worker() -> None:
     while True:
         job = _queue.get()
