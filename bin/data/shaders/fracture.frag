@@ -95,8 +95,13 @@ void main() {
     vec2 srcUv = center + rel - dir * mag;
 
     // Gaps open per shard as it lets go; still-attached shards show only
-    // hairline cracks (the narrow smoothstep band at gap 0).
-    float gap = letsGo * 0.09;
+    // hairline cracks (the narrow smoothstep band at gap 0). The top
+    // stretch of the master slider (0.75..1) adds a DISPERSAL tail: gaps
+    // keep growing until every piece erodes away and the frame is pure
+    // void -- "push all the pieces off the viewable area". Below 0.75
+    // this term is zero and the established break arc is unchanged.
+    float disperse = smoothstep(0.75, 1.0, amount);
+    float gap = letsGo * 0.09 + disperse * disperse * 1.15;
     float crack = smoothstep(gap, gap + 0.015 + 0.05 * amount, f2 - f1);
 
     if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0) {
