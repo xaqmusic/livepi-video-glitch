@@ -51,7 +51,7 @@ export default function SceneEditor() {
                         value={scene.transition?.style ?? "none"}
                         title="Effect ramp used when switching INTO this scene (masks the decoder spin-up)"
                         onChange={(e) => {
-                            const style = e.target.value as "none" | "fade" | "tear" | "shatter";
+                            const style = e.target.value as "none" | "fade" | "tear" | "shatter" | "static";
                             useShowStore.getState().edit((draft) => {
                                 const s = draft.scenes.find((x) => x.id === scene.id);
                                 if (s) s.transition = { style, duration: s.transition?.duration ?? 0.8 };
@@ -62,6 +62,7 @@ export default function SceneEditor() {
                         <option value="fade">fade</option>
                         <option value="tear">tear</option>
                         <option value="shatter">shatter</option>
+                        <option value="static">static</option>
                     </select>
                     {(scene.transition?.style ?? "none") !== "none" && (
                         <input

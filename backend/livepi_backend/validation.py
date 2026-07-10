@@ -40,7 +40,7 @@ class Layer(BaseModel):
 
 
 class TransitionSpec(BaseModel):
-    style: Literal["none", "fade", "tear", "shatter"] = "none"
+    style: Literal["none", "fade", "tear", "shatter", "static"] = "none"
     duration: float = Field(default=0.8, ge=0.1, le=5.0)
 
 

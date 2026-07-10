@@ -18,6 +18,9 @@ void main() {
     // Sharpen toward hard-edged stripes as sharpness rises.
     band = pow(band, 1.0 + sharpness * 6.0);
 
-    vec3 color = palettePreset(texCoordVarying.y + phase * 0.05, paletteId) * band;
-    fragColor = vec4(color, 1.0);
+    // Straight alpha: full bar colour, with the band shape as coverage, so
+    // the gaps between bars go transparent (bars overlay, gaps show the
+    // layers beneath). Alone over black this matches the old palette*band.
+    vec3 color = palettePreset(texCoordVarying.y + phase * 0.05, paletteId);
+    fragColor = vec4(color, band);
 }

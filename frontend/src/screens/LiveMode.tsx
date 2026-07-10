@@ -18,10 +18,16 @@ export default function LiveMode() {
     const [offline, setOffline] = useState(false);
 
     useEffect(() => {
-        api.listShows()
-            .then((r) => (r.active ? api.getShow(r.active) : null))
-            .then(setShow)
-            .catch(() => setShow(null));
+        const load = () =>
+            api.listShows()
+                .then((r) => (r.active ? api.getShow(r.active) : null))
+                .then(setShow)
+                .catch(() => setShow(null));
+        void load();
+        // Poll so controls assigned (or scenes edited) in the editor show up
+        // here without a manual reload.
+        const timer = setInterval(() => { if (!document.hidden) void load(); }, 4000);
+        return () => clearInterval(timer);
     }, []);
 
     const send = (cmd: Record<string, unknown>) =>
@@ -77,9 +83,20 @@ export default function LiveMode() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
+                {/* Always available: the global colour grade, driven straight
+                    through param commands (no CC mapping needed). */}
+                {scene && (["color.brightness", "color.contrast"] as const).map((key) => (
+                    <BigSlider
+                        key={`post-${key}`}
+                        label={key === "color.brightness" ? "Brightness" : "Contrast"}
+                        sublabel="post"
+                        initial={scene.postEffects?.[key] ?? 0.5}
+                        onSend={(value) => void send({ type: "param", sceneId: scene.id, targetPath: `postEffects.${key}`, value })}
+                    />
+                ))}
                 {ccMappings.map((mapping, i) => (
                     <BigSlider
-                        key={`${sceneId}-${i}`}
+                        key={`${sceneId}-cc-${i}`}
                         label={mapping.targets
                             .map((t) => {
                                 if (!t.layerId) return t.param.replace(/^postEffects\./, "");
@@ -87,14 +104,14 @@ export default function LiveMode() {
                                 return `Layer ${li + 1} ${t.param}`;
                             })
                             .join(" + ")}
-                        ccNumber={mapping.trigger.number!}
+                        sublabel={`CC ${mapping.trigger.number}`}
                         initial={telemetry?.lastControl && telemetry.lastControl.kind === "cc" && telemetry.lastControl.number === mapping.trigger.number ? telemetry.lastControl.value : 0.5}
                         onSend={(value) => void send({ type: "cc", number: mapping.trigger.number, value })}
                     />
                 ))}
                 {scene && ccMappings.length === 0 && (
-                    <div className="dim" style={{ textAlign: "center", marginTop: 24 }}>
-                        No CC mappings in this scene -- map some in the editor and they'll appear here.
+                    <div className="dim" style={{ textAlign: "center", marginTop: 8 }}>
+                        No CC controls mapped in this scene -- learn some in the editor and they'll appear here.
                     </div>
                 )}
             </div>
@@ -102,7 +119,7 @@ export default function LiveMode() {
     );
 }
 
-function BigSlider({ label, ccNumber, initial, onSend }: { label: string; ccNumber: number; initial: number; onSend: (v: number) => void }) {
+function BigSlider({ label, sublabel, initial, onSend }: { label: string; sublabel: string; initial: number; onSend: (v: number) => void }) {
     const [value, setValue] = useState(initial);
     const lastSent = useRef(0);
     const pending = useRef<number | null>(null);
@@ -130,7 +147,7 @@ function BigSlider({ label, ccNumber, initial, onSend }: { label: string; ccNumb
         <div className="card" style={{ padding: 16 }}>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
                 <strong>{label}</strong>
-                <span className="dim">CC {ccNumber}</span>
+                <span className="dim">{sublabel}</span>
             </div>
             <input
                 type="range"

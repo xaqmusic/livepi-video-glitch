@@ -148,3 +148,36 @@ private:
     ofShader shader;
     std::string name = "barrel";
 };
+
+// CRT scan lines: horizontal dark lines darken the picture; `zoom` sets the
+// line pitch so the tube reads as closer (few thick lines) or farther (fine
+// and dense). Sits just before Barrel so the tube curves the lines with it.
+class ScanlinesPass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "scanlines";
+};
+
+// TV snow: animated grain mixed over the signal. `amount` fades from a light
+// haze to a dead-channel snow field; `scale` sizes the grain (fine .. chunky
+// blocks), `brightness` its white level, `blur` softens it from crisp specks
+// to a cloudy wash. The FIRST post pass, so the rest of the CRT chain grades,
+// tears and curves the noisy signal.
+class StaticPass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "static";
+    float phase = 0.0f;
+};

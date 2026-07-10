@@ -9,6 +9,7 @@ import Login from "./screens/Login";
 import SceneEditor from "./screens/SceneEditor";
 import SetlistEditor from "./screens/SetlistEditor";
 import ShowLibrary from "./screens/ShowLibrary";
+import { useShowStore } from "./state/showStore";
 
 // Edit mode (laptop/tablet) and Live mode (phone) are deliberately separate
 // routes with separate layouts, not one responsive view -- see
@@ -18,6 +19,9 @@ export default function App() {
     const isLive = location.pathname.startsWith("/live");
     const isLogin = location.pathname.startsWith("/login");
     const [showPassword, setShowPassword] = useState(false);
+    // The show currently open in the editor -- lets the top bar jump straight
+    // to its scene list from anywhere.
+    const openShow = useShowStore((s) => s.name);
 
     return (
         <>
@@ -25,6 +29,7 @@ export default function App() {
                 <nav className="topbar">
                     <strong>LivePi</strong>
                     <NavLink to="/edit">Shows</NavLink>
+                    {openShow && <NavLink to={`/edit/${encodeURIComponent(openShow)}`} end>Scenes</NavLink>}
                     <NavLink to="/clips">Clips</NavLink>
                     <NavLink to="/live">Live</NavLink>
                     <button className="icon" style={{ marginLeft: "auto" }} title="Change password"

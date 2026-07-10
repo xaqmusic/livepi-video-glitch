@@ -250,3 +250,47 @@ void BarrelPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LivePa
     float amount = readParam(liveParams, "barrel.amount", 0.0f);
     drawPass(shader, src, dst, [&](ofShader& sh) { sh.setUniform1f("amount", amount); });
 }
+
+void ScanlinesPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/scanlines.frag");
+}
+
+bool ScanlinesPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "scanlines.intensity", 0.0f) > kNeutral;
+}
+
+void ScanlinesPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float intensity = readParam(liveParams, "scanlines.intensity", 0.0f);
+    float zoom = readParam(liveParams, "scanlines.zoom", 0.5f);
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("intensity", intensity);
+        sh.setUniform1f("zoom", zoom);
+    });
+}
+
+void StaticPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/static.frag");
+}
+
+bool StaticPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "static.amount", 0.0f) > kNeutral;
+}
+
+void StaticPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float amount = readParam(liveParams, "static.amount", 0.0f);
+    float scale = readParam(liveParams, "static.scale", 0.3f);
+    float brightness = readParam(liveParams, "static.brightness", 0.7f);
+    float blur = readParam(liveParams, "static.blur", 0.0f);
+    phase += static_cast<float>(ofGetLastFrameTime());
+    // Re-roll the grain ~30x/sec on the wall clock (snows the same at 30/60
+    // fps), wrapped small to spare mediump range on the Pi (see static.frag).
+    float seed = std::fmod(std::floor(phase * 30.0f), 128.0f);
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("amount", amount);
+        sh.setUniform1f("scale", scale);
+        sh.setUniform1f("brightness", brightness);
+        sh.setUniform1f("blur", blur);
+        sh.setUniform1f("frameSeed", seed);
+        sh.setUniform2f("resolution", dst.getWidth(), dst.getHeight());
+    });
+}

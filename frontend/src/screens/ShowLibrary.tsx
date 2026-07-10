@@ -37,6 +37,19 @@ export default function ShowLibrary() {
         }
     };
 
+    const renameShow = async (name: string) => {
+        const next = prompt(`Rename "${name}" to:`, name);
+        if (!next) return;
+        const clean = next.trim().replace(/\s+/g, "-").toLowerCase();
+        if (clean === name) return;
+        try {
+            await api.renameShow(name, clean);
+            await refresh();
+        } catch (e) {
+            alert(String(e));
+        }
+    };
+
     return (
         <div className="page">
             <div className="row" style={{ justifyContent: "space-between" }}>
@@ -65,6 +78,7 @@ export default function ShowLibrary() {
                                 Make active
                             </button>
                         )}
+                        <button onClick={() => void renameShow(name)}>Rename</button>
                         <button onClick={() => void createShow(name)}>Duplicate</button>
                         <button
                             className="danger"

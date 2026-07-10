@@ -41,7 +41,7 @@ export interface Scene {
     postEffects: Record<string, number>;
     /** How this scene is ENTERED: effect ramps up over the old frame,
      *  holds while decoders spin up, ramps down over the new scene. */
-    transition?: { style: "none" | "fade" | "tear" | "shatter"; duration: number } | null;
+    transition?: { style: "none" | "fade" | "tear" | "shatter" | "static"; duration: number } | null;
 }
 
 export interface Show {

@@ -120,8 +120,10 @@ void SceneRenderer::applyScene(const Scene& scene) {
         // cost nothing -- the chain skips any pass whose isActive() says
         // its params are at neutral.
         addLayerPass(std::make_unique<StutterBufferPass>());
-        addLayerPass(std::make_unique<RotozoomPass>());
+        // Kaleidoscope before rotozoom: mirror the source into wedges first,
+        // then spin/zoom the kaleidoscoped image as a whole.
         addLayerPass(std::make_unique<KaleidoscopePass>());
+        addLayerPass(std::make_unique<RotozoomPass>());
         addLayerPass(std::make_unique<TwisterBarsPass>());
         addLayerPass(std::make_unique<TunnelPass>());
         // Fracture last of the warps: it shatters whatever the layer looks
@@ -250,6 +252,13 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
             case TransitionStyle::Tear:
                 liveParams.sceneOverlay["hsync.intensity"] =
                     std::max(liveParams.getParam("hsync.intensity", 0.5f), tv);
+                break;
+            case TransitionStyle::Static:
+                // Ramp the snow to a full dead-channel field at the peak, so
+                // the scene dissolves into static and the incoming one tunes
+                // back in. Static is the first post pass, idle-skipped when 0.
+                liveParams.sceneOverlay["static.amount"] =
+                    std::max(liveParams.getParam("static.amount", 0.0f), tv);
                 break;
             case TransitionStyle::Fade:
                 liveParams.sceneOverlay["transition.fade"] = tv;

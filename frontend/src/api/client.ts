@@ -44,6 +44,11 @@ export const api = {
         }),
     createShow: (name: string, copyFrom?: string) =>
         request<{ ok: boolean; name: string }>("/api/shows", { method: "POST", body: JSON.stringify({ name, copyFrom }) }),
+    renameShow: (name: string, newName: string) =>
+        request<{ ok: boolean; name: string }>(`/api/shows/${encodeURIComponent(name)}/rename`, {
+            method: "POST",
+            body: JSON.stringify({ newName }),
+        }),
     deleteShow: (name: string) => request<{ ok: boolean }>(`/api/shows/${encodeURIComponent(name)}`, { method: "DELETE" }),
     setActiveShow: (name: string) =>
         request<{ ok: boolean; active: string }>("/api/shows-active", { method: "POST", body: JSON.stringify({ name }) }),

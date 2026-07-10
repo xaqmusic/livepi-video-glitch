@@ -94,7 +94,7 @@ struct Mapping {
 // (masking the decoder spin-up freeze), then the new scene ramps out of
 // it. Styles map to post passes: fade dips to black, tear is the h-sync
 // shred at full, shatter fractures to void and reassembles.
-enum class TransitionStyle { None, Fade, Tear, Shatter };
+enum class TransitionStyle { None, Fade, Tear, Shatter, Static };
 
 struct TransitionSpec {
     TransitionStyle style = TransitionStyle::None;

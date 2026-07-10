@@ -18,5 +18,10 @@ void main() {
             + sin((uv.x + uv.y) * 1.7 + phase * 0.7)
             + sin(length(texCoordVarying - 0.5) * plasmaScale * 4.0 - phase * 1.7);
 
-    fragColor = vec4(palettePreset(p * 0.125, paletteId), 1.0);
+    vec3 color = palettePreset(p * 0.125, paletteId);
+    // Straight alpha keyed off brightness: the dark troughs of the field go
+    // transparent so plasma reads as a glow over the layers beneath, opaque
+    // where it's bright. Alone over black it looks the same as a solid field.
+    float lum = dot(color, vec3(0.299, 0.587, 0.114));
+    fragColor = vec4(color, smoothstep(0.03, 0.55, lum));
 }

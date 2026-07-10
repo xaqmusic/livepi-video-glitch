@@ -255,6 +255,7 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
             if (style == "fade") scene.transition.style = TransitionStyle::Fade;
             else if (style == "tear") scene.transition.style = TransitionStyle::Tear;
             else if (style == "shatter") scene.transition.style = TransitionStyle::Shatter;
+            else if (style == "static") scene.transition.style = TransitionStyle::Static;
             else scene.transition.style = TransitionStyle::None;
             scene.transition.duration = std::clamp(t.value("duration", 0.8f), 0.1f, 5.0f);
         }

@@ -33,5 +33,8 @@ void main() {
             + starPlane(texCoordVarying, cells * 1.7, phase * 0.3) * 0.7
             + starPlane(texCoordVarying, cells * 2.9, phase * 0.6) * 0.45;
 
-    fragColor = vec4(vec3(min(s, 1.0)), 1.0);
+    // Straight alpha: stars are opaque, the empty space between them is
+    // transparent, so the starfield overlays the layers beneath. Full-white
+    // rgb with brightness carried by alpha (the note generators' convention).
+    fragColor = vec4(vec3(1.0), min(s, 1.0));
 }

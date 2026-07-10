@@ -14,12 +14,18 @@ namespace {
 template <typename BindUniforms>
 void paintPass(ofShader& shader, ofFbo& dst, BindUniforms bindUniforms) {
     dst.begin();
-    ofClear(0, 0, 0, 255);
+    // Transparent clear + blending OFF so the shader's straight (unpremul)
+    // alpha lands verbatim: generators render over a TRANSPARENT background
+    // (the note generators' rule), so a generator on an upper layer shows the
+    // layers beneath through its dark/empty areas instead of an opaque card.
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     shader.begin();
     ShaderLoader::bindMvp(shader);
     bindUniforms(shader);
     ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     dst.end();
 }
 

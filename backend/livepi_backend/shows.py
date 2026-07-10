@@ -3,6 +3,8 @@ one small cohesively-edited JSON, so GET returns the full document and PUT
 replaces it -- no per-scene endpoints. Writes validate first and land
 atomically; the renderer hot-reloads within a frame of the rename."""
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ValidationError
 
@@ -20,6 +22,10 @@ class CreateShowBody(BaseModel):
 
 class SetActiveBody(BaseModel):
     name: str
+
+
+class RenameShowBody(BaseModel):
+    newName: str
 
 
 def _empty_show() -> dict:
@@ -84,6 +90,26 @@ def create_show(body: CreateShowBody):
 
     storage.atomic_write_json(path, document)
     return {"ok": True, "name": body.name}
+
+
+@router.post("/api/shows/{name}/rename")
+def rename_show(name: str, body: RenameShowBody):
+    try:
+        src = storage.show_path(name)
+        dst = storage.show_path(body.newName)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not src.exists():
+        raise HTTPException(404, f"No show named {name!r}")
+    if dst.exists():
+        raise HTTPException(409, f"Show {body.newName!r} already exists")
+    # Rename the file first, then repoint active.json if this was the active
+    # show. Between the two the renderer's poll may find the old pointer
+    # dangling for a frame -- it just holds the last-good show, no crash.
+    os.replace(src, dst)
+    if storage.get_active_show_name() == name:
+        storage.set_active_show_name(body.newName)
+    return {"ok": True, "name": body.newName}
 
 
 @router.delete("/api/shows/{name}")

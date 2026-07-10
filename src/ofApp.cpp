@@ -59,11 +59,16 @@ void ofApp::setup() {
     // decoder stalls on rate -1, so nothing here ever plays backwards.
     // Stutter is a per-layer effect now (SceneRenderer adds it to each
     // clip layer's chain) -- the post chain is the frame-wide CRT decay.
-    // The global grade comes first: correct the composite, then decay it.
+    // Static is the raw signal snow, so it lands FIRST: the grade, tear,
+    // aberration and tube all then process the noisy signal.
+    sceneRenderer.addPostPass(std::make_unique<StaticPass>());
+    // The global grade comes next: correct the composite, then decay it.
     sceneRenderer.addPostPass(std::make_unique<ColorAdjustPass>());
     sceneRenderer.addPostPass(std::make_unique<HSyncTearPass>());
     sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
-    // Barrel is the tube itself, so it comes after every signal effect.
+    // Scan lines then the tube: barrel curves the lines with the glass, so
+    // scan lines come just before it (both are the physical monitor).
+    sceneRenderer.addPostPass(std::make_unique<ScanlinesPass>());
     sceneRenderer.addPostPass(std::make_unique<BarrelPass>());
     // Transition-only passes (idle-skipped like everything else): a
     // scene-scoped fracture for the "shatter" style, and the dip-to-black
