@@ -83,6 +83,13 @@ private:
     bool firstSceneLoaded = false;
     std::string lastLoadedSceneId;
     float transitionValue(float now);
+    // Deferred swap: while a transition's OUT phase runs, the OLD scene
+    // keeps playing (its runtimes stay alive) and the target waits here;
+    // the actual destroy-and-create happens at peak obliteration, so the
+    // decoder spin-up is fully covered by the effect.
+    std::unique_ptr<Scene> pendingScene;
+    Scene renderScene;  // the scene the CURRENT runtimes represent
+    void applyScene(const Scene& scene);
 
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;
     LayerCompositor compositor;

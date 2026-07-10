@@ -40,20 +40,33 @@ void SceneRenderer::addPostPass(std::unique_ptr<ShaderPass> pass) {
 }
 
 void SceneRenderer::loadScene(const Scene& scene) {
-    // Arm the entering scene's transition (not on first boot, not on
-    // hot-reload rebuilds -- those call loadScene with the SAME scene id
-    // and shouldn't flash; a real switch always changes the scene id).
+    // A real switch (different scene id) with a transition style DEFERS
+    // the swap: the old scene keeps playing while the OUT ramp rises over
+    // LIVE video, and the destroy-and-create happens at peak obliteration
+    // (hot-reload rebuilds reuse the same id and stay immediate).
     if (firstSceneLoaded && scene.id != lastLoadedSceneId
         && scene.transition.style != TransitionStyle::None) {
+        bool alreadyRamping = transition.spec.style != TransitionStyle::None && !transition.outDone;
         transition.spec = scene.transition;
-        transition.startSecs = ofGetElapsedTimef();
+        if (!alreadyRamping) {
+            transition.startSecs = ofGetElapsedTimef();
+        }  // else: keep the running ramp's clock -- fast scene surfing just retargets
         transition.outDone = false;
         transition.inStartSecs = -1.0f;
+        pendingScene = std::make_unique<Scene>(scene);
+        lastLoadedSceneId = scene.id;
         ofLogNotice("SceneRenderer") << "transition: style " << static_cast<int>(scene.transition.style)
                                      << " duration " << scene.transition.duration << "s into \"" << scene.name << "\"";
+        return;
     }
     firstSceneLoaded = true;
     lastLoadedSceneId = scene.id;
+    pendingScene.reset();
+    applyScene(scene);
+}
+
+void SceneRenderer::applyScene(const Scene& scene) {
+    renderScene = scene;
 
     // Destroy old runtimes (and their decoder sessions) BEFORE creating new
     // ones -- never overlap scenes' pipelines on the shared v4l2 block.
@@ -231,7 +244,19 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
     // Transition ramp injects into a COPY of the frame's params -- the
     // resolver's own state is never touched.
     LiveParams liveParams = liveParamsIn;
+    // During a deferred swap's OUT phase the resolver already points at
+    // the TARGET scene, but the screen still shows the old one: statics
+    // (opacity, transforms) must keep coming from the scene the runtimes
+    // actually represent.
+    if (pendingScene) liveParams.scene = &renderScene;
     float tv = transitionValue(ofGetElapsedTimef());
+    if (transition.outDone && pendingScene) {
+        // Peak obliteration reached: do the real destroy-and-create under
+        // full cover. From here the incoming scene's params apply.
+        applyScene(*pendingScene);
+        pendingScene.reset();
+        liveParams.scene = liveParamsIn.scene;
+    }
     if (tv > 0.0f) {
         switch (transition.spec.style) {
             case TransitionStyle::Tear:
