@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <iomanip>
 #include <sstream>
 
 #include "fx/FilterPasses.h"
@@ -209,6 +210,8 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
 
 std::string SceneRenderer::describeLayers() const {
     std::stringstream ss;
+    // Two-decimal floats to match the debug overlay's fixed line widths.
+    ss << std::fixed << std::setprecision(2);
     for (size_t i = 0; i < runtimes.size(); i++) {
         const auto& runtime = runtimes[i];
         ss << "layer " << i << ": ";

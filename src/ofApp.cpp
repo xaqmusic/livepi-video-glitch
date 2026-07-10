@@ -1,7 +1,10 @@
 #include "ofApp.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <csignal>
+#include <iomanip>
 
 #include "control/MidiControlSource.h"
 #include "control/MockControlSource.h"
@@ -166,20 +169,25 @@ void ofApp::draw() {
 
     if (showDebugOverlay) {
         const ControlState& state = frameState;
+        // 5-segment ASCII meter for a normalized 0..1 band level.
+        auto meter = [](float v) {
+            int filled = std::clamp(static_cast<int>(std::lround(v * 5.0f)), 0, 5);
+            std::string m = "[";
+            for (int i = 0; i < 5; i++) m += (i < filled ? '#' : '-');
+            return m + "]";
+        };
         std::stringstream ss;
+        // Fixed two-decimal floats everywhere so line lengths don't shift
+        // as values move.
+        ss << std::fixed << std::setprecision(2);
         ss << "scene: " << sceneManager.getCurrentScene().name << " (" << sceneManager.getCurrentIndex() + 1 << "/"
            << sceneManager.getSceneCount() << ")  show: " << showLoader.getActiveShowName() << "\n"
-           << "bpm: " << state.bpmEstimate << (state.clockPresent ? "" : "  (free-running, no clock)") << "\n"
-           << "beat: " << state.beatInBar << "  bar: " << state.barNumber << "\n"
+           << "bpm: " << state.bpmEstimate << (state.clockPresent ? "  (midi clock)" : "  (free-running)") << "\n"
            << "mappings: " << sceneManager.getCurrentScene().mappings.size() << "  last: "
            << (state.lastControlEvent.kind == LastControlEvent::Kind::Note ? "note " : "cc ")
            << state.lastControlEvent.number << "=" << state.lastControlEvent.value01 << "\n"
-           << "hsync: " << liveParams.getParam("hsync.intensity", 0.5f)
-           << "  chromatic: " << liveParams.getParam("chromatic.intensity", 0.5f) << "\n"
-           << "audioLevel: " << state.audioLevel << "\n"
-           << "bands  low: " << state.lowBand << "  mid: " << state.midBand << "  high: " << state.highBand << "\n"
-           << "band peaks (raw)  low: " << state.lowPeakRaw << "  mid: " << state.midPeakRaw
-           << "  high: " << state.highPeakRaw << "\n"
+           << "audio  low " << meter(state.lowBand) << "  mid " << meter(state.midBand) << "  high "
+           << meter(state.highBand) << "\n"
            << "window: " << ofGetWidth() << "x" << ofGetHeight() << "  layers: " << sceneRenderer.getLayerCount()
            << "\n"
            << sceneRenderer.describeLayers() << "\n"
