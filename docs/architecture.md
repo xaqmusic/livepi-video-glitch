@@ -64,6 +64,19 @@ Since the Pi has no desktop GL profile at all (Mesa `vc4`/`v3d` are
 GLES-only), this would have failed to create a context at all, on any Pi
 generation. Fixed to branch the same way oF's own default entry point does.
 
+A second `main.cpp` GL trap, desktop-side this time: a default-constructed
+`ofGLWindowSettings` requests GL **2.1**, and any request below 3.2 makes
+oF pick its legacy FIXED-FUNCTION renderer (`ofGLRenderer`) instead of
+`ofGLProgrammableRenderer`. The fixed renderer has no YUV video shaders,
+so ClipPlayer's native-format (NV12) frames drew as the bare luma plane:
+perfectly grayscale video, on the desktop only -- the Pi's GLES path
+always gets the programmable renderer and was in color the whole time.
+Desktop now requests GL 3.2 (`settings.setGLVersion(3, 2)`), engaging the
+same renderer family and the same NV12/I420 conversion shader path as the
+Pi. (The desktop oF tree also needs the platform-neutral planar-YUV
+patches -- `scripts/patch-of-video.sh`, the same edits `setup-pi.sh`
+applies among its GLES-only ones.)
+
 **Status on the Raspberry Pi 3 Model B Plus** (early MVP target before the
 planned Pi 4/5 migration, Phase 5): the app itself builds cleanly
 (aarch64, GLES 2.0 targeting, `-ljack` fix -- see git history), but hasn't

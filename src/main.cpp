@@ -33,6 +33,14 @@ int main() {
     settings.glesVersion = 2;
 #else
     ofGLWindowSettings settings;
+    // Default ofGLWindowSettings requests GL 2.1, which selects oF's
+    // FIXED-FUNCTION renderer -- and that renderer has no YUV conversion
+    // shaders, so ClipPlayer's native-format frames draw as the bare luma
+    // plane: perfect grayscale video, desktop only (the Pi's GLES path
+    // always uses the programmable renderer). 3.2+ engages
+    // ofGLProgrammableRenderer and its NV12/I420 video shaders, matching
+    // the Pi's rendering path.
+    settings.setGLVersion(3, 2);
 #endif
     int width = config.getInt("window.width", 1280);
     int height = config.getInt("window.height", 720);
