@@ -39,3 +39,6 @@ frontend/dist/
 .DS_Store
 *.swp
 .vscode/ipch/
+bin/data/shows/*
+!bin/data/shows/default.json
+!bin/data/shows/active.json
