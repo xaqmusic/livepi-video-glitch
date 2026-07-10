@@ -3,6 +3,24 @@
         {
             "id": "clip-sample-crt-01",
             "path": "clips/samples/sample_crt_loop_01.mp4"
+        },
+        {
+            "id": "clip-278f72b2",
+            "path": "clips/GlitchGirl1-467a89.mp4",
+            "name": "GlitchGirl1",
+            "width": 1920,
+            "height": 1080,
+            "duration": 54.4544,
+            "thumb": "clip-278f72b2.jpg"
+        },
+        {
+            "id": "clip-58012558",
+            "path": "clips/Maple-206405.mp4",
+            "name": "Maple",
+            "width": 1920,
+            "height": 1080,
+            "duration": 1731.062,
+            "thumb": "clip-58012558.jpg"
         }
     ]
 }

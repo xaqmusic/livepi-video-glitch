@@ -40,31 +40,38 @@ _worker_lock = threading.Lock()
 
 
 def probe(path: Path) -> dict | None:
+    # stdbuf -o0 + ignoring the exit code: Trixie's libx265 4.1 executes
+    # SVE instructions the Pi 4's Cortex-A72 doesn't have, SIGILLing every
+    # ffprobe/ffmpeg AT EXIT (in libx265's teardown, after all real work
+    # is done). Block-buffered stdout dies with the process, so unbuffer
+    # it and judge by whether parseable JSON arrived, not by returncode.
     try:
         out = subprocess.run(
             [
-                "ffprobe", "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=codec_name,pix_fmt,width,height,duration",
+                "stdbuf", "-o0", "ffprobe", "-v", "error",
+                "-show_entries", "stream=codec_type,codec_name,pix_fmt,width,height,duration",
                 "-show_entries", "format=duration",
                 "-of", "json", str(path),
             ],
             capture_output=True, text=True, timeout=30,
         )
         data = json.loads(out.stdout)
-        stream = data["streams"][0]
-        duration = stream.get("duration") or data.get("format", {}).get("duration") or 0
+        streams = data.get("streams", [])
+        video = next(s for s in streams if s.get("codec_type") == "video")
+        duration = video.get("duration") or data.get("format", {}).get("duration") or 0
         return {
-            "codec": stream.get("codec_name", ""),
-            "pixFmt": stream.get("pix_fmt", ""),
-            "width": int(stream.get("width", 0)),
-            "height": int(stream.get("height", 0)),
+            "codec": video.get("codec_name", ""),
+            "pixFmt": video.get("pix_fmt", ""),
+            "width": int(video.get("width", 0)),
+            "height": int(video.get("height", 0)),
             "duration": float(duration),
+            "hasAudio": any(s.get("codec_type") == "audio" for s in streams),
         }
     except Exception:
         return None
 
 
-def is_compliant(info: dict) -> bool:
+def video_compliant(info: dict) -> bool:
     return (
         info["codec"] == "h264"
         and info["pixFmt"] == "yuv420p"
@@ -72,10 +79,18 @@ def is_compliant(info: dict) -> bool:
     )
 
 
+def is_compliant(info: dict) -> bool:
+    # Audio disqualifies passthrough: the renderer never plays clip audio,
+    # and an audio track reaching playbin on the kiosk (which has no
+    # working audio sink) can kill the whole pipeline. Compliant-but-audio
+    # files get a lossless video-copy remux that strips it.
+    return video_compliant(info) and not info["hasAudio"]
+
+
 def make_thumbnail(clip_path: Path, clip_id: str) -> str | None:
     config.THUMBS_DIR.mkdir(parents=True, exist_ok=True)
     thumb = config.THUMBS_DIR / f"{clip_id}.jpg"
-    result = subprocess.run(
+    subprocess.run(
         [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
             "-ss", "1", "-i", str(clip_path),
@@ -83,36 +98,53 @@ def make_thumbnail(clip_path: Path, clip_id: str) -> str | None:
         ],
         capture_output=True, timeout=60,
     )
-    return thumb.name if result.returncode == 0 and thumb.exists() else None
+    # Judged by the artifact, not the exit code (libx265 teardown SIGILL,
+    # see probe()).
+    return thumb.name if thumb.exists() and thumb.stat().st_size > 0 else None
 
 
-def _transcode(job: Job) -> None:
+def _transcode(job: Job, video_copy: bool = False) -> None:
     info = probe(job.src)
     duration_us = (info["duration"] if info else 0) * 1_000_000 or 1
 
-    # scripts/import-clip.sh's recipe (keep in sync), plus Pi throttling.
+    if video_copy:
+        # Compliant video that just needs its audio stripped: lossless
+        # stream copy, effectively instant.
+        video_args = ["-c:v", "copy"]
+    else:
+        # scripts/import-clip.sh's recipe (keep in sync), plus Pi throttling.
+        video_args = [
+            "-vf", "scale=-2:'min(1080,ih)'",
+            "-c:v", "libx264", "-profile:v", "high", "-preset", config.FFMPEG_PRESET,
+            "-crf", "20", "-pix_fmt", "yuv420p", "-g", "30",
+        ]
     cmd = [
         "nice", "-n", str(config.FFMPEG_NICE),
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", str(job.src),
-        "-vf", "scale=-2:'min(1080,ih)'",
-        "-c:v", "libx264", "-profile:v", "high", "-preset", config.FFMPEG_PRESET,
-        "-crf", "20", "-pix_fmt", "yuv420p", "-g", "30",
+        *video_args,
         "-an", "-movflags", "+faststart",
         "-progress", "pipe:1",
     ]
-    if config.FFMPEG_THREADS:
+    if config.FFMPEG_THREADS and not video_copy:
         cmd += ["-threads", str(config.FFMPEG_THREADS)]
     cmd.append(str(job.dest))
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    saw_end = False
     for line in proc.stdout:
-        m = re.match(r"out_time_us=(\d+)", line.strip())
+        line = line.strip()
+        m = re.match(r"out_time_us=(\d+)", line)
         if m:
             with job.lock:
                 job.progress = min(0.99, int(m.group(1)) / duration_us)
+        if line == "progress=end":
+            saw_end = True
     proc.wait()
-    if proc.returncode != 0:
+    # `progress=end` means ffmpeg finished writing the output -- a nonzero
+    # exit AFTER that is the libx265 teardown SIGILL (see probe()), not a
+    # failed transcode.
+    if proc.returncode != 0 and not (saw_end and job.dest.is_file()):
         raise RuntimeError(proc.stderr.read()[-500:] if proc.stderr else "ffmpeg failed")
 
 
@@ -154,7 +186,7 @@ def _worker() -> None:
             else:
                 with job.lock:
                     job.state = "transcoding"
-                _transcode(job)
+                _transcode(job, video_copy=video_compliant(info))
                 job.src.unlink(missing_ok=True)
 
             clip = _register_clip(job)

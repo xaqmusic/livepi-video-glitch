@@ -46,11 +46,25 @@
                             "max": 0.3
                         }
                     ]
+                },
+                {
+                    "trigger": {
+                        "type": "audioBand",
+                        "band": "low"
+                    },
+                    "targets": [
+                        {
+                            "param": "postEffects.barrel.amount",
+                            "min": 0.0,
+                            "max": 0.5
+                        }
+                    ]
                 }
             ],
             "postEffects": {
-                "hsync.intensity": 0.5,
-                "chromatic.intensity": 0.4
+                "hsync.intensity": 0.06,
+                "chromatic.intensity": 0.0,
+                "barrel.amount": 0.0
             }
         },
         {
@@ -59,20 +73,30 @@
             "layers": [
                 {
                     "id": "layer-bt-bg",
-                    "kind": "clip",
-                    "source": "clip-sample-crt-01",
+                    "kind": "generator",
+                    "source": "laser",
                     "blendMode": "normal",
                     "opacity": 1.0,
-                    "layerEffects": {},
+                    "layerEffects": {
+                        "kaleido.segments": 0.0,
+                        "twister.intensity": 0.0,
+                        "tunnel.amount": 0.325,
+                        "rotozoom.zoom": 0.92,
+                        "rotozoom.speed": 0.04
+                    },
                     "params": {}
                 },
                 {
                     "id": "layer-bt-top",
-                    "kind": "clip",
-                    "source": "clip-sample-crt-01",
+                    "kind": "generator",
+                    "source": "starfield",
                     "blendMode": "add",
-                    "opacity": 0.5,
-                    "layerEffects": {},
+                    "opacity": 0.48,
+                    "layerEffects": {
+                        "posterize.amount": 0.0,
+                        "posterize.speed": 0.0,
+                        "rotozoom.speed": 0.14
+                    },
                     "params": {}
                 }
             ],
