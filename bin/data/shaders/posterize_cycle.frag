@@ -18,5 +18,5 @@ void main() {
     float bin = floor(luma * levels) / levels;
 
     vec3 cycled = palettePreset(bin + cyclePhase, paletteId);
-    fragColor = vec4(mix(src.rgb, cycled, amount), 1.0);
+    fragColor = vec4(mix(src.rgb, cycled, amount), src.a);
 }

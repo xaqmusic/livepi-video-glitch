@@ -84,19 +84,28 @@ void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& contro
         if (!slot.fbo.isAllocated()) {
             slot.fbo.allocate(src.getWidth(), src.getHeight(), GL_RGBA);
         }
+        // Verbatim copy, blending OFF: transparent generator layers (note
+        // lasers, fire) must keep their alpha through the ring -- an alpha
+        // blend here would flatten a=1 and their black would go opaque,
+        // covering every layer beneath (found via the laser overlay test).
         slot.fbo.begin();
+        ofClear(0, 0, 0, 0);
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED);
         src.draw(0, 0);
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
         slot.fbo.end();
         slot.timeSeconds = now;
         writeIndex = (writeIndex + 1) % kRingCapacity;
     }
 
     dst.begin();
-    ofClear(0, 0, 0, 255);
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     shader.begin();
     ShaderLoader::bindMvp(shader);
     shader.setUniformTexture("srcTex", output->getTexture(), 0);
     ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     dst.end();
 }

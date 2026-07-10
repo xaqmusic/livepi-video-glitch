@@ -278,6 +278,41 @@
                 }
             }
         },
+        "fire": {
+            "label": "Fire",
+            "params": {
+                "fire.height": {
+                    "label": "Flame Height",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.6
+                },
+                "fire.direction": {
+                    "label": "Direction",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "bottom up",
+                        "top down"
+                    ]
+                },
+                "fire.palette": {
+                    "label": "Palette",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "lava",
+                        "vaporwave",
+                        "phosphor"
+                    ]
+                }
+            }
+        },
         "starfield": {
             "label": "Starfield",
             "params": {

@@ -5,6 +5,7 @@
 
 #include "ofAppRunner.h"
 #include "ofGraphics.h"
+#include "ofMesh.h"
 #include "util/ShaderLoader.h"
 
 namespace {
@@ -140,29 +141,121 @@ void LaserRollPass::apply(ofFbo&, ofFbo& dst, const ControlState& controlState,
             if (vel <= 0.01f) continue;
             float x01 = std::min(std::max((note - kNoteLo) / static_cast<float>(kNoteHi - kNoteLo), 0.0f), 1.0f);
             float x = x01 * (kRollW - beamW);
-            auto prev = prevNotes.find(note);
-            bool onset = prev == prevNotes.end() || prev->second <= 0.01f;
-            // Attack flash: full-bright and double width for one scroll
-            // step, the piano-game key-hit pop.
-            float w = onset ? beamW * 2.0f : beamW;
-            ofSetColor(onset ? 255 : static_cast<int>(150.0f + vel * 105.0f));
-            ofDrawRectangle(x - (w - beamW) * 0.5f, down ? 0.0f : static_cast<float>(kRollH - headH), w,
+            ofSetColor(static_cast<int>(150.0f + vel * 105.0f));
+            ofDrawRectangle(x, down ? 0.0f : static_cast<float>(kRollH - headH), beamW,
                             static_cast<float>(headH));
         }
+
+        // Tail dissolve: a multiply-gradient over the last stretch before
+        // the exit edge. It compounds as content travels through, so a
+        // streak melts to black before leaving instead of sliding off as
+        // a hard-ended bar. Done in buffer space (not the colorize
+        // shader) so the edge is unambiguous regardless of GL/GLES FBO
+        // texture orientation.
+        constexpr float kFadeZone = 0.22f;
+        float zoneH = kRollH * kFadeZone;
+        float yEdge = down ? static_cast<float>(kRollH) : 0.0f;
+        float yInner = down ? kRollH - zoneH : zoneH;
+        ofMesh fadeMesh;
+        fadeMesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
+        fadeMesh.addVertex(glm::vec3(0, yEdge, 0));
+        fadeMesh.addColor(ofFloatColor(0.6f, 0.6f, 0.6f));
+        fadeMesh.addVertex(glm::vec3(kRollW, yEdge, 0));
+        fadeMesh.addColor(ofFloatColor(0.6f, 0.6f, 0.6f));
+        fadeMesh.addVertex(glm::vec3(0, yInner, 0));
+        fadeMesh.addColor(ofFloatColor(1.0f, 1.0f, 1.0f));
+        fadeMesh.addVertex(glm::vec3(kRollW, yInner, 0));
+        fadeMesh.addColor(ofFloatColor(1.0f, 1.0f, 1.0f));
         ofSetColor(255);
+        ofEnableBlendMode(OF_BLENDMODE_MULTIPLY);
+        fadeMesh.draw();
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+
         back.end();
-        prevNotes = controlState.noteValues;
         frontIndex ^= 1;
     }
 
+    // Transparent background: only the beams carry alpha (the colorize
+    // shader sets a = intensity). Blending must be OFF so the straight-
+    // alpha fragments land in the FBO verbatim instead of premultiplying
+    // against the cleared black.
     dst.begin();
-    ofClear(0, 0, 0, 255);
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     shader.begin();
     ShaderLoader::bindMvp(shader);
     shader.setUniformTexture("srcTex", roll[frontIndex].getTexture(), 0);
     shader.setUniform1i("paletteId", static_cast<int>(std::lround(paletteRaw * 2.0f)));
     ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    dst.end();
+}
+
+// --- Fire ---------------------------------------------------------------
+
+namespace {
+constexpr int kFireW = 320;
+constexpr int kFireH = 180;
+// Sim steps per wall-clock second: flames climb identically at desktop
+// 60fps and Pi 30fps.
+constexpr float kFireStepsPerSec = 45.0f;
+}  // namespace
+
+void FirePass::setup() {
+    ShaderLoader::load(stepShader, "shaders/passthrough.vert", "shaders/fire_step.frag");
+    ShaderLoader::load(colorizeShader, "shaders/passthrough.vert", "shaders/fire_colorize.frag");
+    for (auto& fbo : heat) {
+        fbo.allocate(kFireW, kFireH, GL_RGBA);
+        fbo.getTexture().setTextureMinMagFilter(GL_NEAREST, GL_NEAREST);
+        fbo.begin();
+        ofClear(0, 0, 0, 255);
+        fbo.end();
+    }
+}
+
+void FirePass::apply(ofFbo&, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float height = readParam(liveParams, "fire.height", 0.6f);
+    bool down = readParam(liveParams, "fire.direction", 0.0f) >= 0.5f;
+    float paletteRaw = readParam(liveParams, "fire.palette", 0.0f);
+
+    stepAccum += kFireStepsPerSec * static_cast<float>(ofGetLastFrameTime());
+    int steps = std::min(static_cast<int>(stepAccum), 3);
+    stepAccum -= static_cast<int>(stepAccum);
+
+    for (int i = 0; i < steps; i++) {
+        ofFbo& front = heat[frontIndex];
+        ofFbo& back = heat[frontIndex ^ 1];
+        seedPhase += 1.0f;
+        back.begin();
+        ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+        stepShader.begin();
+        ShaderLoader::bindMvp(stepShader);
+        stepShader.setUniformTexture("srcTex", front.getTexture(), 0);
+        stepShader.setUniform2f("texel", 1.0f / kFireW, 1.0f / kFireH);
+        stepShader.setUniform1f("seedPhase", seedPhase);
+        stepShader.setUniform1f("height", height);
+        stepShader.setUniform1f("down", down ? 1.0f : 0.0f);
+        ShaderLoader::drawFullscreenQuad(kFireW, kFireH);
+        stepShader.end();
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        back.end();
+        frontIndex ^= 1;
+    }
+
+    // Transparent output: alpha comes from heat, cold cells leave the
+    // layers below untouched. Blending off so straight alpha lands
+    // verbatim (same rule as the laser colorize).
+    dst.begin();
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+    colorizeShader.begin();
+    ShaderLoader::bindMvp(colorizeShader);
+    colorizeShader.setUniformTexture("srcTex", heat[frontIndex].getTexture(), 0);
+    colorizeShader.setUniform1i("paletteId", static_cast<int>(std::lround(paletteRaw * 2.0f)));
+    ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
+    colorizeShader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     dst.end();
 }
 
@@ -173,5 +266,6 @@ std::unique_ptr<ShaderPass> makeGeneratorPass(const std::string& source) {
     if (source == "copper") return std::make_unique<CopperBarsPass>();
     if (source == "starfield") return std::make_unique<StarfieldPass>();
     if (source == "laser") return std::make_unique<LaserRollPass>();
+    if (source == "fire") return std::make_unique<FirePass>();
     return nullptr;
 }

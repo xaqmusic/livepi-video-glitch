@@ -15,13 +15,18 @@ constexpr float kNeutral = 0.005f;
 template <typename BindUniforms>
 void drawPass(ofShader& shader, ofFbo& src, ofFbo& dst, BindUniforms bindUniforms) {
     dst.begin();
-    ofClear(0, 0, 0, 255);
+    ofClear(0, 0, 0, 0);
+    // Full overwrite, never a blend: passes must carry src ALPHA through
+    // untouched (transparent generator layers keep their holes) rather
+    // than compositing translucent fragments against the cleared black.
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     shader.begin();
     ShaderLoader::bindMvp(shader);
     shader.setUniformTexture("srcTex", src.getTexture(), 0);
     bindUniforms(shader);
     ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     dst.end();
 }
 

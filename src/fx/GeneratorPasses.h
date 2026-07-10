@@ -1,6 +1,5 @@
 #pragma once
 
-#include <map>
 #include <memory>
 #include <string>
 
@@ -63,10 +62,11 @@ private:
 // piano-game waterfall as the classic 90s scroll-buffer trick: a tiny
 // ping-pong buffer shifts a few pixels per frame in the chosen direction;
 // held notes paint bright segments at the origin edge (pitch -> column,
-// velocity -> brightness, onset -> wider hit flash), so a held key grows
-// a beam and releasing it lets the streak fly off. Trails dim per scroll
-// step; a colorize shader maps pitch columns through the palette and the
-// nearest-filtered upscale keeps it chunky raster, not smooth gradient.
+// velocity -> brightness), so a held key grows a beam and releasing it
+// lets the streak fly off, dissolving in a fade zone before the exit
+// edge. Trails dim per pixel traveled; a colorize shader maps pitch
+// columns through the palette and the nearest-filtered upscale keeps it
+// chunky raster, not smooth gradient.
 class LaserRollPass : public ShaderPass {
 public:
     void setup() override;
@@ -79,7 +79,28 @@ private:
     ofFbo roll[2];  // ping-pong scroll buffers, low-res
     int frontIndex = 0;
     float scrollAccum = 0.0f;
-    std::map<int, float> prevNotes;  // onset detection for the hit flash
+};
+
+// The classic demoscene fire: a GPU feedback sim (ping-pong heat field --
+// each cell pulls from the cells toward the seed edge and cools a
+// jittered amount, seed embers flicker at the origin edge) plus a
+// palette colorize with straight alpha, so flames burn transparently
+// over whatever plays beneath the layer. Sim rate is wall-clock fixed:
+// flames climb at the same speed at 60fps desktop and 30fps Pi.
+class FirePass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader stepShader;
+    ofShader colorizeShader;
+    std::string name = "fire";
+    ofFbo heat[2];  // ping-pong sim buffers, low-res
+    int frontIndex = 0;
+    float stepAccum = 0.0f;
+    float seedPhase = 0.0f;
 };
 
 // Layer `source` name -> pass, for SceneRenderer::loadScene. Unknown name

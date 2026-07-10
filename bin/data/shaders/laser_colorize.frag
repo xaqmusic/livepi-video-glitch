@@ -17,5 +17,8 @@ void main() {
     // must read equally -- a beam's visibility can't depend on whether
     // its palette slot happens to be a dark one.
     color /= max(max(color.r, max(color.g, color.b)), 0.3);
-    fragColor = vec4(color * intensity, 1.0);
+    // Straight (unpremultiplied) alpha = beam intensity: the layer is
+    // TRANSPARENT wherever there's no beam, so lasers overlay whatever
+    // plays beneath them instead of sitting on a black card.
+    fragColor = vec4(color, intensity);
 }

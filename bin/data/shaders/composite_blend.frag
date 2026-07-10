@@ -17,17 +17,21 @@ out vec4 fragColor;
 
 void main() {
     vec3 base = texture(accumTex, texCoordVarying).rgb;
-    vec3 layer = texture(layerTex, texCoordVarying).rgb;
+    vec4 layer = texture(layerTex, texCoordVarying);
 
+    // Layer alpha (straight, from e.g. the note-laser colorize pass) makes
+    // transparent regions leave the composite untouched in EVERY mode --
+    // for the opaque layers (clips, full-frame generators, a=1) each
+    // branch reduces to the plain formula.
     vec3 blended;
     if (blendMode == 1) {
-        blended = base + layer;
+        blended = base + layer.rgb * layer.a;
     } else if (blendMode == 2) {
-        blended = 1.0 - (1.0 - base) * (1.0 - layer);
+        blended = 1.0 - (1.0 - base) * (1.0 - layer.rgb * layer.a);
     } else if (blendMode == 3) {
-        blended = base * layer;
+        blended = base * mix(vec3(1.0), layer.rgb, layer.a);
     } else {
-        blended = layer;
+        blended = mix(base, layer.rgb, layer.a);
     }
 
     fragColor = vec4(mix(base, clamp(blended, 0.0, 1.0), opacity), 1.0);
