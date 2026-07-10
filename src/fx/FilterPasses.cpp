@@ -148,6 +148,31 @@ void PosterizeCyclePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, cons
     });
 }
 
+// --- Color adjust --------------------------------------------------------
+
+void ColorAdjustPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/color_adjust.frag");
+}
+
+bool ColorAdjustPass::isActive(const LiveParams& liveParams) const {
+    return std::fabs(readParam(liveParams, "color.brightness", 0.5f) - 0.5f) > kNeutral
+        || std::fabs(readParam(liveParams, "color.contrast", 0.5f) - 0.5f) > kNeutral
+        || std::fabs(readParam(liveParams, "color.saturation", 0.5f) - 0.5f) > kNeutral;
+}
+
+void ColorAdjustPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    // All three neutral at 0.5, doubling at 1, gone at 0.
+    float gain = readParam(liveParams, "color.brightness", 0.5f) * 2.0f;
+    float contrast = readParam(liveParams, "color.contrast", 0.5f) * 2.0f;
+    float saturation = readParam(liveParams, "color.saturation", 0.5f) * 2.0f;
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("gain", gain);
+        sh.setUniform1f("contrast", contrast);
+        sh.setUniform1f("saturation", saturation);
+    });
+}
+
 // --- Barrel ------------------------------------------------------------
 
 void BarrelPass::setup() {

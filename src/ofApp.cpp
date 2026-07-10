@@ -56,6 +56,8 @@ void ofApp::setup() {
     sceneRenderer.setup(ofGetWidth(), ofGetHeight());
     // Stutter is a per-layer effect now (SceneRenderer adds it to each
     // clip layer's chain) -- the post chain is the frame-wide CRT decay.
+    // The global grade comes first: correct the composite, then decay it.
+    sceneRenderer.addPostPass(std::make_unique<ColorAdjustPass>());
     sceneRenderer.addPostPass(std::make_unique<HSyncTearPass>());
     sceneRenderer.addPostPass(std::make_unique<ChromaticAberrationPass>());
     // Barrel is the tube itself, so it comes after every signal effect.

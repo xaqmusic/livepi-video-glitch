@@ -88,6 +88,22 @@ private:
     float cyclePhase = 0.0f;
 };
 
+// Brightness (gain) / contrast / saturation, all neutral at 0.5. Used in
+// BOTH scopes: per layer (after the warps, before posterize quantizes)
+// and scene-wide as the FIRST post pass (grade the composite before the
+// CRT decay chews on it).
+class ColorAdjustPass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "color_adjust";
+};
+
 // The curved tube itself -- belongs LAST in the post chain.
 class BarrelPass : public ShaderPass {
 public:

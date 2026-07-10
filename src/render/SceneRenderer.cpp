@@ -94,6 +94,9 @@ void SceneRenderer::loadScene(const Scene& scene) {
         addLayerPass(std::make_unique<KaleidoscopePass>());
         addLayerPass(std::make_unique<TwisterBarsPass>());
         addLayerPass(std::make_unique<TunnelPass>());
+        // Color-correct the (possibly warped) source, THEN posterize: the
+        // quantizer bins whatever contrast/saturation hands it.
+        addLayerPass(std::make_unique<ColorAdjustPass>());
         addLayerPass(std::make_unique<PosterizeCyclePass>());
         runtimes.push_back(std::move(runtime));
     }
@@ -175,6 +178,17 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
                 float cx = width * 0.5f + liveParams.getLayerParam(layer->id, "transform.x", 0.0f) * width * 0.5f;
                 float cy = height * 0.5f + liveParams.getLayerParam(layer->id, "transform.y", 0.0f) * height * 0.5f;
                 dest.set(cx - w * 0.5f, cy - h * 0.5f, w, h);
+                // Flips are free: draw with a negative dimension from the
+                // opposite edge. Live-mappable toggles like everything else
+                // (a note bound to flipH = strobe-mirror on key hits).
+                if (liveParams.getLayerParam(layer->id, "transform.flipH", 0.0f) > 0.5f) {
+                    dest.x += dest.width;
+                    dest.width = -dest.width;
+                }
+                if (liveParams.getLayerParam(layer->id, "transform.flipV", 0.0f) > 0.5f) {
+                    dest.y += dest.height;
+                    dest.height = -dest.height;
+                }
             }
             runtime->chain.process(runtime->player->getDrawable(), dest, controlState, liveParams);
         } else {
