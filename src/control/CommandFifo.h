@@ -23,10 +23,13 @@
 //                                              postEffects.<key> or
 //                                              layer.<layerId>.<key>; ignored
 //                                              unless <sceneId> is current
+//   debug                                   -- toggle the on-screen debug
+//                                              overlay (the [d] key has no
+//                                              equivalent from Live mode)
 class CommandFifo {
 public:
     struct Command {
-        enum class Type { Click, Hold, Goto, Cc, Note, Param };
+        enum class Type { Click, Hold, Goto, Cc, Note, Param, Debug };
         Type type;
         std::string sceneId;   // Goto / Param
         int ccNumber = 0;      // Cc / Note

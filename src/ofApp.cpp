@@ -96,6 +96,11 @@ void ofApp::update() {
             case CommandFifo::Command::Type::Goto:
                 sceneManager.gotoSceneById(cmd.sceneId);
                 break;
+            case CommandFifo::Command::Type::Debug:
+                // Same toggle as the [d] key, reachable from Live mode where
+                // there's no keyboard.
+                showDebugOverlay = !showDebugOverlay;
+                break;
             case CommandFifo::Command::Type::Cc:
                 mappingResolver.setManualCc(cmd.ccNumber, cmd.value);
                 break;

@@ -13,7 +13,7 @@ void ChromaticAberrationPass::apply(ofFbo& src, ofFbo& dst, const ControlState& 
     // data, not pass code: an audioBand mapping adds the audio contribution
     // on top of whatever the knob/baseline sets, per scene, all resolved
     // into this one param before the pass runs.
-    float separation = ofClamp(liveParams.getParam("chromatic.intensity", 0.5f), 0.0f, 1.0f);
+    float separation = ofClamp(liveParams.getParam("chromatic.intensity", 0.0f), 0.0f, 1.0f);
 
     dst.begin();
     ofClear(0, 0, 0, 255);

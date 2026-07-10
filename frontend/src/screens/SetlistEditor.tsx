@@ -48,6 +48,14 @@ export default function SetlistEditor() {
         });
     };
 
+    const renameScene = (index: number, current: string) => {
+        const name = prompt("Scene name:", current);
+        if (!name || name === current) return;
+        edit((draft) => {
+            draft.scenes[index].name = name;
+        });
+    };
+
     const duplicateScene = (index: number) => {
         edit((draft) => {
             const copy = structuredClone(draft.scenes[index]);
@@ -99,6 +107,7 @@ export default function SetlistEditor() {
                         </button>
                         <button className="icon" disabled={i === 0} onClick={() => move(i, -1)}>▲</button>
                         <button className="icon" disabled={i === show.scenes.length - 1} onClick={() => move(i, 1)}>▼</button>
+                        <button onClick={() => renameScene(i, scene.name)}>Rename</button>
                         <button onClick={() => duplicateScene(i)}>Duplicate</button>
                         <button
                             className="danger"

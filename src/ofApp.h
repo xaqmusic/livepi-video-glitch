@@ -41,5 +41,7 @@ private:
     CommandFifo commandFifo;
 
     size_t lastLoadedSceneIndex = static_cast<size_t>(-1);
-    bool showDebugOverlay = true;
+    // Starts hidden -- toggle with [d] locally or the Live-mode debug button
+    // (a "debug" command on the FIFO).
+    bool showDebugOverlay = false;
 };

@@ -103,6 +103,29 @@ private:
     float seedPhase = 0.0f;
 };
 
+// NOTE-TRIGGERED generator: every played note blooms a gradient blob at a
+// FIXED position on a phyllotaxis spiral -- lowest notes at the centre,
+// highest at the rim, radius proportional to pitch, so middle C's octave
+// lands on a middle arc. Each press is a one-shot bloom that decays in
+// chunky, posterized steps over a low-res nearest-filtered field (90s raster
+// pixelated decay). Colour follows pitch class (a controllable rainbow, so
+// octaves share a hue); straight-alpha output floats the blobs transparently
+// over whatever plays beneath the layer.
+class BlobsPass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader colorizeShader;
+    std::string name = "blobs";
+    ofFbo blob[2];  // ping-pong decay field, low-res
+    int frontIndex = 0;
+    float stepAccum = 0.0f;
+    float prevVel[128] = {};  // previous-frame velocity per note, for onset edges
+};
+
 // Layer `source` name -> pass, for SceneRenderer::loadScene. Unknown name
 // returns nullptr and the layer renders black (same contract as an
 // unresolved clipId: log, never crash).

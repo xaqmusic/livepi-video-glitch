@@ -63,6 +63,8 @@ std::vector<CommandFifo::Command> CommandFifo::poll() {
             cmd.type = Command::Type::Click;
         } else if (verb == "hold") {
             cmd.type = Command::Type::Hold;
+        } else if (verb == "debug") {
+            cmd.type = Command::Type::Debug;
         } else if (verb == "goto") {
             cmd.type = Command::Type::Goto;
             in >> cmd.sceneId;

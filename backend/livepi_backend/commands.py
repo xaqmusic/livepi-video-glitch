@@ -16,7 +16,7 @@ router = APIRouter(dependencies=[Depends(require_session)])
 
 
 class CommandBody(BaseModel):
-    type: Literal["click", "hold", "goto", "cc", "note", "param"]
+    type: Literal["click", "hold", "debug", "goto", "cc", "note", "param"]
     sceneId: Optional[str] = None
     number: Optional[int] = Field(default=None, ge=0, le=127)
     value: Optional[float] = None
@@ -24,7 +24,7 @@ class CommandBody(BaseModel):
 
 
 def _to_line(body: CommandBody) -> str:
-    if body.type in ("click", "hold"):
+    if body.type in ("click", "hold", "debug"):
         return body.type
     if body.type == "goto":
         if not body.sceneId:

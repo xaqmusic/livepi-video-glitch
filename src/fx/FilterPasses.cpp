@@ -136,13 +136,18 @@ void PosterizeCyclePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, cons
     float amount = readParam(liveParams, "posterize.amount", 0.0f);
     float levelsRaw = readParam(liveParams, "posterize.levels", 0.5f);
     float speed = readParam(liveParams, "posterize.speed", 0.2f);
+    float offset = readParam(liveParams, "posterize.offset", 0.0f);
     float paletteRaw = readParam(liveParams, "posterize.palette", 0.0f);
     cyclePhase += speed * 0.3f * static_cast<float>(ofGetLastFrameTime());
 
     drawPass(shader, src, dst, [&](ofShader& sh) {
         // 0..1 -> 2..8 bins; coarser reads more retro.
         sh.setUniform1f("levels", 2.0f + std::floor(levelsRaw * 6.99f));
-        sh.setUniform1f("cyclePhase", cyclePhase);
+        // Offset is a constant phase added on top of the running cycle: at
+        // speed 0 the palette parks at a chosen, mappable point (one unit =
+        // a full rotation, the palette's period); with speed it just shifts
+        // where the drift starts.
+        sh.setUniform1f("cyclePhase", cyclePhase + offset);
         sh.setUniform1i("paletteId", static_cast<int>(std::lround(paletteRaw * 2.0f)));
         sh.setUniform1f("amount", amount);
     });

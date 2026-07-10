@@ -22,7 +22,7 @@ void HSyncTearPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlSta
     // the resolved param -- the old knobA/knobB master-intensity behavior is
     // now just a CC mapping fanning out to the three passes' intensities
     // (see the starter show's fixture mapping).
-    float intensity = liveParams.getParam("hsync.intensity", 0.5f);
+    float intensity = liveParams.getParam("hsync.intensity", 0.0f);
 
     dst.begin();
     ofClear(0, 0, 0, 255);

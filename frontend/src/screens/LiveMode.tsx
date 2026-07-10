@@ -36,6 +36,15 @@ export default function LiveMode() {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", minHeight: "100dvh", padding: 16, gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                    className="icon"
+                    title="Toggle the on-screen debug overlay on the box"
+                    onClick={() => void send({ type: "debug" })}
+                >
+                    ⚙ debug
+                </button>
+            </div>
             <div style={{ textAlign: "center" }}>
                 <div className="dim" style={{ fontSize: 13 }}>
                     {offline ? <span className="error">renderer offline</span> : telemetry ? `${telemetry.fps.toFixed(0)} fps` : "connecting…"}
