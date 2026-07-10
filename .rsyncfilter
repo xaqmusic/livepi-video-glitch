@@ -11,6 +11,7 @@
 - bin/data/shows/
 - bin/data/clips/library.json
 - bin/data/clips/.thumbs/
+- bin/data/auth.json
 
 + bin/data/clips/samples/
 + bin/data/clips/samples/**

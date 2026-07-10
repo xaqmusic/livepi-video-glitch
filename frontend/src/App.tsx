@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 
+import PasswordDialog from "./components/PasswordDialog";
 import ClipLibrary from "./screens/ClipLibrary";
 import LiveMode from "./screens/LiveMode";
 import Login from "./screens/Login";
@@ -14,6 +16,7 @@ export default function App() {
     const location = useLocation();
     const isLive = location.pathname.startsWith("/live");
     const isLogin = location.pathname.startsWith("/login");
+    const [showPassword, setShowPassword] = useState(false);
 
     return (
         <>
@@ -23,8 +26,11 @@ export default function App() {
                     <NavLink to="/edit">Shows</NavLink>
                     <NavLink to="/clips">Clips</NavLink>
                     <NavLink to="/live">Live</NavLink>
+                    <button className="icon" style={{ marginLeft: "auto" }} title="Change password"
+                        onClick={() => setShowPassword(true)}>🔑</button>
                 </nav>
             )}
+            {showPassword && <PasswordDialog onClose={() => setShowPassword(false)} />}
             <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/edit" element={<ShowLibrary />} />

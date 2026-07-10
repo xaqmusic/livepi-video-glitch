@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from . import auth, clips, commands, config, effects, shows, storage, telemetry
 
@@ -46,25 +45,27 @@ def health():
     return {"ok": True, "dataDir": str(config.DATA_DIR)}
 
 
-if config.FRONTEND_DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=config.FRONTEND_DIST / "assets"), name="assets")
+# index.html must NEVER be cached: it names the hashed bundle, and a
+# cached copy after a deploy serves stale JS against a new API/telemetry
+# shape (first observed as Learn blanking the page after the lastControl
+# rename). The hashed /assets are immutable by construction.
+_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
 
-    # index.html must NEVER be cached: it names the hashed bundle, and a
-    # cached copy after a deploy serves stale JS against a new API/telemetry
-    # shape (first observed as Learn blanking the page after the lastControl
-    # rename). The hashed /assets are immutable by construction.
-    _NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
 
-    @app.get("/{path:path}")
-    def spa(path: str):
-        candidate = config.FRONTEND_DIST / path
-        if path and candidate.is_file():
-            return FileResponse(candidate, headers=_NO_CACHE if candidate.suffix == ".html" else None)
-        return FileResponse(config.FRONTEND_DIST / "index.html", headers=_NO_CACHE)
-else:
-
-    @app.get("/")
-    def no_frontend():
+# The dist check happens PER REQUEST, not at import: a long-running
+# --reload dev server started before the first `vite build` used to lock
+# in "Frontend not built" until manually restarted (uvicorn --reload only
+# watches .py files). Serving files by hand here also replaces the
+# /assets StaticFiles mount -- one code path, no import-time state.
+@app.get("/{path:path}")
+def spa(path: str):
+    index = config.FRONTEND_DIST / "index.html"
+    if not index.is_file():
         return JSONResponse(
-            {"message": "Frontend not built -- API docs at /docs. Run `npm run build` in frontend/."}
+            {"message": "Frontend not built -- API docs at /docs. Run `npm run build` in frontend/."},
+            status_code=503,
         )
+    candidate = (config.FRONTEND_DIST / path).resolve()
+    if path and candidate.is_relative_to(config.FRONTEND_DIST.resolve()) and candidate.is_file():
+        return FileResponse(candidate, headers=_NO_CACHE if candidate.suffix == ".html" else None)
+    return FileResponse(index, headers=_NO_CACHE)

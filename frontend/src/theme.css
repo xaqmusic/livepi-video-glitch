@@ -175,3 +175,19 @@ details.param-group > .param-group-body {
     display: inline-block;
     flex-shrink: 0;
 }
+
+/* Modal dialog (change-password etc.) */
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: grid;
+    place-items: center;
+    z-index: 100;
+}
+.dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 280px;
+}

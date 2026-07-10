@@ -32,6 +32,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
     login: (password: string) => request<{ ok: boolean }>("/api/login", { method: "POST", body: JSON.stringify({ password }) }),
+    changePassword: (current: string, newPassword: string) =>
+        request<{ ok: boolean }>("/api/auth/password", { method: "POST", body: JSON.stringify({ current, new: newPassword }) }),
 
     listShows: () => request<{ shows: string[]; active: string | null }>("/api/shows"),
     getShow: (name: string) => request<Show>(`/api/shows/${encodeURIComponent(name)}`),
