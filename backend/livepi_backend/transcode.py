@@ -9,6 +9,7 @@ never fights the renderer for cores (the Phase B verify watches renderer
 fps during a transcode to prove it)."""
 
 import json
+import os
 import queue
 import re
 import subprocess
@@ -30,6 +31,11 @@ class Job:
     progress: float = 0.0
     error: str | None = None
     clip: dict | None = None
+    # "ingest": src is an upload spool, dest is the new library file.
+    # "intra": src IS an existing library clip; dest is a temp that
+    # replaces it after an all-intra re-encode (smooth reverse prep).
+    mode: str = "ingest"
+    clip_id: str | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -103,11 +109,22 @@ def make_thumbnail(clip_path: Path, clip_id: str) -> str | None:
     return thumb.name if thumb.exists() and thumb.stat().st_size > 0 else None
 
 
-def _transcode(job: Job, video_copy: bool = False) -> None:
+def _transcode(job: Job, video_copy: bool = False, intra: bool = False) -> None:
     info = probe(job.src)
     duration_us = (info["duration"] if info else 0) * 1_000_000 or 1
 
-    if video_copy:
+    if intra:
+        # All-intra re-encode (-g 1: every frame a keyframe). The Pi's
+        # hardware decoder can't step backwards through GOPs, so ping-pong
+        # reverse stutters on normal files; all-intra makes every frame
+        # independently decodable -- smooth reverse, and loop-wrap seeks
+        # land instantly (no GOP re-decode). Costs bitrate, so it's a
+        # per-clip opt-in, not the ingest default.
+        video_args = [
+            "-c:v", "libx264", "-profile:v", "high", "-preset", config.FFMPEG_PRESET,
+            "-crf", "21", "-pix_fmt", "yuv420p", "-g", "1",
+        ]
+    elif video_copy:
         # Compliant video that just needs its audio stripped: lossless
         # stream copy, effectively instant.
         video_args = ["-c:v", "copy"]
@@ -169,6 +186,26 @@ def _register_clip(job: Job) -> dict:
     return clip
 
 
+def enqueue_intra(clip: dict) -> "Job":
+    """Queue an all-intra re-encode of an EXISTING library clip in place
+    (smooth-reverse prep). Runs through the same single-worker queue and
+    shows in the jobs banner like any transcode."""
+    src = config.DATA_DIR / clip["path"]
+    dest = src.with_name(src.stem + ".intra-tmp.mp4")
+    job = Job(
+        id=uuid.uuid4().hex[:12],
+        src=src,
+        dest=dest,
+        display_name=(clip.get("name") or clip["id"]) + " (smooth reverse)",
+        mode="intra",
+        clip_id=clip["id"],
+    )
+    _jobs[job.id] = job
+    _ensure_worker()
+    _queue.put(job)
+    return job
+
+
 def list_jobs() -> list[dict]:
     """All jobs this backend process has seen, oldest first -- the UI's
     global activity banner filters for the live ones."""
@@ -185,6 +222,18 @@ def list_jobs() -> list[dict]:
     return out
 
 
+def _mark_clip_intra(clip_id: str | None) -> dict | None:
+    from . import storage  # late import to avoid cycles
+
+    library = storage.read_library()
+    for clip in library.get("clips", []):
+        if clip["id"] == clip_id:
+            clip["intra"] = True
+            storage.write_library(library)
+            return clip
+    return None
+
+
 def _worker() -> None:
     while True:
         job = _queue.get()
@@ -195,24 +244,37 @@ def _worker() -> None:
             if info is None:
                 raise RuntimeError("Not a readable video file")
 
-            if is_compliant(info):
-                job.src.rename(job.dest)
-                with job.lock:
-                    job.progress = 1.0
-            else:
+            if job.mode == "intra":
+                # Re-encode an existing clip all-intra IN PLACE: temp file
+                # next to it, atomic replace on success. The library entry
+                # keeps its id/path; only the "intra" flag flips.
                 with job.lock:
                     job.state = "transcoding"
-                _transcode(job, video_copy=video_compliant(info))
-                job.src.unlink(missing_ok=True)
+                _transcode(job, intra=True)
+                os.replace(job.dest, job.src)
+                clip = _mark_clip_intra(job.clip_id)
+            else:
+                if is_compliant(info):
+                    job.src.rename(job.dest)
+                    with job.lock:
+                        job.progress = 1.0
+                else:
+                    with job.lock:
+                        job.state = "transcoding"
+                    _transcode(job, video_copy=video_compliant(info))
+                    job.src.unlink(missing_ok=True)
+                clip = _register_clip(job)
 
-            clip = _register_clip(job)
             with job.lock:
                 job.state = "done"
                 job.progress = 1.0
                 job.clip = clip
         except Exception as e:
             job.dest.unlink(missing_ok=True)
-            job.src.unlink(missing_ok=True)
+            # Ingest jobs own their spool; intra jobs' src IS the library
+            # clip -- never delete it on failure.
+            if job.mode == "ingest":
+                job.src.unlink(missing_ok=True)
             with job.lock:
                 job.state = "error"
                 job.error = str(e)

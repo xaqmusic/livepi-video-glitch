@@ -82,6 +82,22 @@ def job_status(job_id: str):
         }
 
 
+@router.post("/api/clips/{clip_id}/smooth-reverse")
+def smooth_reverse(clip_id: str):
+    """Queue an all-intra in-place re-encode so ping-pong reverse plays
+    smoothly on the Pi's hardware decoder (and loop-wrap seeks tighten)."""
+    library = storage.read_library()
+    clip = next((c for c in library.get("clips", []) if c["id"] == clip_id), None)
+    if clip is None:
+        raise HTTPException(404, "No such clip")
+    if clip.get("intra"):
+        raise HTTPException(409, "Already prepped for smooth reverse")
+    if not (config.DATA_DIR / clip["path"]).exists():
+        raise HTTPException(409, "Clip file missing on disk")
+    job = transcode.enqueue_intra(clip)
+    return {"jobId": job.id}
+
+
 @router.delete("/api/clips/{clip_id}")
 def delete_clip(clip_id: str):
     library = storage.read_library()

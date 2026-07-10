@@ -56,6 +56,8 @@ export interface Clip {
     thumb?: string | null;
     thumbUrl?: string;
     exists?: boolean;
+    /** All-intra re-encode done: smooth ping-pong reverse + tight loops. */
+    intra?: boolean;
 }
 
 export interface ParamSpec {

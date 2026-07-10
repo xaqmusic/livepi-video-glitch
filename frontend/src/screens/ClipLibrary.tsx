@@ -21,7 +21,26 @@ export default function ClipLibrary() {
 
     useEffect(() => {
         void refresh();
+        // Light poll while the page is open: picks up finished background
+        // jobs (transcodes, smooth-reverse preps) without a manual reload.
+        const timer = setInterval(() => {
+            if (!document.hidden) void refresh();
+        }, 5000);
+        return () => clearInterval(timer);
     }, [refresh]);
+
+    const [prepping, setPrepping] = useState<Set<string>>(new Set());
+    const prep = (clip: Clip) => {
+        setPrepping((s) => new Set(s).add(clip.id));
+        void api.prepSmoothReverse(clip.id).catch((e) => {
+            alert(String(e));
+            setPrepping((s) => {
+                const next = new Set(s);
+                next.delete(clip.id);
+                return next;
+            });
+        });
+    };
 
     return (
         <div className="page">
@@ -44,6 +63,17 @@ export default function ClipLibrary() {
                             {clip.height ? `${clip.height}p` : "?"} · {clip.duration ? `${Math.round(clip.duration)}s` : "?"}
                             {clip.exists === false && <span className="error"> · file missing!</span>}
                         </div>
+                        {clip.intra ? (
+                            <div className="dim" style={{ fontSize: 12 }}>↔ smooth reverse ready</div>
+                        ) : (
+                            <button
+                                disabled={prepping.has(clip.id) || clip.exists === false}
+                                title="Re-encode all-intra: smooth ping-pong reverse and tighter loop wraps on the Pi (bigger file)"
+                                onClick={() => prep(clip)}
+                            >
+                                {prepping.has(clip.id) ? "prepping…" : "Prep smooth reverse"}
+                            </button>
+                        )}
                         <button
                             className="danger"
                             onClick={() => {

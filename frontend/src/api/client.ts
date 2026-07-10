@@ -50,6 +50,8 @@ export const api = {
 
     listClips: () => request<{ clips: Clip[] }>("/api/clips"),
     listJobs: () => request<{ jobs: JobSummary[] }>("/api/clips/jobs"),
+    prepSmoothReverse: (clipId: string) =>
+        request<{ jobId: string }>(`/api/clips/${encodeURIComponent(clipId)}/smooth-reverse`, { method: "POST" }),
     uploadClip: (file: File) => {
         const form = new FormData();
         form.append("file", file);
