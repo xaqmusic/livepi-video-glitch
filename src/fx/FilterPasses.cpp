@@ -162,13 +162,24 @@ void FracturePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const Live
     float amount = readParam(liveParams, "fracture.amount", 0.0f);
     float piecesRaw = readParam(liveParams, "fracture.pieces", 0.4f);
     float drift = readParam(liveParams, "fracture.drift", 0.25f);
-    phase += drift * 0.8f * static_cast<float>(ofGetLastFrameTime());
+    float jitter = readParam(liveParams, "fracture.jitter", 0.0f);
+    float scatter = readParam(liveParams, "fracture.scatter", 0.0f);
+    float dt = static_cast<float>(ofGetLastFrameTime());
+    phase += drift * 0.8f * dt;
+    // Fixed twitch clock; jitterAmt scales how FAR pieces tremble, the
+    // rate stays musical (~14 steps/s).
+    jitterPhase += 14.0f * dt;
 
     drawPass(shader, src, dst, [&](ofShader& sh) {
         sh.setUniform1f("amount", amount);
         // 0..1 -> 3..20 shards across: a few big slabs up to gravel.
         sh.setUniform1f("cells", 3.0f + piecesRaw * 17.0f);
         sh.setUniform1f("phase", phase);
+        sh.setUniform1f("jitterAmt", jitter);
+        sh.setUniform1f("jitterStep", std::floor(jitterPhase));
+        // 16 discrete arrangements across the scatter range: any bound
+        // control crossing a step boundary re-rolls the debris.
+        sh.setUniform1f("scatterStep", std::floor(scatter * 15.999f));
     });
 }
 

@@ -1,7 +1,11 @@
 uniform sampler2D srcTex;
-uniform float amount;  // 0 intact .. 1 blown apart (THE performance knob)
-uniform float cells;   // shard density across the frame
-uniform float phase;   // drift, CPU-accumulated (held breaks stay alive)
+uniform float amount;      // 0 intact .. 1 blown apart (THE performance knob)
+uniform float cells;       // shard density across the frame
+uniform float phase;       // drift, CPU-accumulated (held breaks stay alive)
+uniform float jitterAmt;   // stepped trembling strength
+uniform float jitterStep;  // advances ~14x/sec CPU-side; each step = new twitch
+uniform float scatterStep; // quantized scatter value; each step = re-rolled
+                           // flight directions (the chaos re-arrange handle)
 
 in vec2 texCoordVarying;
 out vec4 fragColor;
@@ -46,8 +50,17 @@ void main() {
         }
     }
 
-    vec2 seed = hash22(shardId);
+    // Scatter re-keys the per-shard randomness: a different scatterStep is
+    // a completely different arrangement of flight directions/tilts (the
+    // shard SHAPES stay put -- it reads as the same break re-scattering,
+    // not a new fracture).
+    vec2 seed = hash22(shardId + vec2(scatterStep * 13.7, scatterStep * 5.3));
     vec2 dir = seed - 0.5;
+
+    // Jitter: stepped twitch, not a glide -- each jitterStep is a fresh
+    // random offset, so pieces tremble like a broken signal.
+    vec2 twitch = hash22(shardId + vec2(jitterStep * 31.1, jitterStep * 17.3)) - 0.5;
+    dir += twitch * jitterAmt * 0.9;
 
     // STAGED breaking: every shard has its own detach threshold, so the
     // image cracks progressively -- hairline stress fractures first, then
@@ -60,7 +73,7 @@ void main() {
     // Rigid-shard sampling: displace, plus a slight tilt around the shard
     // center (pieces rotate as they separate -- sells "broken").
     vec2 center = (shardId + 0.5) / vec2(cells * 1.78, cells);
-    float ang = (seed.x - 0.5) * 1.2 * letsGo;
+    float ang = ((seed.x - 0.5) * 1.2 + twitch.y * jitterAmt * 0.7) * letsGo;
     float s = sin(ang);
     float c = cos(ang);
     vec2 rel = uv - center;

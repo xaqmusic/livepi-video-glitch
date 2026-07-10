@@ -103,6 +103,7 @@ private:
     ofShader shader;
     std::string name = "fracture";
     float phase = 0.0f;
+    float jitterPhase = 0.0f;
 };
 
 // Brightness (gain) / contrast / saturation, all neutral at 0.5. Used in
