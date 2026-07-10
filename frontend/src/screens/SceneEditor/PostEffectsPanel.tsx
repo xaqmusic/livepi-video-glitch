@@ -69,9 +69,10 @@ export default function PostEffectsPanel({ scene, manifest }: { scene: Scene; ma
     return (
         <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <h3 style={{ margin: 0 }}>Post effects <span className="dim" style={{ fontWeight: 400 }}>(whole frame)</span></h3>
-            {Object.entries(manifest.postEffects).map(([param, spec]) => (
+            {Object.entries(manifest.postEffects).map(([param, spec], i, entries) => (
+                <div key={param} style={{ display: "contents" }}>
+                {i > 0 && param.split(".")[0] !== entries[i - 1][0].split(".")[0] && <div className="fx-divider" />}
                 <MappableControl
-                    key={param}
                     label={spec.label}
                     spec={spec}
                     value={scene.postEffects[param] ?? spec.default}
@@ -89,6 +90,7 @@ export default function PostEffectsPanel({ scene, manifest }: { scene: Scene; ma
                     onUnbindAudio={() => unbind(param, ["audioBand"])}
                     sendPreview={makePreviewSender(scene.id, `postEffects.${param}`)}
                 />
+                </div>
             ))}
         </div>
     );

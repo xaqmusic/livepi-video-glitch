@@ -38,6 +38,12 @@ public:
     float getPosition() const { return player.getPosition(); }
     float getDuration() const { return player.getDuration(); }
 
+    // Playback-window controls (video.start/end/pingpong layer params --
+    // SceneRenderer::update enforces them every frame).
+    void setPosition(float pos) { player.setPosition(pos); }
+    void setSpeed(float speed) { player.setSpeed(speed); }
+    float getSpeed() const { return player.getSpeed(); }
+
 private:
     ofVideoPlayer player;
     bool loaded = false;

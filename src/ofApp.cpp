@@ -141,7 +141,7 @@ void ofApp::update() {
     }
 
     liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), frameState);
-    sceneRenderer.update();
+    sceneRenderer.update(liveParams);
 
     telemetryWriter.update(frameState, sceneManager.getCurrentSceneId(),
                            sceneManager.getCurrentScene().name);

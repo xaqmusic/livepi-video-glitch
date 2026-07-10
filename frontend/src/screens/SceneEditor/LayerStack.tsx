@@ -295,17 +295,30 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                             </ParamGroup>
                         )}
                         {effectGroups
-                            // Transform positions the CLIP inside the frame;
-                            // generators paint the full frame, so it has no
-                            // effect on them -- hide rather than lie.
-                            .filter((g) => !(layer.kind === "generator" && g.title === "Transform"))
+                            // Transform/Playback drive the CLIP inside the
+                            // frame; generators paint the full frame and
+                            // have no player -- hide rather than lie.
+                            .filter((g) => !(layer.kind === "generator" && (g.title === "Transform" || g.title === "Playback")))
                             .map((g) => (
                                 <ParamGroup
                                     key={g.title}
                                     title={g.title}
                                     hot={g.entries.some(([k, s]) => paramHot(layer, k, s, "layerEffects"))}
                                 >
-                                    {g.entries.map(([key, spec]) => renderControl(layer, key, spec, "layerEffects"))}
+                                    {g.entries.map(([key, spec], i) => {
+                                        // Thin divider whenever the effect family
+                                        // (key prefix) changes: Fracture's eight
+                                        // sliders read as one block, apart from
+                                        // Tunnel's, and so on.
+                                        const prefix = key.split(".")[0];
+                                        const prevPrefix = i > 0 ? g.entries[i - 1][0].split(".")[0] : prefix;
+                                        return (
+                                            <div key={key} style={{ display: "contents" }}>
+                                                {prefix !== prevPrefix && <div className="fx-divider" />}
+                                                {renderControl(layer, key, spec, "layerEffects")}
+                                            </div>
+                                        );
+                                    })}
                                 </ParamGroup>
                             ))}
                     </div>

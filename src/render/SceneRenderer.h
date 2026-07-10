@@ -33,7 +33,7 @@ public:
     void addPostPass(std::unique_ptr<ShaderPass> pass);
 
     void loadScene(const Scene& scene);
-    void update();
+    void update(const LiveParams& liveParams);
     void render(const ControlState& controlState, const LiveParams& liveParams);
 
     // True when the scene's layer STRUCTURE (ordered ids, kinds, clip
@@ -63,6 +63,7 @@ private:
         // change (observed on a real cold boot).
         int retriesLeft = 0;
         float nextRetrySecs = 0.0f;
+        float lastSeekSecs = 0.0f;  // debounce for playback-window seeks
     };
 
     bool layersReady() const;
