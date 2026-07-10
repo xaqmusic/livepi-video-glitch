@@ -72,7 +72,7 @@ class ValidationProblem(Exception):
         super().__init__("; ".join(errors))
 
 
-def validate_show(document: dict) -> tuple[Show, list[str]]:
+def validate_show(document: dict, strict_clips: bool = True) -> tuple[Show, list[str]]:
     """Full validation: schema (raises pydantic ValidationError), then
     sanitization of stale references, then cross-checks (raises
     ValidationProblem). Returns (show, warnings) -- callers should persist
@@ -84,7 +84,12 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
     manifest changes -- exactly what happened when stutter moved from the
     post chain to the layers. Structural problems (unknown clips,
     generators, layer ids; out-of-range values of KNOWN params) still
-    reject."""
+    reject.
+
+    strict_clips=False downgrades unknown-clipId to a WARNING: an IMPORTED
+    show/scene may reference clips that live on another machine, and the
+    renderer already draws those layers black -- so the exchange shouldn't
+    hard-fail, it should land and tell you which clips are missing."""
     show = Show.model_validate(document)
 
     manifest = load_manifest()
@@ -110,9 +115,11 @@ def validate_show(document: dict) -> tuple[Show, list[str]]:
             if layer.kind == "clip":
                 clip_layers.append(layer)
                 if layer.source not in clip_ids:
-                    errors.append(
-                        f'Scene "{scene.name}" layer "{layer.id}": unknown clipId "{layer.source}"'
-                    )
+                    msg = f'Scene "{scene.name}" layer "{layer.id}": unknown clipId "{layer.source}"'
+                    if strict_clips:
+                        errors.append(msg)
+                    else:
+                        warnings.append(msg + " -- renders black until that clip is added")
             else:
                 if layer.source not in generator_names:
                     errors.append(

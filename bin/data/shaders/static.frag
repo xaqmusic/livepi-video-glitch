@@ -9,24 +9,21 @@ uniform vec2 resolution;
 in vec2 texCoordVarying;
 out vec4 fragColor;
 
-// Noise hash sized for the Pi (GLSL ES 1.00, mediump float). No tile wrap:
-// with the grain capped at ~140 cells the coordinate stays inside mediump's
-// guaranteed range, so the sin() argument never overflows AND the pattern
-// never repeats on screen (an earlier mod-wrap recurred a few times across
-// the width and read as faint vertical banding). Balanced dot constants keep
-// BOTH axes' cell-to-cell step above the mediump precision floor, so neither
-// direction smears; the per-frame seed folds into the phase to re-roll.
+// The ORIGINAL grain hash (finer 240-cell field). Wraps the cell to a small
+// tile and uses a sin() hash so it survives the Pi's mediump floats. Note:
+// this reintroduces a faint vertical tile-repeat (~137 cells) -- the trade
+// for the finer grain. The per-frame seed folds into the phase to re-roll.
 float hash(vec2 cell) {
-    return fract(sin(dot(cell, vec2(31.0, 43.0)) + frameSeed) * 43758.5453);
+    cell = mod(cell, 137.0);
+    return fract(sin(dot(cell, vec2(12.9898, 78.233)) + frameSeed) * 43758.5453);
 }
 
 void main() {
     vec4 src = texture(srcTex, texCoordVarying);
 
     // Square grain cells regardless of the 16:9 frame; chunky (few) at
-    // scale 1, fine (many) at scale 0. Capped at 140 so cell coords stay in
-    // mediump range on the Pi.
-    float cells = mix(140.0, 18.0, scale);
+    // scale 1, fine (many) at scale 0.
+    float cells = mix(240.0, 20.0, scale);
     vec2 g = texCoordVarying * vec2(cells * (resolution.x / resolution.y), cells);
     vec2 i = floor(g);
     vec2 f = fract(g);

@@ -181,3 +181,26 @@ private:
     std::string name = "static";
     float phase = 0.0f;
 };
+
+// Feedback trails: a decaying echo of the layer in its own wake. LAST in the
+// layer chain (echoes whatever the effects produced). Holds its own
+// persistent ping-pong buffer; each frame it lightens the current frame over
+// the fading previous buffer, frame-rate-independent so trails are the same
+// length at 30/60fps. Straight alpha throughout, so a transparent layer's
+// echoes fade all the way to FULL transparency instead of smearing an opaque
+// ghost. `trails.length` (the master) sets how long they persist.
+class TrailsPass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "trails";
+    ofFbo trail[2];  // persistent echo buffer, allocated lazily at layer size
+    int frontIndex = 0;
+    bool allocated = false;
+    int bufW = 0, bufH = 0;
+};

@@ -1,9 +1,9 @@
 // Entry point: saved setlists, which one the Pi boots into, duplicate/new.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { api, ApiError } from "../api/client";
+import { api, ApiError, downloadJson, readJsonFile } from "../api/client";
 
 export default function ShowLibrary() {
     const [shows, setShows] = useState<string[]>([]);
@@ -50,13 +50,50 @@ export default function ShowLibrary() {
         }
     };
 
+    const exportShow = async (name: string) => {
+        try {
+            downloadJson(`${name}.lpshow`, await api.getShow(name));
+        } catch (e) {
+            alert(String(e));
+        }
+    };
+
+    const fileInput = useRef<HTMLInputElement>(null);
+    const importShowFile = async (file: File) => {
+        try {
+            const doc = await readJsonFile(file);
+            const base = file.name.replace(/\.(lpshow|json)$/i, "").trim().replace(/\s+/g, "-").toLowerCase();
+            const name = prompt("Import show as:", base);
+            if (!name) return;
+            const res = await api.importShow(name.trim().replace(/\s+/g, "-").toLowerCase(), doc);
+            if (res.warnings?.length) alert("Imported with warnings:\n\n" + res.warnings.join("\n"));
+            await refresh();
+        } catch (e) {
+            alert(String(e));
+        }
+    };
+
     return (
         <div className="page">
             <div className="row" style={{ justifyContent: "space-between" }}>
                 <h2 style={{ margin: 0 }}>Shows</h2>
-                <button className="primary" onClick={() => void createShow()}>
-                    New show
-                </button>
+                <div className="row">
+                    <input
+                        ref={fileInput}
+                        type="file"
+                        accept=".lpshow,.json"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void importShowFile(f);
+                            e.target.value = "";
+                        }}
+                    />
+                    <button onClick={() => fileInput.current?.click()}>Import show</button>
+                    <button className="primary" onClick={() => void createShow()}>
+                        New show
+                    </button>
+                </div>
             </div>
             {error && <div className="error">{error}</div>}
             {shows.map((name) => (
@@ -79,6 +116,7 @@ export default function ShowLibrary() {
                             </button>
                         )}
                         <button onClick={() => void renameShow(name)}>Rename</button>
+                        <button onClick={() => void exportShow(name)} title="Download as a .lpshow file">Export</button>
                         <button onClick={() => void createShow(name)}>Duplicate</button>
                         <button
                             className="danger"

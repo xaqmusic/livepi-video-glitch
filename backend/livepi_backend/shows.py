@@ -4,6 +4,7 @@ replaces it -- no per-scene endpoints. Writes validate first and land
 atomically; the renderer hot-reloads within a frame of the rename."""
 
 import os
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ValidationError
@@ -26,6 +27,15 @@ class SetActiveBody(BaseModel):
 
 class RenameShowBody(BaseModel):
     newName: str
+
+
+class ImportShowBody(BaseModel):
+    name: str
+    document: dict
+
+
+class ImportSceneBody(BaseModel):
+    scene: dict
 
 
 def _empty_show() -> dict:
@@ -90,6 +100,62 @@ def create_show(body: CreateShowBody):
 
     storage.atomic_write_json(path, document)
     return {"ok": True, "name": body.name}
+
+
+@router.post("/api/shows/import")
+def import_show(body: ImportShowBody):
+    """Load a .lpshow (raw show JSON) as a NEW show. Clips missing on this
+    machine downgrade to warnings, not a rejection (see validate_show)."""
+    try:
+        path = storage.show_path(body.name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if path.exists():
+        raise HTTPException(409, f"Show {body.name!r} already exists")
+    try:
+        show, warnings = validate_show(body.document, strict_clips=False)
+    except ValidationError as e:
+        raise HTTPException(422, detail=[str(err["msg"]) for err in e.errors()])
+    except ValidationProblem as e:
+        raise HTTPException(422, detail=e.errors)
+    storage.atomic_write_json(path, show.model_dump(exclude_none=True))
+    return {"ok": True, "name": body.name, "warnings": warnings}
+
+
+@router.post("/api/shows/{name}/scenes/import")
+def import_scene(name: str, body: ImportSceneBody):
+    """Load a .lpscene (raw scene JSON) into a show. Fresh scene + layer ids
+    (mapping targets repointed) so it can't collide with what's already
+    there; missing clips are warnings, not a rejection."""
+    try:
+        path = storage.show_path(name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not path.exists():
+        raise HTTPException(404, f"No show named {name!r}")
+
+    scene = dict(body.scene)
+    scene["id"] = f"scene-{uuid.uuid4().hex[:8]}"
+    id_map: dict[str, str] = {}
+    for layer in scene.get("layers", []):
+        fresh = f"layer-{uuid.uuid4().hex[:8]}"
+        id_map[layer.get("id")] = fresh
+        layer["id"] = fresh
+    for mapping in scene.get("mappings", []):
+        for target in mapping.get("targets", []):
+            if target.get("layerId"):
+                target["layerId"] = id_map.get(target["layerId"], target["layerId"])
+
+    document = storage.read_json(path)
+    document.setdefault("scenes", []).append(scene)
+    try:
+        show, warnings = validate_show(document, strict_clips=False)
+    except ValidationError as e:
+        raise HTTPException(422, detail=[str(err["msg"]) for err in e.errors()])
+    except ValidationProblem as e:
+        raise HTTPException(422, detail=e.errors)
+    storage.atomic_write_json(path, show.model_dump(exclude_none=True))
+    return {"ok": True, "sceneId": scene["id"], "warnings": warnings}
 
 
 @router.post("/api/shows/{name}/rename")

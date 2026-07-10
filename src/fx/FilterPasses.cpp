@@ -283,8 +283,9 @@ void StaticPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LivePa
     float blur = readParam(liveParams, "static.blur", 0.0f);
     phase += static_cast<float>(ofGetLastFrameTime());
     // Re-roll the grain ~30x/sec on the wall clock (snows the same at 30/60
-    // fps), wrapped small to spare mediump range on the Pi (see static.frag).
-    float seed = std::fmod(std::floor(phase * 30.0f), 128.0f);
+    // fps), wrapped small so the sin() phase stays resolvable on the Pi's
+    // mediump floats (see static.frag).
+    float seed = std::fmod(std::floor(phase * 30.0f), 256.0f);
     drawPass(shader, src, dst, [&](ofShader& sh) {
         sh.setUniform1f("amount", amount);
         sh.setUniform1f("scale", scale);
@@ -293,4 +294,71 @@ void StaticPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LivePa
         sh.setUniform1f("frameSeed", seed);
         sh.setUniform2f("resolution", dst.getWidth(), dst.getHeight());
     });
+}
+
+void TrailsPass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/trails.frag");
+    // Buffers allocated lazily on first active apply (need the layer size).
+}
+
+bool TrailsPass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "trails.length", 0.0f) > kNeutral;
+}
+
+void TrailsPass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float length = readParam(liveParams, "trails.length", 0.0f);
+
+    int w = static_cast<int>(src.getWidth());
+    int h = static_cast<int>(src.getHeight());
+    if (!allocated || w != bufW || h != bufH) {
+        ofFboSettings s;
+        s.width = w;
+        s.height = h;
+        s.internalformat = GL_RGBA;
+        for (auto& fbo : trail) {
+            fbo.allocate(s);
+            fbo.getTexture().setTextureMinMagFilter(GL_LINEAR, GL_LINEAR);
+            fbo.begin();
+            ofClear(0, 0, 0, 0);
+            fbo.end();
+        }
+        allocated = true;
+        bufW = w;
+        bufH = h;
+        frontIndex = 0;
+    }
+
+    // Frame-rate-independent fade: the echo keeps exp(-dt/tau) of its
+    // coverage per frame, so trails last the same wall-clock time at 30/60fps.
+    // tau (the time constant) runs from a short smear to a long comet tail.
+    float dt = static_cast<float>(ofGetLastFrameTime());
+    float tau = 0.05f + length * 2.45f;
+    float decay = std::exp(-dt / tau);
+
+    ofFbo& front = trail[frontIndex];
+    ofFbo& back = trail[frontIndex ^ 1];
+
+    // Lighten the current frame over the fading echo into the back buffer.
+    back.begin();
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+    shader.begin();
+    ShaderLoader::bindMvp(shader);
+    shader.setUniformTexture("srcTex", src.getTexture(), 0);
+    shader.setUniformTexture("trailTex", front.getTexture(), 1);
+    shader.setUniform1f("decay", decay);
+    ShaderLoader::drawFullscreenQuad(w, h);
+    shader.end();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    back.end();
+    frontIndex ^= 1;
+
+    // Emit the new trail buffer to the chain (straight alpha, blend off).
+    dst.begin();
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+    ofSetColor(255);
+    trail[frontIndex].draw(0, 0, dst.getWidth(), dst.getHeight());
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    dst.end();
 }

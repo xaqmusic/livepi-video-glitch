@@ -134,6 +134,9 @@ void SceneRenderer::applyScene(const Scene& scene) {
         // quantizer bins whatever contrast/saturation hands it.
         addLayerPass(std::make_unique<ColorAdjustPass>());
         addLayerPass(std::make_unique<PosterizeCyclePass>());
+        // Trails LAST: it echoes whatever the whole layer chain produced, so
+        // its feedback buffer carries the finished look into its own wake.
+        addLayerPass(std::make_unique<TrailsPass>());
         runtimes.push_back(std::move(runtime));
     }
 }

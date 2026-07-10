@@ -49,6 +49,16 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ newName }),
         }),
+    importShow: (name: string, document: unknown) =>
+        request<{ ok: boolean; name: string; warnings: string[] }>("/api/shows/import", {
+            method: "POST",
+            body: JSON.stringify({ name, document }),
+        }),
+    importScene: (showName: string, scene: unknown) =>
+        request<{ ok: boolean; sceneId: string; warnings: string[] }>(
+            `/api/shows/${encodeURIComponent(showName)}/scenes/import`,
+            { method: "POST", body: JSON.stringify({ scene }) },
+        ),
     deleteShow: (name: string) => request<{ ok: boolean }>(`/api/shows/${encodeURIComponent(name)}`, { method: "DELETE" }),
     setActiveShow: (name: string) =>
         request<{ ok: boolean; active: string }>("/api/shows-active", { method: "POST", body: JSON.stringify({ name }) }),
@@ -81,6 +91,22 @@ export const api = {
 // so the UI can tell whether the file the renderer will look for exists.
 export function pingpongKey(x: number): number {
     return Math.trunc(Math.min(1, Math.max(0, x)) * 1000 + 0.5);
+}
+
+// Save a JS object to disk as a pretty-printed .lpshow/.lpscene (both are
+// just JSON) via a client-side download -- no server round trip needed.
+export function downloadJson(filename: string, data: unknown): void {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Read a picked .lpshow/.lpscene file and parse its JSON.
+export async function readJsonFile(file: File): Promise<unknown> {
+    return JSON.parse(await file.text());
 }
 
 export function newId(prefix: string): string {

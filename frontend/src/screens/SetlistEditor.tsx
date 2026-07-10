@@ -2,10 +2,10 @@
 // the PRIMARY reorder control (touch-friendly; drag-and-drop is a possible
 // later desktop bonus, never the only way -- docs/videosynth-frontend.md).
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { newId } from "../api/client";
+import { api, downloadJson, newId, readJsonFile } from "../api/client";
 import { useShowStore } from "../state/showStore";
 import SaveStatus from "../components/SaveStatus";
 
@@ -13,6 +13,10 @@ export default function SetlistEditor() {
     const { show: showName } = useParams<{ show: string }>();
     const { show, open, edit } = useShowStore();
     const navigate = useNavigate();
+    // Must be declared with the other hooks, ABOVE the early `!show` return --
+    // hooks can't sit behind a conditional or the count changes between the
+    // loading and loaded renders (Rules of Hooks).
+    const fileInput = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (showName) {
@@ -56,6 +60,27 @@ export default function SetlistEditor() {
         });
     };
 
+    const exportScene = (index: number) => {
+        const scene = show!.scenes[index];
+        const stem = (scene.name || "scene").replace(/[^\w-]+/g, "_");
+        downloadJson(`${stem}.lpscene`, scene);
+    };
+
+    const importSceneFile = async (file: File) => {
+        if (!showName) return;
+        try {
+            const scene = await readJsonFile(file);
+            // Persist any pending draft edit, import server-side (fresh ids +
+            // lenient clip check), then reload the draft with the new scene.
+            await useShowStore.getState().saveNow();
+            const res = await api.importScene(showName, scene);
+            if (res.warnings?.length) alert("Imported with warnings:\n\n" + res.warnings.join("\n"));
+            await open(showName);
+        } catch (e) {
+            alert(String(e));
+        }
+    };
+
     const duplicateScene = (index: number) => {
         edit((draft) => {
             const copy = structuredClone(draft.scenes[index]);
@@ -84,6 +109,18 @@ export default function SetlistEditor() {
                 </h2>
                 <div className="row">
                     <SaveStatus />
+                    <input
+                        ref={fileInput}
+                        type="file"
+                        accept=".lpscene,.json"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void importSceneFile(f);
+                            e.target.value = "";
+                        }}
+                    />
+                    <button onClick={() => fileInput.current?.click()}>Import scene</button>
                     <button className="primary" onClick={addScene}>Add scene</button>
                 </div>
             </div>
@@ -108,6 +145,7 @@ export default function SetlistEditor() {
                         <button className="icon" disabled={i === 0} onClick={() => move(i, -1)}>▲</button>
                         <button className="icon" disabled={i === show.scenes.length - 1} onClick={() => move(i, 1)}>▼</button>
                         <button onClick={() => renameScene(i, scene.name)}>Rename</button>
+                        <button onClick={() => exportScene(i)} title="Download as a .lpscene file">Export</button>
                         <button onClick={() => duplicateScene(i)}>Duplicate</button>
                         <button
                             className="danger"
