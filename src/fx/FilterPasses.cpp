@@ -164,6 +164,8 @@ void FracturePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const Live
     float drift = readParam(liveParams, "fracture.drift", 0.25f);
     float jitter = readParam(liveParams, "fracture.jitter", 0.0f);
     float scatter = readParam(liveParams, "fracture.scatter", 0.0f);
+    float quake = readParam(liveParams, "fracture.quake", 0.0f);
+    float rebreak = readParam(liveParams, "fracture.rebreak", 0.0f);
     float dt = static_cast<float>(ofGetLastFrameTime());
     phase += drift * 0.8f * dt;
     // Fixed twitch clock; jitterAmt scales how FAR pieces tremble, the
@@ -180,6 +182,10 @@ void FracturePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const Live
         // 16 discrete arrangements across the scatter range: any bound
         // control crossing a step boundary re-rolls the debris.
         sh.setUniform1f("scatterStep", std::floor(scatter * 15.999f));
+        sh.setUniform1f("quakeAmt", quake);
+        // 16 distinct crack patterns across the rebreak range: crossing a
+        // step re-fractures along entirely new lines.
+        sh.setUniform1f("rebreakStep", std::floor(rebreak * 15.999f));
     });
 }
 
