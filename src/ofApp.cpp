@@ -54,6 +54,15 @@ void ofApp::setup() {
     // mode), so the render pipeline always matches whatever's really on
     // screen instead of a second, possibly-mismatched config read.
     sceneRenderer.setup(ofGetWidth(), ofGetHeight());
+    // Ping-pong reverse strategy: the Pi's v4l2 decoder stalls on rate -1,
+    // so GLES builds default to seek-stepping scrub; desktop keeps native
+    // reverse. Overridable for testing via config "video.reverse_scrub".
+#ifdef TARGET_OPENGLES
+    bool reverseScrubDefault = true;
+#else
+    bool reverseScrubDefault = false;
+#endif
+    sceneRenderer.setReverseScrub(config.getBool("video.reverse_scrub", reverseScrubDefault));
     // Stutter is a per-layer effect now (SceneRenderer adds it to each
     // clip layer's chain) -- the post chain is the frame-wide CRT decay.
     // The global grade comes first: correct the composite, then decay it.

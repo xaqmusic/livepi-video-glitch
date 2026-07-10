@@ -34,6 +34,10 @@ public:
 
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
+    // Ping-pong reverse strategy: true = seek-stepping scrub (hardware
+    // decoders without rate -1 support: the Pi), false = native negative
+    // rate (desktop). Set from config at startup.
+    void setReverseScrub(bool scrub) { reverseScrub = scrub; }
     void render(const ControlState& controlState, const LiveParams& liveParams);
 
     // True when the scene's layer STRUCTURE (ordered ids, kinds, clip
@@ -64,6 +68,13 @@ private:
         int retriesLeft = 0;
         float nextRetrySecs = 0.0f;
         float lastSeekSecs = 0.0f;  // debounce for playback-window seeks
+        // Reverse-by-scrubbing state (ping-pong on hardware decoders that
+        // can't play rate -1): pipeline paused, position walked backward
+        // by rapid seeks. scrubPos is OUR clock -- getPosition() lags
+        // mid-flush and can't be trusted while scrubbing.
+        bool scrubbing = false;
+        float scrubPos = 0.0f;
+        float lastScrubSeek = 0.0f;
     };
 
     bool layersReady() const;
@@ -90,6 +101,8 @@ private:
     std::unique_ptr<Scene> pendingScene;
     Scene renderScene;  // the scene the CURRENT runtimes represent
     void applyScene(const Scene& scene);
+
+    bool reverseScrub = false;
 
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;
     LayerCompositor compositor;

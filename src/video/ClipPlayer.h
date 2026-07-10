@@ -43,6 +43,7 @@ public:
     void setPosition(float pos) { player.setPosition(pos); }
     void setSpeed(float speed) { player.setSpeed(speed); }
     float getSpeed() const { return player.getSpeed(); }
+    void setPaused(bool paused) { player.setPaused(paused); }
 
 private:
     ofVideoPlayer player;

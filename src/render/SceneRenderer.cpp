@@ -8,6 +8,7 @@
 #include "fx/FilterPasses.h"
 #include "fx/GeneratorPasses.h"
 #include "fx/StutterBufferPass.h"
+#include "ofAppRunner.h"
 #include "ofGraphics.h"
 #include "ofImage.h"
 #include "ofLog.h"
@@ -170,6 +171,37 @@ void SceneRenderer::update(const LiveParams& liveParams) {
         float end = std::clamp(liveParams.getLayerParam(runtime->layerId, "video.end", 1.0f), start + 0.02f, 1.0f);
         bool pingpong = liveParams.getLayerParam(runtime->layerId, "video.pingpong", 0.0f) > 0.5f;
         float now = ofGetElapsedTimef();
+
+        // Active reverse-scrub runs on its own per-frame clock, ahead of
+        // the seek debounce (which exists for the coarse wrap seeks, not
+        // this deliberately rapid stepping).
+        if (runtime->scrubbing) {
+            if (!pingpong) {
+                // Toggle flipped off mid-scrub: resume normal playback.
+                runtime->scrubbing = false;
+                runtime->player->setPaused(false);
+                runtime->player->setSpeed(1.0f);
+                continue;
+            }
+            float durSecs = std::max(runtime->player->getDuration(), 0.1f);
+            runtime->scrubPos -= static_cast<float>(ofGetLastFrameTime()) / durSecs;
+            if (runtime->scrubPos <= start) {
+                runtime->scrubbing = false;
+                runtime->player->setPosition(start);
+                runtime->player->setPaused(false);
+                runtime->player->setSpeed(1.0f);
+                runtime->lastSeekSecs = now;
+                ofLogNotice("SceneRenderer") << "ping-pong: forward layer \"" << runtime->layerId
+                                             << "\" at pos " << runtime->scrubPos;
+            } else if (now - runtime->lastScrubSeek >= 0.04f) {
+                // ~25 steps/sec; on an all-intra clip each seek decodes
+                // exactly one frame, so the paused pipeline keeps up.
+                runtime->player->setPosition(runtime->scrubPos);
+                runtime->lastScrubSeek = now;
+            }
+            continue;
+        }
+
         if (now - runtime->lastSeekSecs < 0.25f) continue;
         float pos = runtime->player->getPosition();
         float speed = runtime->player->getSpeed();
@@ -179,11 +211,22 @@ void SceneRenderer::update(const LiveParams& liveParams) {
             // wrap never races the reversal.
             float flipEnd = std::min(end, 0.99f);
             if (speed >= 0.0f && pos >= flipEnd) {
-                runtime->player->setSpeed(-1.0f);
+                if (reverseScrub) {
+                    // Hardware path: rate -1 stalls the v4l2 decoder, so
+                    // reverse is seek-stepping over a paused pipeline.
+                    runtime->scrubbing = true;
+                    runtime->scrubPos = flipEnd;
+                    runtime->lastScrubSeek = 0.0f;
+                    runtime->player->setPaused(true);
+                    ofLogNotice("SceneRenderer") << "ping-pong: reversing (scrub) layer \"" << runtime->layerId
+                                                 << "\" at pos " << pos;
+                } else {
+                    runtime->player->setSpeed(-1.0f);
+                    ofLogNotice("SceneRenderer") << "ping-pong: reversing layer \"" << runtime->layerId
+                                                 << "\" at pos " << pos;
+                }
                 runtime->lastSeekSecs = now;
-                ofLogNotice("SceneRenderer") << "ping-pong: reversing layer \"" << runtime->layerId
-                                             << "\" at pos " << pos;
-            } else if (speed < 0.0f && pos <= start) {
+            } else if (!reverseScrub && speed < 0.0f && pos <= start) {
                 runtime->player->setSpeed(1.0f);
                 runtime->lastSeekSecs = now;
                 ofLogNotice("SceneRenderer") << "ping-pong: forward layer \"" << runtime->layerId
