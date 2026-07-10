@@ -148,6 +148,30 @@ void PosterizeCyclePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, cons
     });
 }
 
+// --- Fracture -------------------------------------------------------------
+
+void FracturePass::setup() {
+    ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/fracture.frag");
+}
+
+bool FracturePass::isActive(const LiveParams& liveParams) const {
+    return readParam(liveParams, "fracture.amount", 0.0f) > kNeutral;
+}
+
+void FracturePass::apply(ofFbo& src, ofFbo& dst, const ControlState&, const LiveParams& liveParams) {
+    float amount = readParam(liveParams, "fracture.amount", 0.0f);
+    float piecesRaw = readParam(liveParams, "fracture.pieces", 0.4f);
+    float drift = readParam(liveParams, "fracture.drift", 0.25f);
+    phase += drift * 0.8f * static_cast<float>(ofGetLastFrameTime());
+
+    drawPass(shader, src, dst, [&](ofShader& sh) {
+        sh.setUniform1f("amount", amount);
+        // 0..1 -> 3..20 shards across: a few big slabs up to gravel.
+        sh.setUniform1f("cells", 3.0f + piecesRaw * 17.0f);
+        sh.setUniform1f("phase", phase);
+    });
+}
+
 // --- Color adjust --------------------------------------------------------
 
 void ColorAdjustPass::setup() {

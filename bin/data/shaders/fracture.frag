@@ -1,0 +1,92 @@
+uniform sampler2D srcTex;
+uniform float amount;  // 0 intact .. 1 blown apart (THE performance knob)
+uniform float cells;   // shard density across the frame
+uniform float phase;   // drift, CPU-accumulated (held breaks stay alive)
+
+in vec2 texCoordVarying;
+out vec4 fragColor;
+
+// Voronoi shatter (docs request: RANDOM fracture, not a regular mosaic).
+// A jittered Voronoi partition carves the frame into irregular shards;
+// each shard is RIGID -- one random displacement + slight tilt from its
+// cell hash, scaled by `amount`, so pieces fly apart coherently and
+// reassemble perfectly at 0. Cracks between shards go TRANSPARENT
+// (alpha 0): whatever plays beneath the layer shows through the gaps.
+
+vec2 hash22(vec2 p) {
+    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)),
+                          dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}
+
+void main() {
+    vec2 uv = texCoordVarying;
+    // Aspect-corrected grid so shards read roughly isotropic on 16:9.
+    vec2 g = uv * vec2(cells * 1.78, cells);
+
+    // 3x3 Worley search: nearest (F1) and second-nearest (F2) jittered
+    // points. F2-F1 measures distance to the shard boundary -> cracks.
+    vec2 shardId = vec2(0.0);
+    float f1 = 1e9;
+    float f2 = 1e9;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            vec2 cell = floor(g) + vec2(float(dx), float(dy));
+            vec2 seed = hash22(cell);
+            // Drift: each shard's seed point orbits slowly with phase.
+            vec2 pt = cell + 0.5 + 0.35 * vec2(cos(6.28318 * seed.x + phase),
+                                               sin(6.28318 * seed.y + phase));
+            float d = distance(g, pt);
+            if (d < f1) {
+                f2 = f1;
+                f1 = d;
+                shardId = cell;
+            } else if (d < f2) {
+                f2 = d;
+            }
+        }
+    }
+
+    vec2 seed = hash22(shardId);
+    vec2 dir = seed - 0.5;
+
+    // STAGED breaking: every shard has its own detach threshold, so the
+    // image cracks progressively -- hairline stress fractures first, then
+    // pieces let go one by one, the loose ones flying farther. Uniform
+    // simultaneous separation read as stained glass, not as breaking.
+    float thresh = seed.y * 0.35;
+    float letsGo = clamp((amount - thresh) / max(1.0 - thresh, 0.001), 0.0, 1.0);
+    float mag = letsGo * letsGo * 0.35 * (0.4 + 0.8 * seed.x);
+
+    // Rigid-shard sampling: displace, plus a slight tilt around the shard
+    // center (pieces rotate as they separate -- sells "broken").
+    vec2 center = (shardId + 0.5) / vec2(cells * 1.78, cells);
+    float ang = (seed.x - 0.5) * 1.2 * letsGo;
+    float s = sin(ang);
+    float c = cos(ang);
+    vec2 rel = uv - center;
+    rel = vec2(rel.x * c - rel.y * s, rel.x * s + rel.y * c);
+    vec2 srcUv = center + rel - dir * mag;
+
+    // Gaps open per shard as it lets go; still-attached shards show only
+    // hairline cracks (the narrow smoothstep band at gap 0).
+    float gap = letsGo * 0.09;
+    float crack = smoothstep(gap, gap + 0.015 + 0.05 * amount, f2 - f1);
+
+    if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0) {
+        // A shard displaced past the frame edge shows void, not smear.
+        fragColor = vec4(0.0);
+        return;
+    }
+
+    // Per-shard chromatic split along the displacement direction: the
+    // broken-hologram read. Scales with amount, zero when intact.
+    vec2 split = dir * mag * 0.15;
+    float r = texture(srcTex, clamp(srcUv + split, 0.0, 1.0)).r;
+    vec4 base = texture(srcTex, srcUv);
+    float b = texture(srcTex, clamp(srcUv - split, 0.0, 1.0)).b;
+
+    // Shards catch the light differently once broken.
+    float shade = mix(1.0, 0.7 + 0.6 * seed.y, letsGo);
+
+    fragColor = vec4(vec3(r, base.g, b) * shade, base.a * crack);
+}

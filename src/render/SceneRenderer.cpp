@@ -94,6 +94,10 @@ void SceneRenderer::loadScene(const Scene& scene) {
         addLayerPass(std::make_unique<KaleidoscopePass>());
         addLayerPass(std::make_unique<TwisterBarsPass>());
         addLayerPass(std::make_unique<TunnelPass>());
+        // Fracture last of the warps: it shatters whatever the layer looks
+        // like by then, and its transparent cracks must survive to the
+        // compositor (color adjust passes alpha through).
+        addLayerPass(std::make_unique<FracturePass>());
         // Color-correct the (possibly warped) source, THEN posterize: the
         // quantizer bins whatever contrast/saturation hands it.
         addLayerPass(std::make_unique<ColorAdjustPass>());

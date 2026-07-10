@@ -88,6 +88,23 @@ private:
     float cyclePhase = 0.0f;
 };
 
+// Voronoi shatter: irregular rigid shards displace/tilt apart with
+// `amount` and reassemble perfectly at 0; cracks between them go
+// transparent. Random fracture, not a mosaic -- built for the
+// post-apocalyptic "breaking apart, then coming back together" ask.
+class FracturePass : public ShaderPass {
+public:
+    void setup() override;
+    void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
+    bool isActive(const LiveParams& liveParams) const override;
+    const std::string& getName() const override { return name; }
+
+private:
+    ofShader shader;
+    std::string name = "fracture";
+    float phase = 0.0f;
+};
+
 // Brightness (gain) / contrast / saturation, all neutral at 0.5. Used in
 // BOTH scopes: per layer (after the warps, before posterize quantizes)
 // and scene-wide as the FIRST post pass (grade the composite before the
