@@ -18,6 +18,7 @@ interface TelemetryState {
 }
 
 let ws: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     latest: null,
@@ -28,27 +29,49 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
         const refs = get().refs + 1;
         set({ refs });
         if (refs === 1 && !ws) {
-            const proto = location.protocol === "https:" ? "wss:" : "ws:";
-            ws = new WebSocket(`${proto}//${location.host}/ws/telemetry`);
-            ws.onopen = () => set({ connected: true });
-            ws.onmessage = (ev) => set({ latest: JSON.parse(ev.data) as Telemetry });
-            ws.onclose = () => {
-                set({ connected: false });
-                ws = null;
-            };
+            connect(set, get);
         }
     },
 
     release: () => {
         const refs = Math.max(0, get().refs - 1);
         set({ refs });
-        if (refs === 0 && ws) {
-            ws.close();
-            ws = null;
-            set({ connected: false });
+        if (refs === 0) {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+                set({ connected: false });
+            }
         }
     },
 }));
+
+type Set = (partial: Partial<TelemetryState>) => void;
+type Get = () => TelemetryState;
+
+function connect(set: Set, get: Get) {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(`${proto}//${location.host}/ws/telemetry`);
+    ws.onopen = () => set({ connected: true });
+    ws.onmessage = (ev) => set({ latest: JSON.parse(ev.data) as Telemetry });
+    ws.onclose = () => {
+        set({ connected: false });
+        ws = null;
+        // Auto-reconnect while anyone still wants telemetry -- a dropped
+        // socket (backend restart, network blip) used to leave Learn stuck
+        // at "no WS!" until a page reload.
+        if (get().refs > 0 && !reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                if (get().refs > 0 && !ws) connect(set, get);
+            }, 2000);
+        }
+    };
+}
 
 /** Mount-scoped subscription to live telemetry. */
 export function useTelemetry(): Telemetry | null {

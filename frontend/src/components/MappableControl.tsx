@@ -43,20 +43,43 @@ export default function MappableControl(props: MappableControlProps) {
     const [midiMenuOpen, setMidiMenuOpen] = useState(false);
     const [audioMenuOpen, setAudioMenuOpen] = useState(false);
     const armedAt = useRef(0);
-    const telemetry = useTelemetry();
+    useTelemetry();  // keep the shared WS alive while any control is mounted
     const connected = useTelemetryStore((s) => s.connected);
 
+    // onBindMidi is an inline closure from the parent -- new identity every
+    // render. Kept in a ref so the armed subscription below NEVER depends
+    // on render-cycle identities.
+    const onBindMidiRef = useRef(onBindMidi);
+    onBindMidiRef.current = onBindMidi;
+
+    // Learn binds via an IMPERATIVE store subscription, not a render-cycle
+    // effect. The old form -- useEffect([armed, telemetry, onBindMidi])
+    // calling setState -- had dependencies that change on every telemetry
+    // frame and every parent render; at the bind moment (store write +
+    // auto-save + dozens of sibling controls re-rendering) React saw a
+    // long enough same-tick update chain to throw "Maximum update depth
+    // exceeded" (error #185, caught live during a learn at the rig). This
+    // form subscribes once per arming, fires at most once, and no object
+    // identity anywhere can re-trigger it.
     useEffect(() => {
-        if (!armed || !telemetry?.lastControl) return;
-        const { kind, number, ts } = telemetry.lastControl;
-        if (kind !== "none" && ts > armedAt.current) {
-            onBindMidi({ type: kind, number });
+        if (!armed) return;
+        let done = false;
+        const maybeBind = (latest: ReturnType<typeof useTelemetryStore.getState>["latest"]) => {
+            const lc = latest?.lastControl;
+            if (done || !lc || lc.kind === "none" || lc.ts <= armedAt.current) return;
+            done = true;
             setArmed(false);
-        }
-    }, [armed, telemetry, onBindMidi]);
+            onBindMidiRef.current({ type: lc.kind, number: lc.number });
+        };
+        maybeBind(useTelemetryStore.getState().latest);
+        const unsub = useTelemetryStore.subscribe((s) => maybeBind(s.latest));
+        return unsub;
+    }, [armed]);
 
     const arm = () => {
-        armedAt.current = telemetry?.lastControl?.ts ?? 0;
+        // Freshest timestamp straight from the store (not a render
+        // closure): only events NEWER than the arming moment may bind.
+        armedAt.current = useTelemetryStore.getState().latest?.lastControl?.ts ?? 0;
         setArmed(true);
         setMidiMenuOpen(false);
         setAudioMenuOpen(false);

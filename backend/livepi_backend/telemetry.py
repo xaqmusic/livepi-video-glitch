@@ -43,3 +43,9 @@ async def telemetry(ws: WebSocket):
             await asyncio.sleep(_POLL_SECS)
     except WebSocketDisconnect:
         pass
+    except RuntimeError:
+        # send_json on a transport the client already tore down (browser
+        # tab closed mid-frame) raises RuntimeError, not WebSocketDisconnect
+        # -- observed as tracebacks in the Pi journal. Same meaning: the
+        # client is gone, end quietly.
+        pass
