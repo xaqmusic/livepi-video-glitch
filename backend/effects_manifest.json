@@ -173,6 +173,14 @@
             "default": 0.4,
             "group": "Warp FX"
         },
+        "fracture.spread": {
+            "label": "Fracture Spread",
+            "type": "float",
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.3,
+            "group": "Warp FX"
+        },
         "fracture.drift": {
             "label": "Fracture Drift",
             "type": "float",

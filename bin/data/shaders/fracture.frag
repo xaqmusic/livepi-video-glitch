@@ -9,6 +9,10 @@ uniform float scatterStep; // quantized scatter value; each step = re-rolled
 uniform float quakeAmt;    // stepped trembling of the CRACK PATTERN itself
 uniform float rebreakStep; // quantized re-crack: each step = entirely new
                            // fracture lines (vs scatter, which keeps them)
+uniform float spread;      // flight DISTANCE of detached pieces: 0 = broken
+                           // but held in place, 1 = launched off screen.
+                           // Decoupled from `amount` so the break can be
+                           // established first and detonated separately.
 
 in vec2 texCoordVarying;
 out vec4 fragColor;
@@ -78,7 +82,7 @@ void main() {
     // simultaneous separation read as stained glass, not as breaking.
     float thresh = seed.y * 0.35;
     float letsGo = clamp((amount - thresh) / max(1.0 - thresh, 0.001), 0.0, 1.0);
-    float mag = letsGo * letsGo * 0.35 * (0.4 + 0.8 * seed.x);
+    float mag = letsGo * letsGo * spread * 1.2 * (0.4 + 0.8 * seed.x);
 
     // Rigid-shard sampling: displace, plus a slight tilt around the shard
     // center (pieces rotate as they separate -- sells "broken").
