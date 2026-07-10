@@ -35,7 +35,13 @@ struct Layer {
     std::string source;        // clipId (kind==Clip) or generator name (kind==Generator)
     std::string resolvedPath;  // clip path resolved from clips/library.json at
                                // load time; empty means the clipId didn't
-                               // resolve and the layer renders black
+                               // resolve and the layer renders black. For a
+                               // ping-pong clip with a baked boomerang, this
+                               // points at the boomerang instead of the clip.
+    bool bakedLoop = false;    // resolvedPath is a self-contained boomerang
+                               // (forward+reverse already baked in): play it
+                               // whole, forward, looping -- ignore the trim
+                               // window and ping-pong logic entirely.
     BlendMode blendMode = BlendMode::Normal;
     float opacity = 1.0f;
     std::map<std::string, float> layerEffects;  // per-layer warp passes (future)

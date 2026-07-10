@@ -9,11 +9,17 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from . import config, storage, transcode
 from .auth import require_session
 
 router = APIRouter(dependencies=[Depends(require_session)])
+
+
+class PingpongRequest(BaseModel):
+    start: float = 0.0
+    end: float = 1.0
 
 
 def _safe_stem(filename: str) -> str:
@@ -98,6 +104,32 @@ def smooth_reverse(clip_id: str):
     return {"jobId": job.id}
 
 
+@router.post("/api/clips/{clip_id}/pingpong")
+def bake_pingpong(clip_id: str, req: PingpongRequest):
+    """Bake a boomerang (forward + pre-reversed segment) for [start,end] so
+    ping-pong plays as an ordinary forward loop -- the Pi's decoder can't run
+    rate -1. Idempotent: re-baking the same trim just re-writes the file."""
+    library = storage.read_library()
+    clip = next((c for c in library.get("clips", []) if c["id"] == clip_id), None)
+    if clip is None:
+        raise HTTPException(404, "No such clip")
+    if not (config.DATA_DIR / clip["path"]).exists():
+        raise HTTPException(409, "Clip file missing on disk")
+    start = min(max(req.start, 0.0), 1.0)
+    end = min(max(req.end, 0.0), 1.0)
+    if end - start < 0.02:
+        raise HTTPException(422, "Ping-pong segment is too short (end must exceed start)")
+    seg_sec = (end - start) * (clip.get("duration") or 0.0)
+    if seg_sec > config.PINGPONG_MAX_SECONDS:
+        raise HTTPException(
+            422,
+            f"Ping-pong segment is {seg_sec:.1f}s; the max is {config.PINGPONG_MAX_SECONDS:.0f}s "
+            "(reversing buffers the whole segment in memory). Tighten the clip start/end.",
+        )
+    job = transcode.enqueue_pingpong(clip, start, end)
+    return {"jobId": job.id}
+
+
 @router.delete("/api/clips/{clip_id}")
 def delete_clip(clip_id: str):
     library = storage.read_library()
@@ -121,4 +153,5 @@ def delete_clip(clip_id: str):
     (config.DATA_DIR / match["path"]).unlink(missing_ok=True)
     if match.get("thumb"):
         (config.THUMBS_DIR / match["thumb"]).unlink(missing_ok=True)
+    transcode.prune_boomerangs(match["path"])
     return {"ok": True}

@@ -14,6 +14,10 @@ SHOWS_DIR = DATA_DIR / "shows"
 CLIPS_DIR = DATA_DIR / "clips"
 LIBRARY_PATH = CLIPS_DIR / "library.json"
 THUMBS_DIR = CLIPS_DIR / ".thumbs"
+# Baked ping-pong "boomerangs" (forward segment + pre-reversed segment as one
+# forward-looping file -- the Pi's decoder can't play rate -1). Derived, per
+# (clip, trim); the renderer finds them by filename convention.
+PINGPONG_DIR = CLIPS_DIR / ".pingpong"
 
 STATUS_PATH = Path(os.environ.get("LIVEPI_STATUS_PATH", "/tmp/livepi/status.json"))
 COMMAND_FIFO = Path(os.environ.get("LIVEPI_COMMAND_FIFO", "/tmp/livepi/command.fifo"))
@@ -36,3 +40,9 @@ IS_ARM = platform.machine() in ("aarch64", "armv7l")
 FFMPEG_PRESET = "veryfast" if IS_ARM else "medium"
 FFMPEG_THREADS = 2 if IS_ARM else 0  # 0 = ffmpeg default
 FFMPEG_NICE = 19
+
+# ffmpeg's `reverse` filter buffers the whole segment in RAM (~3MB/frame at
+# 1080p), so a boomerang's trimmed segment is length-capped -- ping-pong
+# clips are short by nature. Beyond this the prep endpoint refuses and asks
+# for a tighter trim.
+PINGPONG_MAX_SECONDS = float(os.environ.get("LIVEPI_PINGPONG_MAX_SECONDS", "15"))

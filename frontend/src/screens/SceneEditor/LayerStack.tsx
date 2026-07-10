@@ -9,9 +9,9 @@
 // specs); a closed section shows a hot dot when anything inside is
 // non-default or bound, so a folded layer still reads at a glance.
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { newId } from "../../api/client";
+import { api, newId, pingpongKey } from "../../api/client";
 import type { AudioBand, BlendMode, Clip, EffectsManifest, ParamSpec, Scene } from "../../api/types";
 import MappableControl, { makePreviewSender } from "../../components/MappableControl";
 import { useShowStore } from "../../state/showStore";
@@ -32,7 +32,71 @@ function ParamGroup({ title, hot, children }: { title: string; hot: boolean; chi
     );
 }
 
-export default function LayerStack({ scene, manifest, clips }: { scene: Scene; manifest: EffectsManifest; clips: Clip[] }) {
+// Ping-pong reverse plays a baked "boomerang" (forward + pre-reversed segment
+// as one forward-looping file) -- the Pi's decoder can't run backwards, so
+// the reverse has to be pre-rendered per clip + trim. This row bakes it and
+// reflects whether the file the renderer looks for already exists.
+function PingpongPrep({ layer, clip, onBaked }: {
+    layer: Scene["layers"][number];
+    clip: Clip;
+    onBaked: () => Promise<void> | void;
+}) {
+    const [baking, setBaking] = useState(false);
+    const on = (layer.layerEffects["video.pingpong"] ?? 0) > 0.5;
+    if (!on) return null;
+
+    const start = layer.layerEffects["video.start"] ?? 0;
+    const end = layer.layerEffects["video.end"] ?? 1;
+    const [ks, ke] = [pingpongKey(start), pingpongKey(end)];
+    const ready = (clip.pingpong ?? []).some(([a, b]) => a === ks && b === ke);
+
+    const bake = async () => {
+        setBaking(true);
+        try {
+            const { jobId } = await api.bakePingpong(clip.id, start, end);
+            for (;;) {
+                await new Promise((r) => setTimeout(r, 1500));
+                const st = await api.jobStatus(jobId);
+                if (st.state === "done") break;
+                if (st.state === "error") throw new Error(st.error || "bake failed");
+            }
+            await onBaked();
+        } catch (e) {
+            alert(String(e));
+        } finally {
+            setBaking(false);
+        }
+    };
+
+    return (
+        <>
+            <div className="fx-divider" />
+            <div className="row" style={{ justifyContent: "space-between", fontSize: 12, gap: 8 }}>
+                {ready ? (
+                    <span className="dim">↔ reverse baked</span>
+                ) : (
+                    <span className="warn" style={{ padding: 0, background: "none", border: "none" }}>
+                        reverse not baked — plays forward only
+                    </span>
+                )}
+                <button
+                    disabled={baking}
+                    title="Pre-render the reverse segment so ping-pong loops flawlessly on the Pi (bake again after changing start/end)"
+                    onClick={() => void bake()}
+                >
+                    {baking ? "baking…" : ready ? "Re-bake" : "Bake reverse"}
+                </button>
+            </div>
+        </>
+    );
+}
+
+export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
+    scene: Scene;
+    manifest: EffectsManifest;
+    clips: Clip[];
+    onClipsChanged: () => Promise<void> | void;
+}) {
     const edit = useShowStore((s) => s.edit);
 
     const editLayer = (layerId: string, fn: (layer: Scene["layers"][number]) => void) => {
@@ -319,6 +383,9 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                                             </div>
                                         );
                                     })}
+                                    {g.title === "Playback" && layer.kind === "clip" && clip && (
+                                        <PingpongPrep layer={layer} clip={clip} onBaked={onClipsChanged} />
+                                    )}
                                 </ParamGroup>
                             ))}
                     </div>

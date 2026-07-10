@@ -52,6 +52,11 @@ export const api = {
     listJobs: () => request<{ jobs: JobSummary[] }>("/api/clips/jobs"),
     prepSmoothReverse: (clipId: string) =>
         request<{ jobId: string }>(`/api/clips/${encodeURIComponent(clipId)}/smooth-reverse`, { method: "POST" }),
+    bakePingpong: (clipId: string, start: number, end: number) =>
+        request<{ jobId: string }>(`/api/clips/${encodeURIComponent(clipId)}/pingpong`, {
+            method: "POST",
+            body: JSON.stringify({ start, end }),
+        }),
     uploadClip: (file: File) => {
         const form = new FormData();
         form.append("file", file);
@@ -65,6 +70,13 @@ export const api = {
     command: (cmd: Record<string, unknown>) =>
         request<{ ok: boolean }>("/api/command", { method: "POST", body: JSON.stringify(cmd) }),
 };
+
+// Quantize a normalized trim position to the boomerang key. MUST match the
+// backend (transcode.pingpong_key) and the renderer (ShowLoader::pingpongKey)
+// so the UI can tell whether the file the renderer will look for exists.
+export function pingpongKey(x: number): number {
+    return Math.trunc(Math.min(1, Math.max(0, x)) * 1000 + 0.5);
+}
 
 export function newId(prefix: string): string {
     // NOT crypto.randomUUID(): that API only exists in secure contexts

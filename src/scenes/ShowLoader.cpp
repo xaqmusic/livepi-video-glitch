@@ -1,6 +1,7 @@
 #include "ShowLoader.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <sys/stat.h>
 
 #include "ofFileUtils.h"
@@ -36,6 +37,22 @@ std::map<std::string, float> parseParamMap(const ofJson& node) {
         params[key] = value.get<float>();
     }
     return params;
+}
+
+// Quantize a normalized trim position to the boomerang filename key. MUST
+// match the backend (transcode.pingpong_key) and the UI: +0.5 rounding in
+// double, 0..1000. Reading the JSON value as double (not the float param
+// map) keeps all three bit-identical.
+int pingpongKey(double x) {
+    return static_cast<int>(std::min(1.0, std::max(0.0, x)) * 1000.0 + 0.5);
+}
+
+// The baked-boomerang path (data-relative) for a clip + trim, matching the
+// backend's boomerang_path convention: clips/.pingpong/<stem>__<kS>-<kE>.mp4.
+std::string boomerangRelPath(const std::string& clipRelPath, double start, double end) {
+    char keys[32];
+    std::snprintf(keys, sizeof(keys), "%04d-%04d", pingpongKey(start), pingpongKey(end));
+    return "clips/.pingpong/" + ofFilePath::getBaseName(clipRelPath) + "__" + keys + ".mp4";
 }
 
 }  // namespace
@@ -171,6 +188,22 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
                 auto it = clipPaths.find(layer.source);
                 if (it != clipPaths.end()) {
                     layer.resolvedPath = it->second;
+                    // Ping-pong: if a boomerang has been baked for this exact
+                    // trim, resolve to it and play it whole/forward/looping.
+                    // The reversal is baked into the file, so the Pi's decoder
+                    // never runs backwards (rate -1 stalls v4l2). Until one is
+                    // baked, the clip just loops forward (see SceneRenderer).
+                    if (layerNode.contains("layerEffects")) {
+                        const ofJson& fx = layerNode.at("layerEffects");
+                        if (fx.value("video.pingpong", 0.0) > 0.5) {
+                            std::string boomerang = boomerangRelPath(
+                                layer.resolvedPath, fx.value("video.start", 0.0), fx.value("video.end", 1.0));
+                            if (ofFile::doesFileExist(ofToDataPath(boomerang, true))) {
+                                layer.resolvedPath = boomerang;
+                                layer.bakedLoop = true;
+                            }
+                        }
+                    }
                 } else {
                     ofLogError("ShowLoader") << "Scene \"" << scene.name << "\" layer \"" << layer.id
                                              << "\": clipId \"" << layer.source

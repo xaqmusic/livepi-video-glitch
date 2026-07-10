@@ -1,7 +1,7 @@
 // The core screen (docs/videosynth-frontend.md): layer stack (top =
 // foreground), scene-wide post effects, and the mappings audit tab.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../api/client";
@@ -26,10 +26,12 @@ export default function SceneEditor() {
         }
     }, [showName, show, open, navigate]);
 
+    const refreshClips = useCallback(() => api.listClips().then((r) => setClips(r.clips)).catch(() => {}), []);
+
     useEffect(() => {
         api.getEffects().then(setManifest).catch(() => navigate("/login"));
-        api.listClips().then((r) => setClips(r.clips)).catch(() => {});
-    }, [navigate]);
+        void refreshClips();
+    }, [navigate, refreshClips]);
 
     const scene = show && sceneId ? findScene(show, sceneId) : undefined;
     if (!show || !scene || !manifest) return <div className="page dim">Loading…</div>;
@@ -100,7 +102,7 @@ export default function SceneEditor() {
 
             {tab === "layers" ? (
                 <>
-                    <LayerStack scene={scene} manifest={manifest} clips={clips} />
+                    <LayerStack scene={scene} manifest={manifest} clips={clips} onClipsChanged={refreshClips} />
                     <PostEffectsPanel scene={scene} manifest={manifest} />
                 </>
             ) : (

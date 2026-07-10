@@ -64,14 +64,14 @@ export default function ClipLibrary() {
                             {clip.exists === false && <span className="error"> · file missing!</span>}
                         </div>
                         {clip.intra ? (
-                            <div className="dim" style={{ fontSize: 12 }}>↔ smooth reverse ready</div>
+                            <div className="dim" style={{ fontSize: 12 }}>⧗ tight loops ready</div>
                         ) : (
                             <button
                                 disabled={prepping.has(clip.id) || clip.exists === false}
-                                title="Re-encode all-intra: smooth ping-pong reverse and tighter loop wraps on the Pi (bigger file)"
+                                title="Re-encode all-intra so a trimmed clip's loop wraps land instantly on the Pi, no GOP re-decode (bigger file). Ping-pong reverse is baked per layer in the scene editor."
                                 onClick={() => prep(clip)}
                             >
-                                {prepping.has(clip.id) ? "prepping…" : "Prep smooth reverse"}
+                                {prepping.has(clip.id) ? "prepping…" : "Prep tight loops"}
                             </button>
                         )}
                         <button

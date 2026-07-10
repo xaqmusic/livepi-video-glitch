@@ -59,8 +59,10 @@ export interface Clip {
     thumb?: string | null;
     thumbUrl?: string;
     exists?: boolean;
-    /** All-intra re-encode done: smooth ping-pong reverse + tight loops. */
+    /** All-intra re-encode done: tight loop-wrap seeks on trimmed clips. */
     intra?: boolean;
+    /** Baked ping-pong boomerangs, as [startKey, endKey] pairs (pingpongKey). */
+    pingpong?: [number, number][];
 }
 
 export interface ParamSpec {

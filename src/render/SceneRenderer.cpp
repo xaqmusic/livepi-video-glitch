@@ -87,6 +87,7 @@ void SceneRenderer::applyScene(const Scene& scene) {
         if (layer.kind == LayerKind::Clip) {
             runtime->player = std::make_unique<ClipPlayer>();
             runtime->loadedPath = layer.resolvedPath;
+            runtime->bakedLoop = layer.bakedLoop;
             if (!layer.resolvedPath.empty()) {
                 runtime->player->load(layer.resolvedPath);
                 if (!runtime->player->isLoaded()) {
@@ -142,6 +143,7 @@ bool SceneRenderer::matchesRuntimes(const Scene& scene) const {
         const LayerRuntime& runtime = *runtimes[i];
         if (layer.id != runtime.layerId || layer.kind != runtime.kind) return false;
         if (layer.kind == LayerKind::Clip && layer.resolvedPath != runtime.loadedPath) return false;
+        if (layer.kind == LayerKind::Clip && layer.bakedLoop != runtime.bakedLoop) return false;
         if (layer.kind == LayerKind::Generator && layer.source != runtime.generatorSource) return false;
     }
     return true;
@@ -161,90 +163,33 @@ void SceneRenderer::update(const LiveParams& liveParams) {
         }
 
         runtime->player->update();
-
-        // Playback window (video.start/end) + ping-pong loop mode, all
-        // live-mappable layer params. Seeks are debounced: a seek is
-        // asynchronous on the GStreamer side, and re-issuing every frame
-        // while position catches up turns the loop point into a stall.
         if (!runtime->player->isLoaded()) continue;
+
+        // Baked boomerang: forward + reverse are already one file. Just let
+        // it loop forward -- no trim, no ping-pong logic, no backwards decode.
+        // This is how ping-pong plays on the Pi (its v4l2 decoder stalls on
+        // rate -1), and identically on the desktop.
+        if (runtime->bakedLoop) continue;
+
+        // Plain clip: enforce the playback window (video.start/end) forward
+        // only. Ping-pong's reverse leg needs a baked boomerang (ShowLoader
+        // swaps this layer to one when video.pingpong is on and a matching
+        // file exists); with the toggle on but nothing baked yet, we simply
+        // loop the trimmed segment forward until it's prepped. Seeks are
+        // debounced -- a GStreamer seek is async, and re-issuing every frame
+        // while position catches up turns the loop point into a stall.
+        float now = ofGetElapsedTimef();
+        if (now - runtime->lastSeekSecs < 0.25f) continue;
         float start = std::clamp(liveParams.getLayerParam(runtime->layerId, "video.start", 0.0f), 0.0f, 0.95f);
         float end = std::clamp(liveParams.getLayerParam(runtime->layerId, "video.end", 1.0f), start + 0.02f, 1.0f);
-        bool pingpong = liveParams.getLayerParam(runtime->layerId, "video.pingpong", 0.0f) > 0.5f;
-        float now = ofGetElapsedTimef();
-
-        // Active reverse-scrub runs on its own per-frame clock, ahead of
-        // the seek debounce (which exists for the coarse wrap seeks, not
-        // this deliberately rapid stepping).
-        if (runtime->scrubbing) {
-            if (!pingpong) {
-                // Toggle flipped off mid-scrub: resume normal playback.
-                runtime->scrubbing = false;
-                runtime->player->setPaused(false);
-                runtime->player->setSpeed(1.0f);
-                continue;
-            }
-            float durSecs = std::max(runtime->player->getDuration(), 0.1f);
-            runtime->scrubPos -= static_cast<float>(ofGetLastFrameTime()) / durSecs;
-            if (runtime->scrubPos <= start) {
-                runtime->scrubbing = false;
-                runtime->player->setPosition(start);
-                runtime->player->setPaused(false);
-                runtime->player->setSpeed(1.0f);
-                runtime->lastSeekSecs = now;
-                ofLogNotice("SceneRenderer") << "ping-pong: forward layer \"" << runtime->layerId
-                                             << "\" at pos " << runtime->scrubPos;
-            } else if (now - runtime->lastScrubSeek >= 0.04f) {
-                // ~25 steps/sec; on an all-intra clip each seek decodes
-                // exactly one frame, so the paused pipeline keeps up.
-                runtime->player->setPosition(runtime->scrubPos);
-                runtime->lastScrubSeek = now;
-            }
-            continue;
-        }
-
-        if (now - runtime->lastSeekSecs < 0.25f) continue;
         float pos = runtime->player->getPosition();
-        float speed = runtime->player->getSpeed();
-
-        if (pingpong) {
-            // Flip a little before the native end so OF_LOOP_NORMAL's own
-            // wrap never races the reversal.
-            float flipEnd = std::min(end, 0.99f);
-            if (speed >= 0.0f && pos >= flipEnd) {
-                if (reverseScrub) {
-                    // Hardware path: rate -1 stalls the v4l2 decoder, so
-                    // reverse is seek-stepping over a paused pipeline.
-                    runtime->scrubbing = true;
-                    runtime->scrubPos = flipEnd;
-                    runtime->lastScrubSeek = 0.0f;
-                    runtime->player->setPaused(true);
-                    ofLogNotice("SceneRenderer") << "ping-pong: reversing (scrub) layer \"" << runtime->layerId
-                                                 << "\" at pos " << pos;
-                } else {
-                    runtime->player->setSpeed(-1.0f);
-                    ofLogNotice("SceneRenderer") << "ping-pong: reversing layer \"" << runtime->layerId
-                                                 << "\" at pos " << pos;
-                }
-                runtime->lastSeekSecs = now;
-            } else if (!reverseScrub && speed < 0.0f && pos <= start) {
-                runtime->player->setSpeed(1.0f);
-                runtime->lastSeekSecs = now;
-                ofLogNotice("SceneRenderer") << "ping-pong: forward layer \"" << runtime->layerId
-                                             << "\" at pos " << pos;
-            }
-        } else {
-            if (speed < 0.0f) {
-                runtime->player->setSpeed(1.0f);
-                runtime->lastSeekSecs = now;
-            }
-            // Only enforce when actually trimmed -- at the full window the
-            // player's own OF_LOOP_NORMAL wrap is seamless and shouldn't
-            // be second-guessed (pos briefly reads 1.0 at the wrap).
-            bool trimmed = start > 0.001f || end < 0.999f;
-            if (trimmed && (pos >= end || pos < start - 0.01f)) {
-                runtime->player->setPosition(start);
-                runtime->lastSeekSecs = now;
-            }
+        // Only enforce when actually trimmed -- at the full window the
+        // player's own OF_LOOP_NORMAL wrap is seamless and shouldn't be
+        // second-guessed (pos briefly reads 1.0 at the wrap).
+        bool trimmed = start > 0.001f || end < 0.999f;
+        if (trimmed && (pos >= end || pos < start - 0.01f)) {
+            runtime->player->setPosition(start);
+            runtime->lastSeekSecs = now;
         }
     }
 }
@@ -421,7 +366,7 @@ std::string SceneRenderer::describeLayers() const {
         ss << "layer " << i << ": ";
         if (runtime->player) {
             ss << runtime->player->getTexture().getWidth() << "x" << runtime->player->getTexture().getHeight() << " "
-               << runtime->player->getPixelFormatName() << "  pos: "
+               << runtime->player->getPixelFormatName() << (runtime->bakedLoop ? " ><" : "") << "  pos: "
                << (runtime->player->getPosition() * runtime->player->getDuration()) << "s /"
                << runtime->player->getDuration() << "s";
         } else {
