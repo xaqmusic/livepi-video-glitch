@@ -88,6 +88,9 @@ void ofApp::update() {
                 break;
             case CommandFifo::Command::Type::Note:
                 mappingResolver.setManualNote(cmd.ccNumber, cmd.value);
+                // Also overlaid onto frameState.noteValues below, so note-
+                // triggered generators hear FIFO notes like real keys.
+                fifoNotes[cmd.ccNumber] = cmd.value;
                 break;
             case CommandFifo::Command::Type::Param:
                 // sceneId guards against a stale nudge racing a scene switch.
@@ -98,7 +101,20 @@ void ofApp::update() {
         }
     }
 
-    sceneManager.update(controlSource->getState());
+    frameState = controlSource->getState();
+    for (auto it = fifoNotes.begin(); it != fifoNotes.end();) {
+        frameState.noteValues[it->first] = it->second;
+        // A release only needs delivering once (consumers edge-detect);
+        // dropping it immediately keeps the overlay from masking the same
+        // note played later on real hardware.
+        if (it->second <= 0.0f) {
+            it = fifoNotes.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    sceneManager.update(frameState);
 
     if (sceneManager.getCurrentIndex() != lastLoadedSceneIndex) {
         loadCurrentScene();
@@ -115,14 +131,14 @@ void ofApp::update() {
         if (!sceneRenderer.matchesRuntimes(scene)) {
             sceneRenderer.loadScene(scene);
         }
-        mappingResolver.onSceneEnter(scene, controlSource->getState().ccValues);
+        mappingResolver.onSceneEnter(scene, frameState.ccValues);
         lastLoadedSceneIndex = sceneManager.getCurrentIndex();
     }
 
-    liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), controlSource->getState());
+    liveParams = mappingResolver.resolve(sceneManager.getCurrentScene(), frameState);
     sceneRenderer.update();
 
-    telemetryWriter.update(controlSource->getState(), sceneManager.getCurrentSceneId(),
+    telemetryWriter.update(frameState, sceneManager.getCurrentSceneId(),
                            sceneManager.getCurrentScene().name);
 }
 
@@ -139,17 +155,17 @@ void ofApp::loadCurrentScene() {
     // Swap the mapping table with the scene: the store clears and CC-mapped
     // targets snap to wherever each knob currently sits, hardware-synth
     // patch-change style.
-    mappingResolver.onSceneEnter(scene, controlSource->getState().ccValues);
+    mappingResolver.onSceneEnter(scene, frameState.ccValues);
     lastLoadedSceneIndex = sceneManager.getCurrentIndex();
 }
 
 void ofApp::draw() {
-    sceneRenderer.render(controlSource->getState(), liveParams);
+    sceneRenderer.render(frameState, liveParams);
     ofSetColor(255);
     sceneRenderer.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
 
     if (showDebugOverlay) {
-        const ControlState& state = controlSource->getState();
+        const ControlState& state = frameState;
         std::stringstream ss;
         ss << "scene: " << sceneManager.getCurrentScene().name << " (" << sceneManager.getCurrentIndex() + 1 << "/"
            << sceneManager.getSceneCount() << ")  show: " << showLoader.getActiveShowName() << "\n"

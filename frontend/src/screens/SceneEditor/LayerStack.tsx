@@ -228,7 +228,12 @@ export default function LayerStack({ scene, manifest, clips }: { scene: Scene; m
                                         ))}
                                     </optgroup>
                                     <optgroup label="Generators">
-                                        {generatorNames.map((g) => (
+                                        {generatorNames.filter((g) => !manifest.generators[g].trigger).map((g) => (
+                                            <option key={g} value={GEN_PREFIX + g}>{manifest.generators[g].label}</option>
+                                        ))}
+                                    </optgroup>
+                                    <optgroup label="Note Generators">
+                                        {generatorNames.filter((g) => manifest.generators[g].trigger === "notes").map((g) => (
                                             <option key={g} value={GEN_PREFIX + g}>{manifest.generators[g].label}</option>
                                         ))}
                                     </optgroup>

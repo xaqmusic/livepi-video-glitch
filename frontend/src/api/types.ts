@@ -72,6 +72,8 @@ export interface ParamSpec {
 
 export interface GeneratorSpec {
     label: string;
+    /** "notes": fires off played MIDI notes directly (no learn step). */
+    trigger?: "notes";
     params: Record<string, ParamSpec>;
 }
 

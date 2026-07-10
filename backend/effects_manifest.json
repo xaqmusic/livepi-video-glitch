@@ -228,6 +228,56 @@
                 }
             }
         },
+        "laser": {
+            "label": "Note Lasers",
+            "trigger": "notes",
+            "params": {
+                "laser.direction": {
+                    "label": "Direction",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "bottom up",
+                        "top down"
+                    ]
+                },
+                "laser.palette": {
+                    "label": "Palette",
+                    "type": "enum",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.0,
+                    "options": [
+                        "lava",
+                        "vaporwave",
+                        "phosphor"
+                    ]
+                },
+                "laser.speed": {
+                    "label": "Speed",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5
+                },
+                "laser.fade": {
+                    "label": "Trail Length",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.7
+                },
+                "laser.width": {
+                    "label": "Beam Width",
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.3
+                }
+            }
+        },
         "starfield": {
             "label": "Starfield",
             "params": {

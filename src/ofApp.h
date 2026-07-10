@@ -26,6 +26,12 @@ private:
 
     Config config;
     std::unique_ptr<ControlSource> controlSource;
+
+    // The frame's working control state: the source's state plus FIFO-
+    // injected notes overlaid, so browser/test note commands reach note-
+    // triggered generators exactly like keys played on the hardware.
+    ControlState frameState;
+    std::map<int, float> fifoNotes;
     ShowLoader showLoader;
     SceneManager sceneManager;
     SceneRenderer sceneRenderer;
