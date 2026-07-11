@@ -34,6 +34,8 @@ PROVISION_SYSTEM="${LIVEPI_PROVISION_SYSTEM:-1}"
 
 MARKER="$DATA_DIR/.provisioned"
 ENV_FILE="$DATA_DIR/backend/.env"
+# Must match AP_CON_NAME in backend/livepi_backend/network.py.
+AP_CON_NAME="livepi-ap"
 
 log() { printf '[firstboot] %s\n' "$*"; }
 
@@ -121,10 +123,12 @@ derive_suffix() {
     suffix="$(printf '%s' "$serial" | LC_ALL=C tr 'A-Z' 'a-z' | tr -dc 'a-z0-9')"
     suffix="${suffix: -4}"
     [[ -n "$suffix" ]] || suffix="$(rand_from 'a-z0-9' 4)"
-    printf 'livepi-%s' "$suffix"
+    printf '%s' "$suffix"
 }
 
-NEW_HOSTNAME="$(derive_suffix)"
+SUFFIX="$(derive_suffix)"
+NEW_HOSTNAME="livepi-$SUFFIX"   # OS hostname / SSH / mDNS
+AP_SSID="LivePi-$SUFFIX"        # broadcast name of the control-network AP
 
 if [[ "$PROVISION_SYSTEM" == "1" ]]; then
     current="$(hostnamectl --static 2>/dev/null || cat /etc/hostname 2>/dev/null || true)"
@@ -142,12 +146,38 @@ if [[ "$PROVISION_SYSTEM" == "1" ]]; then
     # is added by livepi-mdns-alias.service (see scripts/install-mdns-alias.sh).
     systemctl enable --now avahi-daemon >/dev/null 2>&1 || \
         log "WARNING: could not enable avahi-daemon (is it installed?)"
+
+    # --- standing control-network AP ----------------------------------
+    # The box's own hotspot. autoconnect at the LOWEST priority makes it the
+    # automatic fallback: any venue-WiFi client profile (default priority 0)
+    # outranks it, so NM keeps venue WiFi when it's in range and drops back
+    # to the AP when it isn't -- the whole "autohotspot" mode-switch, native
+    # to NM (verified on the Pi 4's brcmfmac; no dispatcher script needed).
+    # WPA2 key = the printed login password, so the box has one secret to
+    # share (join the hotspot and log in with the same code). ipv4 shared
+    # gives clients DHCP + NAT out any uplink.
+    # NB: the WiFi radio needs an unblocked country/regdomain to actually
+    # broadcast -- set by the imager/image build; firstboot only unblocks it.
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli radio wifi on >/dev/null 2>&1 || true
+        nmcli connection delete "$AP_CON_NAME" >/dev/null 2>&1 || true
+        if nmcli connection add type wifi ifname wlan0 con-name "$AP_CON_NAME" \
+                autoconnect yes connection.autoconnect-priority -999 \
+                ssid "$AP_SSID" 802-11-wireless.mode ap 802-11-wireless.band bg \
+                ipv4.method shared \
+                wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$INITIAL_PW" >/dev/null 2>&1; then
+            log "created control AP '$AP_SSID' (WPA2; key = the printed password)"
+        else
+            log "WARNING: could not create the control AP profile"
+        fi
+    fi
 else
-    log "PROVISION_SYSTEM=0 -- skipping hostname/avahi (would be $NEW_HOSTNAME)"
+    log "PROVISION_SYSTEM=0 -- skipping hostname/avahi/AP (would be $NEW_HOSTNAME / $AP_SSID)"
 fi
 
 # --- mark done ---------------------------------------------------------
-printf 'provisioned %s\nhostname %s\n' "$(date -u +%FT%TZ)" "$NEW_HOSTNAME" > "$MARKER"
+printf 'provisioned %s\nhostname %s\nap %s\n' \
+    "$(date -u +%FT%TZ)" "$NEW_HOSTNAME" "$AP_SSID" > "$MARKER"
 
-log "done. hostname=$NEW_HOSTNAME  initial password=$INITIAL_PW"
-log "reach the box at http://$NEW_HOSTNAME.local (or http://livepi.local)"
+log "done. hostname=$NEW_HOSTNAME  AP=$AP_SSID  initial password=$INITIAL_PW"
+log "reach the box at http://$NEW_HOSTNAME.local (or join the '$AP_SSID' hotspot)"
