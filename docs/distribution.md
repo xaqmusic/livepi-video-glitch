@@ -180,6 +180,25 @@ The hard part, and the differentiator. Managed with **NetworkManager** (the
 Trixie default), which handles both hotspot and client profiles and switches
 between them.
 
+> **Status: built** (rolled our own on NM directly, over comitup/wifi-connect
+> which have documented Trixie/NM friction). Verified on the Pi 4:
+> - Web UI **Network** page + `/api/network/{status,scan,connect,forget}`
+>   (`backend/livepi_backend/network.py`) drive NM via `nmcli`; a polkit rule
+>   (`scripts/install-network-perms.sh`) lets the headless backend do so.
+> - **Standing control AP** `LivePi-XXXX` created by firstboot; the
+>   **autohotspot** mode-switch is native NM autoconnect priority (AP at -999,
+>   venue clients outrank it) -- no dispatcher.
+> - **Captive portal**: joining the AP auto-opens the UI, via probe responders
+>   (`captive.py`) + selective DNS hijack of OS probe domains only
+>   (`dnsmasq-shared.d/livepi-captive.conf`, so clients keep real internet) +
+>   an nft `:80->:8080` redirect (`livepi-captive.nft`).
+> - The brcmfmac radio **scans for venue networks while the AP is up**, so the
+>   scan list is live during provisioning.
+>
+> Remaining: WiFi **country/regdomain** must be set for the radio to broadcast
+> (imager/image build); the shared `livepi.local` alias; USB-dongle dual-radio.
+> See `docs/deploy.md` "WiFi provisioning".
+
 **The box's own access point is not just for setup -- it is a standing control
 network.** A touring musician frequently has no usable venue WiFi, so the AP has
 to be a first-class way to run the whole show, not a throwaway provisioning step.
@@ -276,8 +295,9 @@ re-image or apt for the latter.
   above) + read-only root / `/data` + ad-hoc control AP & captive portal +
   per-device secrets + in-app update. This is a shippable appliance.
   Progress: **per-device secrets + first-boot personalization done**
-  (`firstboot.sh`); remaining v1 pieces are networking, read-only root, the
-  image pipeline, and the updater.
+  (`firstboot.sh`) and **networking done** (control AP + autohotspot + web-UI
+  provisioning + captive portal, all verified on the Pi 4); remaining v1
+  pieces are read-only root, the image pipeline, and the updater.
 - **v2** -- Improv BLE provisioning (Android-first), A/B-root OTA, USB clip
   auto-import, the pre-flashed hardware SKU, and the Pi 5 optimizations (native
   reverse, hardware HEVC decode).

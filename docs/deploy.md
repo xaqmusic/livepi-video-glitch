@@ -165,3 +165,45 @@ Dry-run the secret/seed logic off-Pi (skips hostname/avahi/chown):
 ```sh
 LIVEPI_DATA_DIR=/tmp/livepi-data LIVEPI_PROVISION_SYSTEM=0 ./scripts/firstboot.sh
 ```
+
+## WiFi provisioning (control AP + venue onboarding)
+
+The box runs its own **control-network AP** by default and lets a phone put it
+onto venue WiFi from the web UI's **Network** tab -- no terminal. Built on
+NetworkManager directly (see `distribution.md` for why not comitup/wifi-connect).
+Requires an unblocked WiFi **country/regdomain** (set it in Raspberry Pi Imager,
+or `sudo raspi-config` → Localisation → WLAN Country) or the radio won't
+broadcast.
+
+One-time install on the Pi (the golden image bakes these):
+
+```sh
+./scripts/install-network-perms.sh   # polkit: let the headless backend drive NM
+./scripts/install-captive.sh          # captive-portal DNS hijack + :80->:8080 nft
+```
+
+Without the polkit rule every `nmcli` call from the backend returns "not
+authorized" (a no-seat systemd service can't satisfy NM's interactive polkit
+default). `firstboot.sh` creates the AP profile itself.
+
+How it works:
+
+- **Standing AP** `LivePi-XXXX` (`nmcli` profile `livepi-ap`, WPA2 key = the
+  printed login password), `ipv4.method shared` for DHCP + NAT. Reach the UI at
+  the AP gateway (`http://10.42.0.1:8080`).
+- **Autohotspot** is native NM: the AP is `autoconnect=yes` at
+  `autoconnect-priority -999`, so any saved venue network (default priority 0)
+  outranks it -- NM keeps venue WiFi when in range and falls back to the AP
+  when it isn't. No dispatcher script.
+- **Provisioning**: the Network page scans (`nmcli device wifi list` -- works
+  even while the AP is up on the Pi 4 radio), joins as a client (which switches
+  the single radio off the AP), and can forget a network to drop back.
+- **Captive portal**: `dnsmasq-shared.d/livepi-captive.conf` points the OS
+  connectivity-check domains at the AP gateway (only those, so clients keep
+  real internet), an nft rule redirects `:80`→`:8080`, and the backend's
+  `captive.py` 302s the probe to the UI -- so joining the AP pops the phone's
+  "Sign in to network" browser straight at LivePi.
+
+Single radio: the AP and a venue-client link can't run at once (a USB WiFi
+dongle is the documented path to both). Reaching the box over **Ethernet** is
+the safe way to reconfigure WiFi without cutting your own connection.
