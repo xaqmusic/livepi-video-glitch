@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { api, ApiError } from "../api/client";
 
-export default function PasswordDialog({ onClose }: { onClose: () => void }) {
+export default function PasswordDialog({ firstRun = false, onClose }: { firstRun?: boolean; onClose: () => void }) {
     const [current, setCurrent] = useState("");
     const [next, setNext] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -36,10 +36,15 @@ export default function PasswordDialog({ onClose }: { onClose: () => void }) {
     return (
         <div className="dialog-backdrop" onClick={onClose}>
             <form className="card dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-                <h3 style={{ margin: 0 }}>Change password</h3>
+                <h3 style={{ margin: 0 }}>{firstRun ? "Set your box's password" : "Change password"}</h3>
+                {firstRun && (
+                    <div className="dim">
+                        This box shipped with a printed password. Re-enter it below, then choose your own to finish setup.
+                    </div>
+                )}
                 <input
                     type="password"
-                    placeholder="Current password"
+                    placeholder={firstRun ? "Printed password" : "Current password"}
                     value={current}
                     onChange={(e) => setCurrent(e.target.value)}
                     autoFocus

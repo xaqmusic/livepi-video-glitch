@@ -291,8 +291,12 @@ else
     git clone --depth 1 https://github.com/danomatika/ofxMidi.git "$ADDON_DIR"
 fi
 
-echo "Installing backend dependencies (python venv + ffmpeg)..."
-sudo apt-get install -y python3-venv ffmpeg
+echo "Installing backend dependencies (python venv + ffmpeg) and mDNS..."
+# avahi-daemon makes the box answer at <hostname>.local (e.g.
+# livepi-XXXX.local) with no IP hunting -- firstboot.sh sets that unique
+# hostname and enables the daemon. avahi-utils ships avahi-publish for the
+# shared livepi.local alias added in the networking phase.
+sudo apt-get install -y python3-venv ffmpeg avahi-daemon avahi-utils
 if [ ! -d "$REPO_DIR/backend/.venv" ]; then
     python3 -m venv "$REPO_DIR/backend/.venv"
 fi

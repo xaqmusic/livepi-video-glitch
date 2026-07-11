@@ -6,17 +6,20 @@
 # Usage:
 #   ./scripts/install-backend-unit.sh              # runs as the current user
 #   ./scripts/install-backend-unit.sh someoneelse  # runs as a different user
+#   ./scripts/install-backend-unit.sh pi /data     # + per-device .env dir
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_AS_USER="${1:-$(whoami)}"
+DATA_DIR="${2:-/data}"
 
 sed -e "s#__APP_DIR__#$REPO_DIR#g" -e "s#__USER__#$RUN_AS_USER#g" \
+    -e "s#__DATA_DIR__#$DATA_DIR#g" \
     "$REPO_DIR/systemd/livepi-backend.service.template" \
     | sudo tee /etc/systemd/system/livepi-backend.service > /dev/null
 
 sudo systemctl daemon-reload
 
-echo "Installed /etc/systemd/system/livepi-backend.service (user=$RUN_AS_USER, app_dir=$REPO_DIR)."
+echo "Installed /etc/systemd/system/livepi-backend.service (user=$RUN_AS_USER, data_dir=$DATA_DIR, app_dir=$REPO_DIR)."
 echo "Enable + start it with:"
 echo "  sudo systemctl enable --now livepi-backend"

@@ -32,6 +32,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
     login: (password: string) => request<{ ok: boolean }>("/api/login", { method: "POST", body: JSON.stringify({ password }) }),
+    // True while the box is still on its printed factory password (no UI
+    // password set yet) -- drives the first-login change-password nudge.
+    authStatus: () => request<{ mustChangePassword: boolean }>("/api/auth/status"),
     changePassword: (current: string, newPassword: string) =>
         request<{ ok: boolean }>("/api/auth/password", { method: "POST", body: JSON.stringify({ current, new: newPassword }) }),
 

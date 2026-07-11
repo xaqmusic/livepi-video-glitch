@@ -1,0 +1,33 @@
+# Template for /etc/systemd/system/livepi-firstboot.service -- rendered and
+# installed by scripts/install-firstboot-unit.sh (fills in the paths below).
+#
+# Runs scripts/firstboot.sh ONCE on a fresh box to generate per-device
+# secrets, seed $DATA_DIR, and set the hostname/mDNS BEFORE the backend or
+# kiosk come up (docs/distribution.md "First boot & device identity").
+#
+# This is an image-time unit: on a dev Pi that deploys via rsync and keeps
+# the shared "livepi" default, don't install it. On the golden image it's
+# enabled so the very first boot personalizes the box with no operator.
+
+[Unit]
+Description=LivePi first-boot personalization (secrets, identity, mDNS)
+# Order before everything that reads the per-device secrets or serves the
+# UI. Before= only orders; all three units are WantedBy=multi-user.target
+# so they're queued together at boot and this one runs (and, being a
+# oneshot with RemainAfterExit, fully completes) first.
+Before=livepi-backend.service livepi-video-glitch.service
+# Skip the whole unit once a box is personalized -- the script is also
+# marker-guarded, this just avoids even starting it on every boot.
+ConditionPathExists=!__DATA_DIR__/.provisioned
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Runs as root (no User=): needs hostnamectl, chown of $DATA_DIR to the app
+# user, and enabling avahi.
+Environment=LIVEPI_DATA_DIR=__DATA_DIR__
+Environment=LIVEPI_APP_USER=__APP_USER__
+ExecStart=__APP_DIR__/scripts/firstboot.sh
+
+[Install]
+WantedBy=multi-user.target

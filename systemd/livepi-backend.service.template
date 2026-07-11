@@ -14,7 +14,13 @@ Wants=network-online.target
 [Service]
 User=__USER__
 WorkingDirectory=__APP_DIR__/backend
+# Two env files, later-wins for duplicate keys (systemd semantics). The
+# in-repo one carries dev defaults; the per-device one on the writable
+# data partition carries the secrets firstboot generated (LIVEPI_PASSWORD,
+# LIVEPI_SECRET_KEY, LIVEPI_DATA_DIR) and overrides them. Both optional
+# (leading '-'), so a dev Pi with no /data still starts fine.
 EnvironmentFile=-__APP_DIR__/backend/.env
+EnvironmentFile=-__DATA_DIR__/backend/.env
 ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080
 Restart=on-failure
 RestartSec=2

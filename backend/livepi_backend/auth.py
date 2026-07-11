@@ -67,6 +67,19 @@ def require_session(livepi_session: str | None = Cookie(default=None)) -> None:
         raise HTTPException(status_code=401, detail="Not logged in")
 
 
+@router.get("/api/auth/status")
+def auth_status():
+    """Whether the box is still on its factory password. True until a UI
+    password is set (no auth.json yet) -- firstboot generates a unique
+    per-device password and prints it on the box, so first login should
+    swap it for a private one (docs/distribution.md "First boot"). No
+    secret is returned; this only drives the change-password nudge and is
+    safe to read before login."""
+    stored = storage.read_json(AUTH_PATH) if AUTH_PATH.is_file() else None
+    must_change = not (stored and "passwordHash" in stored)
+    return {"mustChangePassword": must_change}
+
+
 @router.post("/api/login")
 def login(body: LoginBody, response: Response):
     if not _password_matches(body.password):

@@ -12,7 +12,10 @@ export default function Login() {
         e.preventDefault();
         try {
             await api.login(password);
-            navigate("/edit");
+            // Fresh box still on its printed password? Carry a first-run flag
+            // to /edit so App pops the change-password dialog.
+            const { mustChangePassword } = await api.authStatus();
+            navigate("/edit", mustChangePassword ? { state: { firstRun: true } } : undefined);
         } catch {
             setError("Wrong password");
         }

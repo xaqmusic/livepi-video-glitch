@@ -151,6 +151,14 @@ Pi OS's own rootfs-expand behavior.
 
 ## First boot & device identity
 
+> **Status: built.** `scripts/firstboot.sh` +
+> `systemd/livepi-firstboot.service.template` implement the per-device
+> secrets, `/data` seeding, unique hostname, and mDNS below; the backend unit
+> loads the generated `/data/backend/.env`. See `docs/deploy.md`
+> "First-boot provisioning". Deferred from this slice: the shared
+> `livepi.local` alias (-> networking phase) and `/data` filesystem-expand
+> (-> read-only-root/image work).
+
 A first-boot service (systemd oneshot, guarded by a marker file on `/data`)
 personalizes the box:
 
@@ -267,6 +275,9 @@ re-image or apt for the latter.
 - **v1** -- single Pi 4 + Pi 5 image (with the Pi 5 decode/GL bring-up TODOs
   above) + read-only root / `/data` + ad-hoc control AP & captive portal +
   per-device secrets + in-app update. This is a shippable appliance.
+  Progress: **per-device secrets + first-boot personalization done**
+  (`firstboot.sh`); remaining v1 pieces are networking, read-only root, the
+  image pipeline, and the updater.
 - **v2** -- Improv BLE provisioning (Android-first), A/B-root OTA, USB clip
   auto-import, the pre-flashed hardware SKU, and the Pi 5 optimizations (native
   reverse, hardware HEVC decode).
