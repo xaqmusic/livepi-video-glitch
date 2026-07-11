@@ -11,6 +11,7 @@
 #include "fx/ChromaticAberrationPass.h"
 #include "fx/FilterPasses.h"
 #include "fx/HSyncTearPass.h"
+#include "util/NetInfo.h"
 
 namespace {
 // systemd stops the kiosk with SIGTERM (to the whole cgroup). Dying
@@ -163,6 +164,14 @@ void ofApp::update() {
 
     telemetryWriter.update(frameState, sceneManager.getCurrentSceneId(),
                            sceneManager.getCurrentScene().name);
+
+    // Refresh the overlay's connection status on a slow cadence -- IPs only
+    // change on a network event, and getifaddrs every frame is wasteful.
+    const float now = ofGetElapsedTimef();
+    if (now - lastNetRefreshSecs > 2.0f) {
+        netSummary = NetInfo::summary();
+        lastNetRefreshSecs = now;
+    }
 }
 
 void ofApp::exit() {
@@ -212,6 +221,7 @@ void ofApp::draw() {
            << "\n"
            << sceneRenderer.describeLayers() << "\n"
            << "app fps: " << ofGetFrameRate() << "  (t=" << ofGetElapsedTimef() << ")\n"
+           << "net: " << netSummary << "   [web :8080]\n"
            << "[d] toggle this overlay";
         ofSetColor(255);
         ofDrawBitmapStringHighlight(ss.str(), 20, 20);

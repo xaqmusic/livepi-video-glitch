@@ -44,4 +44,9 @@ private:
     // Starts hidden -- toggle with [d] locally or the Live-mode debug button
     // (a "debug" command on the FIFO).
     bool showDebugOverlay = false;
+
+    // Cached network reachability for the debug overlay, refreshed on a slow
+    // cadence (getifaddrs is cheap but pointless to run every frame).
+    std::string netSummary;
+    float lastNetRefreshSecs = -1000.0f;
 };
