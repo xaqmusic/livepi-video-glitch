@@ -1,5 +1,10 @@
 # Deploying to the Pi
 
+This is the **developer/rehearsal** deploy -- rsync from a desktop to a Pi you
+already set up by hand. For the **consumer distribution** plan (a flashable
+golden image, phone-only WiFi provisioning, read-only root, in-app updates,
+Pi 4 + Pi 5), see `distribution.md`.
+
 ## OS choice
 
 **Raspberry Pi OS Lite, 64-bit, Trixie.** Not Patchbox OS (what this
