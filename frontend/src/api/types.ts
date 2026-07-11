@@ -5,6 +5,22 @@
 export type BlendMode = "normal" | "add" | "screen" | "multiply";
 export type AudioBand = "low" | "mid" | "high";
 
+// WiFi provisioning (backend/livepi_backend/network.py).
+export interface NetworkStatus {
+    hostname: string;
+    ethernet: { connected: boolean; ip: string | null };
+    ap: { active: boolean; ssid: string | null; ip: string | null };
+    wifiClient: { connected: boolean; ssid: string | null; ip: string | null };
+    online: boolean;
+}
+
+export interface WifiNetwork {
+    ssid: string;
+    signal: number; // 0..100
+    security: string; // "open", "WPA2", ...
+    inUse: boolean;
+}
+
 export interface MappingTrigger {
     type: "cc" | "note" | "audioBand";
     number?: number;

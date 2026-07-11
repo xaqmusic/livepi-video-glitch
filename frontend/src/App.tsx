@@ -6,6 +6,7 @@ import PasswordDialog from "./components/PasswordDialog";
 import ClipLibrary from "./screens/ClipLibrary";
 import LiveMode from "./screens/LiveMode";
 import Login from "./screens/Login";
+import Network from "./screens/Network";
 import SceneEditor from "./screens/SceneEditor";
 import SetlistEditor from "./screens/SetlistEditor";
 import ShowLibrary from "./screens/ShowLibrary";
@@ -37,6 +38,7 @@ export default function App() {
                     <NavLink to="/edit">Shows</NavLink>
                     {openShow && <NavLink to={`/edit/${encodeURIComponent(openShow)}`} end>Scenes</NavLink>}
                     <NavLink to="/clips">Clips</NavLink>
+                    <NavLink to="/network">Network</NavLink>
                     <NavLink to="/live">Live</NavLink>
                     <button className="icon" style={{ marginLeft: "auto" }} title="Change password"
                         onClick={() => setPwDialog({ firstRun: false })}>🔑</button>
@@ -50,6 +52,7 @@ export default function App() {
                 <Route path="/edit/:show" element={<SetlistEditor />} />
                 <Route path="/edit/:show/scene/:sceneId" element={<SceneEditor />} />
                 <Route path="/clips" element={<ClipLibrary />} />
+                <Route path="/network" element={<Network />} />
                 <Route path="/live" element={<LiveMode />} />
                 <Route path="*" element={<Navigate to="/edit" replace />} />
             </Routes>

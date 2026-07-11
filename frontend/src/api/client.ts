@@ -1,7 +1,7 @@
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 
-import type { Clip, EffectsManifest, JobSummary, Show, UploadJob } from "./types";
+import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Show, UploadJob, WifiNetwork } from "./types";
 
 export class ApiError extends Error {
     status: number;
@@ -84,6 +84,16 @@ export const api = {
     deleteClip: (clipId: string) => request<{ ok: boolean }>(`/api/clips/${clipId}`, { method: "DELETE" }),
 
     getEffects: () => request<EffectsManifest>("/api/effects"),
+
+    networkStatus: () => request<NetworkStatus>("/api/network/status"),
+    networkScan: () => request<{ networks: WifiNetwork[] }>("/api/network/scan"),
+    networkConnect: (ssid: string, password: string, hidden = false) =>
+        request<{ ok: boolean; ssid: string }>("/api/network/connect", {
+            method: "POST",
+            body: JSON.stringify({ ssid, password, hidden }),
+        }),
+    networkForget: (ssid: string) =>
+        request<{ ok: boolean }>("/api/network/forget", { method: "POST", body: JSON.stringify({ ssid }) }),
 
     command: (cmd: Record<string, unknown>) =>
         request<{ ok: boolean }>("/api/command", { method: "POST", body: JSON.stringify(cmd) }),

@@ -1,0 +1,16 @@
+// Let the LivePi backend drive NetworkManager (WiFi provisioning from the
+// web UI) without an interactive login session. The backend runs headless as
+// a systemd service with no active seat, so NM's default polkit checks return
+// "auth" (needs an interactive admin) for network-control and wifi.scan --
+// which a service can't satisfy, so every nmcli call fails "not authorized".
+// This grants the appliance's own app user those NM actions unconditionally.
+//
+// Rendered (fills in __APP_USER__) and installed to
+// /etc/polkit-1/rules.d/50-livepi-network.rules by
+// scripts/install-network-perms.sh.
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0 &&
+        subject.user === "__APP_USER__") {
+        return polkit.Result.YES;
+    }
+});

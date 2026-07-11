@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import auth, clips, commands, config, effects, shows, storage, telemetry
+from . import auth, clips, commands, config, effects, network, shows, storage, telemetry
 
 
 def _seed_data() -> None:
@@ -38,6 +38,7 @@ app.include_router(clips.router)
 app.include_router(effects.router)
 app.include_router(commands.router)
 app.include_router(telemetry.router)
+app.include_router(network.router)
 
 
 @app.get("/api/health")
