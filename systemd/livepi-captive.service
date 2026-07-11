@@ -1,0 +1,17 @@
+# Applies the captive-portal :80 -> :8080 redirect for the AP
+# (config/livepi-captive.nft). Installed + enabled by scripts/install-captive.sh.
+# The DNS-hijack half lives in NetworkManager's dnsmasq-shared.d and needs no
+# service. See backend/livepi_backend/captive.py for the responders.
+
+[Unit]
+Description=LivePi captive-portal port redirect (AP :80 -> backend :8080)
+After=network.target nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/livepi/captive.nft
+ExecStop=/usr/sbin/nft delete table ip livepi-captive
+
+[Install]
+WantedBy=multi-user.target

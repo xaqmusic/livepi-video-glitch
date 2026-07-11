@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import auth, clips, commands, config, effects, network, shows, storage, telemetry
+from . import auth, captive, clips, commands, config, effects, network, shows, storage, telemetry
 
 
 def _seed_data() -> None:
@@ -39,6 +39,9 @@ app.include_router(effects.router)
 app.include_router(commands.router)
 app.include_router(telemetry.router)
 app.include_router(network.router)
+# Captive-portal probe responders -- before the SPA catch-all so the probe
+# paths return a redirect rather than index.html.
+app.include_router(captive.router)
 
 
 @app.get("/api/health")

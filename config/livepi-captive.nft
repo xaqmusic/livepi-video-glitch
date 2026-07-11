@@ -1,0 +1,15 @@
+# Captive-portal port redirect for the LivePi control-network AP.
+#
+# OS connectivity checks hit port 80, but the backend serves on 8080. This
+# redirects :80 arriving on the AP interface to :8080 so the probe reaches
+# backend/livepi_backend/captive.py (which then 302s the client to the UI).
+#
+# Scoped to wlan0, so it's inert whenever the radio is a venue client rather
+# than the AP. Lives in its own table to avoid touching NetworkManager's own
+# shared-mode NAT rules. Applied by systemd/livepi-captive.service.
+table ip livepi-captive {
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname "wlan0" tcp dport 80 redirect to :8080
+    }
+}
