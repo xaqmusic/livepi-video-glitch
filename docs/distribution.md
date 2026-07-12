@@ -149,6 +149,35 @@ This maps directly onto the existing `.rsyncfilter` app-vs-data boundary:
 First boot **expands `/data`** to fill the rest of the card, mirroring Raspberry
 Pi OS's own rootfs-expand behavior.
 
+### How it's implemented
+
+> **Status: app-side done; overlay/partitioning is image-build work.** The
+> app is verified RO-root-clean and the data split is wired (see below); making
+> `/` actually read-only is applied by the image build, because the overlay
+> makes *everything* under `/` volatile, so `/data` must be its own partition —
+> which means defining the partition table at build time, not retrofitting a
+> live card.
+
+- **App is RO-root-ready** (`docs/architecture.md` "Data model & read-only
+  root"): the backend writes only under `/data` (atomic rename in-dir); the
+  renderer writes only `/tmp/livepi` (tmpfs); the renderer reads shows/clips
+  from `LIVEPI_DATA_DIR` via `livepi::userDataPath()` while shaders/config stay
+  on the app tree; the kiosk unit points `XAUTHORITY` at a tmpfs
+  `RuntimeDirectory` (X's cookie can't be written to the RO home otherwise).
+- **Logs to RAM** — `config/journald-volatile.conf` (`Storage=volatile`) so the
+  journal never touches the card.
+- **Overlay** — the image enables an overlay filesystem on `rootfs` (Raspberry
+  Pi OS's `raspi-config nonint enable_overlayfs`, an initramfs overlay: real
+  root mounted read-only, a tmpfs on top). Reboot-gated, so it's set at build
+  time / validated on a card with physical access, never blind over SSH.
+- **`/data` partition** — a third ext4 partition labelled `LIVEPI_DATA`, mounted
+  `/data` via fstab by `LABEL=` (so it survives the overlay), RW + journaled.
+- **Boot RO** — `/boot/firmware` mounted `ro` in fstab, remounted `rw` only
+  during an OS update.
+- **`/data` expand on first boot** — a oneshot grows `LIVEPI_DATA` + its ext4 to
+  fill the card (the image ships it small), then reboots once, before the
+  overlay is active. Mirrors Pi OS's `init_resize`.
+
 ## First boot & device identity
 
 > **Status: built.** `scripts/firstboot.sh` +

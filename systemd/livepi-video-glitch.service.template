@@ -17,6 +17,14 @@ WorkingDirectory=__APP_DIR__
 # back to bin/data -- see src/util/DataPath.h. Shaders/config always stay on
 # the app tree (bin/data), never /data.
 EnvironmentFile=-__DATA_DIR__/backend/.env
+# Read-only root: startx writes its MIT-MAGIC-COOKIE to $XAUTHORITY, which
+# defaults to ~/.Xauthority -- on the RO root, so X can't authenticate and the
+# kiosk never comes up. Point it at a tmpfs runtime dir systemd creates + owns
+# for us (/run/livepi, mode 0700, User=). (Xorg's own /var/log logfile write
+# also fails on RO root but is non-fatal -- it falls through to the journal;
+# the image mounts journald volatile anyway.)
+RuntimeDirectory=livepi
+Environment=XAUTHORITY=/run/livepi/Xauthority
 ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- -s off -dpms
 # Restart=always, NOT on-failure: the main process is startx, which exits 0
 # when its X session ends no matter how the app inside died -- a crash or a
