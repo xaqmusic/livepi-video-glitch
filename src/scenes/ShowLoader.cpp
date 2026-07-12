@@ -8,6 +8,7 @@
 #include "ofJson.h"
 #include "ofLog.h"
 #include "ofUtils.h"
+#include "util/DataPath.h"
 
 namespace {
 
@@ -61,7 +62,7 @@ bool ShowLoader::load() {
     // Every return path captures signatures first, so a broken state is
     // logged once per file change, not re-attempted (and re-warned) every
     // frame by pollForChanges().
-    std::string activePath = ofToDataPath("shows/active.json", true);
+    std::string activePath = livepi::userDataPath("shows/active.json");
     if (!ofFile::doesFileExist(activePath)) {
         ofLogWarning("ShowLoader") << "shows/active.json not found -- no show loaded.";
         captureSignatures();
@@ -76,7 +77,7 @@ bool ShowLoader::load() {
         return false;
     }
 
-    std::string showPath = ofToDataPath("shows/" + showName + ".json", true);
+    std::string showPath = livepi::userDataPath("shows/" + showName + ".json");
     if (!ofFile::doesFileExist(showPath)) {
         ofLogError("ShowLoader") << "Active show file missing: " << showPath;
         captureSignatures();
@@ -108,24 +109,24 @@ ShowLoader::FileSig ShowLoader::statPath(const std::string& absPath) const {
 }
 
 void ShowLoader::captureSignatures() {
-    activeSig = statPath(ofToDataPath("shows/active.json", true));
+    activeSig = statPath(livepi::userDataPath("shows/active.json"));
     // The pointer may name a different show than what's loaded (e.g. after
     // a failed parse) -- sign whatever it currently points at, so fixing
     // THAT file is what triggers the retry. Parsing active.json happens
     // only here (on load/attempt), never in the per-frame poll.
     ofJson active;
-    std::string activePath = ofToDataPath("shows/active.json", true);
+    std::string activePath = livepi::userDataPath("shows/active.json");
     if (ofFile::doesFileExist(activePath)) active = ofLoadJson(activePath);
     std::string pointedShow = active.value("activeShow", std::string(""));
-    pointedShowPath = pointedShow.empty() ? std::string("") : ofToDataPath("shows/" + pointedShow + ".json", true);
+    pointedShowPath = pointedShow.empty() ? std::string("") : livepi::userDataPath("shows/" + pointedShow + ".json");
     showSig = pointedShowPath.empty() ? FileSig{} : statPath(pointedShowPath);
-    librarySig = statPath(ofToDataPath("clips/library.json", true));
+    librarySig = statPath(livepi::userDataPath("clips/library.json"));
 }
 
 bool ShowLoader::pollForChanges() {
     // Three stat() calls per frame -- microseconds, and what buys the
     // sub-second editor save->see loop.
-    if (statPath(ofToDataPath("shows/active.json", true)) != activeSig) {
+    if (statPath(livepi::userDataPath("shows/active.json")) != activeSig) {
         ofLogNotice("ShowLoader") << "shows/active.json changed -- reloading show.";
         return load();
     }
@@ -133,7 +134,7 @@ bool ShowLoader::pollForChanges() {
         ofLogNotice("ShowLoader") << "Show file changed -- reloading.";
         return load();
     }
-    if (statPath(ofToDataPath("clips/library.json", true)) != librarySig) {
+    if (statPath(livepi::userDataPath("clips/library.json")) != librarySig) {
         ofLogNotice("ShowLoader") << "clips/library.json changed -- reloading show.";
         return load();
     }
@@ -198,7 +199,7 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
                         if (fx.value("video.pingpong", 0.0) > 0.5) {
                             std::string boomerang = boomerangRelPath(
                                 layer.resolvedPath, fx.value("video.start", 0.0), fx.value("video.end", 1.0));
-                            if (ofFile::doesFileExist(ofToDataPath(boomerang, true))) {
+                            if (ofFile::doesFileExist(livepi::userDataPath(boomerang))) {
                                 layer.resolvedPath = boomerang;
                                 layer.bakedLoop = true;
                             }
@@ -284,7 +285,7 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
 
 std::map<std::string, std::string> ShowLoader::loadClipLibrary() const {
     std::map<std::string, std::string> paths;
-    std::string libPath = ofToDataPath("clips/library.json", true);
+    std::string libPath = livepi::userDataPath("clips/library.json");
     if (!ofFile::doesFileExist(libPath)) {
         ofLogWarning("ShowLoader") << "clips/library.json not found -- clip layers won't resolve.";
         return paths;

@@ -11,6 +11,12 @@ After=sound.target network.target
 [Service]
 Type=simple
 WorkingDirectory=__APP_DIR__
+# Picks up LIVEPI_DATA_DIR so the renderer reads shows/clips from the writable
+# /data partition (the same per-device .env the backend loads). Optional
+# (leading '-'): a dev Pi with no /data has it unset, and the renderer falls
+# back to bin/data -- see src/util/DataPath.h. Shaders/config always stay on
+# the app tree (bin/data), never /data.
+EnvironmentFile=-__DATA_DIR__/backend/.env
 ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- -s off -dpms
 # Restart=always, NOT on-failure: the main process is startx, which exits 0
 # when its X session ends no matter how the app inside died -- a crash or a

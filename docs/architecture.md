@@ -496,6 +496,58 @@ gitignored; a handful of small sample clips are meant to live in
 external fetch step (see `bin/data/clips/samples/README.md` -- these still
 need to actually be added, they weren't fabricated during scaffolding).
 
+## Data model & read-only root
+
+The appliance splits everything the box holds into two categories that live on
+different partitions and have opposite lifecycles. This split is what makes the
+box both **power-yank-safe** and **updatable without a reflash**.
+
+- **App data** -- the compiled binary, backend, `frontend/dist`, **shaders**,
+  and `config/app.json`. Ships and is versioned as one unit, updated *together*
+  by the in-app updater. Lives on the **read-only root** (`bin/data/shaders`,
+  `bin/data/config`). Read-only so an unclean shutdown can't corrupt what the
+  box needs to boot.
+- **User data** -- `shows/`, `clips/` (the library, the clip video files, the
+  baked `.pingpong` boomerangs, thumbnails), plus `auth.json`, the per-device
+  `backend/.env`, and network config. Pi-authored, grows and changes at
+  runtime. Lives on a separate **writable, journaled `/data` partition**
+  (`LIVEPI_DATA_DIR=/data`) that updates and reflashes NEVER touch.
+
+**Path resolution follows the split.** The backend already keys everything off
+`config.DATA_DIR` (`LIVEPI_DATA_DIR`). The renderer historically resolved
+*everything* through oF's `ofToDataPath` (-> `bin/data`), which is correct in
+desktop dev (backend and renderer share one `bin/data`) but wrong on the
+appliance, where the backend writes `/data` and the renderer would read a stale
+`bin/data`. So the renderer now routes **user data through
+`livepi::userDataPath()`** (`src/util/DataPath.h`): it prefixes
+`LIVEPI_DATA_DIR` when set (appliance), else falls back to `ofToDataPath`
+(dev). **App data stays on `ofToDataPath`** -- `shader.load()`/`ofLoadShader()`
+resolve there internally, so shaders and `config/app.json` are never routed to
+`/data`. The kiosk systemd unit gets `LIVEPI_DATA_DIR` from the same
+`EnvironmentFile=-/data/backend/.env` the backend uses (optional, so dev falls
+back cleanly).
+
+Why default the renderer to the app tree rather than `/data`: nearly everything
+the renderer loads is app code (shaders, config, and likely future presets /
+LUTs / fonts), so keeping the app dir as the default means new app assets "just
+work", and only the two known user-data dirs (`shows/`, `clips/`) are the
+explicit exception.
+
+**Read-only root mechanics.** Root is mounted read-only with a tmpfs overlay
+(writes to `/` evaporate on reboot); `/data` is the only writable persistent
+storage. The app is verified RO-root-clean: the backend writes only under
+`/data` (atomic tempfile + rename in the same dir); the renderer writes only
+`/tmp/livepi` (status + command FIFO, tmpfs). The kiosk's X server needs its
+writes redirected off the RO root too (`XAUTHORITY`, Xorg logfile, fontconfig
+cache -> tmpfs). See `docs/distribution.md` for the partition table.
+
+**Updates never reflash.** An update replaces the *app unit* (binary + backend
++ `frontend/dist` + shaders + `config/app.json`) from a signed GitHub Release
+bundle, verified on-device, with the previous version kept for auto-rollback --
+`/data` is untouched across the swap. New shaders arrive this way. A reflash is
+only ever needed for a base-OS change (kernel/drivers), which is rare and later
+moves to A/B-root OTA. See `docs/distribution.md` "Updates".
+
 ## Phased roadmap
 
 0. **Bootstrap** (desktop) -- scaffold this tree; install oF 0.12.1

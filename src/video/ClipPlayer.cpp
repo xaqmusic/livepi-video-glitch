@@ -3,6 +3,7 @@
 #include "ofGstVideoPlayer.h"
 #include "ofLog.h"
 #include "ofPixels.h"
+#include "util/DataPath.h"
 
 void ClipPlayer::load(const std::string& relativePath) {
     if (!backendConfigured) {
@@ -50,7 +51,10 @@ void ClipPlayer::load(const std::string& relativePath) {
     // (ofGLProgrammableRenderer's NV12/I420 fragment shaders, which have
     // explicit GLES2 variants).
     player.setPixelFormat(OF_PIXELS_NATIVE);
-    loaded = player.load(relativePath);
+    // Absolute /data path on the appliance (user data lives off the read-only
+    // app tree); oF's player would otherwise resolve relativePath against
+    // bin/data. Falls back to bin/data in dev. See util/DataPath.h.
+    loaded = player.load(livepi::userDataPath(relativePath));
     if (loaded) {
         player.setLoopState(OF_LOOP_NORMAL);
         player.play();
