@@ -1,0 +1,33 @@
+# Template for /etc/systemd/system/livepi-lockdown.service -- rendered and
+# installed by the image build (scripts/build-image.sh). __DATA_DIR__ and
+# __APP_DIR__ are filled in; __LOCKDOWN__ is 1 for a shipping image (lock the
+# root read-only after first boot) or 0 for a writable dev/test image.
+#
+# Last link in the first-boot chain: after firstboot has personalized the box,
+# this persists the NetworkManager connections onto /data, enables the
+# read-only root overlay, and reboots once into the locked-down state. See
+# scripts/lockdown.sh (which is strictly fail-safe -- it never reboots unless
+# every step succeeded).
+
+[Unit]
+Description=LivePi first-boot lockdown (read-only root) + reboot
+# Run only after the box is personalized, and near the end of boot so the
+# control AP and services have come up once on this writable boot.
+After=livepi-firstboot.service network-online.target
+Wants=network-online.target
+# Only on the writable first boot: once the overlay is active the running
+# kernel command line carries boot=overlay, so this condition is false and the
+# unit never runs again. Belt-and-braces with the firstboot marker.
+ConditionKernelCommandLine=!boot=overlay
+ConditionPathExists=__DATA_DIR__/.provisioned
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Root: writes /etc/fstab, runs raspi-config, reboots.
+Environment=LIVEPI_DATA_DIR=__DATA_DIR__
+Environment=LIVEPI_LOCKDOWN=__LOCKDOWN__
+ExecStart=__APP_DIR__/scripts/lockdown.sh
+
+[Install]
+WantedBy=multi-user.target

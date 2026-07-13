@@ -1,0 +1,37 @@
+# Template for /etc/systemd/system/livepi-dataprep.service -- rendered and
+# installed by the image build (scripts/build-image.sh); __DATA_DIR__ and
+# __APP_DIR__ are filled in there.
+#
+# Runs scripts/dataprep.sh ONCE on the very first boot of a golden image to
+# claim the card's free space as the writable LIVEPI_DATA partition mounted at
+# $DATA_DIR, BEFORE anything reads or writes it. This is the first link in the
+# first-boot chain:  dataprep  ->  firstboot  ->  (backend + kiosk)  ->
+# lockdown (enable the read-only overlay + reboot).  See docs/distribution.md
+# "Filesystem & partitions".
+#
+# Image-time only: a dev Pi that rsyncs the repo and keeps bin/data as its data
+# dir never installs this. On the image it's enabled so the first boot builds
+# /data with no operator.
+
+[Unit]
+Description=LivePi first-boot data-partition preparation
+# Default dependencies (After=sysinit.target basic.target) guarantee udev has
+# enumerated the disk and the mkfs/sfdisk tools are available. The fstab entry
+# for LABEL=LIVEPI_DATA is nofail, so local-fs.target does NOT block on the
+# not-yet-existing partition on this first boot; dataprep.sh mounts it by
+# device instead. After lockdown the partition is real and mounts normally.
+Before=livepi-firstboot.service livepi-backend.service livepi-video-glitch.service
+# Skip the unit entirely once the partition has been built (the script is also
+# idempotent -- blkid short-circuits -- but this avoids even invoking the
+# partition tooling on the locked-down read-only box).
+ConditionPathExists=!__DATA_DIR__/.dataprep-done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Root: partitions the disk (sfdisk/partx), mkfs, and mounts.
+Environment=LIVEPI_DATA_DIR=__DATA_DIR__
+ExecStart=__APP_DIR__/scripts/dataprep.sh
+
+[Install]
+WantedBy=multi-user.target
