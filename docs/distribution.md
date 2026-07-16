@@ -146,17 +146,32 @@ This maps directly onto the existing `.rsyncfilter` app-vs-data boundary:
   i.e. onto `/data`.
 - **Logs** go to the journal (volatile) so nothing hammers the card.
 
-First boot **expands `/data`** to fill the rest of the card, mirroring Raspberry
-Pi OS's own rootfs-expand behavior.
+First boot **claims the card's free space as `/data`** — a new `LIVEPI_DATA`
+partition — mirroring how Raspberry Pi OS's own `init_resize` grows rootfs,
+except LivePi *appends* a trailing partition (safer: no in-place move of a
+mounted filesystem).
 
 ### How it's implemented
 
-> **Status: app-side done; overlay/partitioning is image-build work.** The
-> app is verified RO-root-clean and the data split is wired (see below); making
-> `/` actually read-only is applied by the image build, because the overlay
-> makes *everything* under `/` volatile, so `/data` must be its own partition —
-> which means defining the partition table at build time, not retrofitting a
-> live card.
+> **Status: built (pending on-hardware validation).** The app is verified
+> RO-root-clean, the data split is wired, and the image build + the first-boot
+> chain that flips `/` read-only are implemented (`scripts/build-image.sh`,
+> `provision-appliance.sh`, `dataprep.sh`, `lockdown.sh`). What remains is
+> booting a freshly-flashed card end-to-end (task tracked separately) — the
+> overlay + partition changes are reboot-gated and card-coupled, so they're
+> exercised by an actual flash, not retrofitted on the live dev card.
+
+The overlay makes *everything* under `/` volatile, so `/data` must be its own
+partition and the box must personalize `/etc` (hostname, the AP profile) while
+still writable. That dictates the sequence: the image ships with the overlay
+**off**, and the **first boot** runs a chain that ends by locking down:
+
+    dataprep  →  firstboot  →  (backend + kiosk)  →  lockdown  →  reboot
+    ─────────     ─────────      ────────────────      ────────
+    make /data    per-device     box comes up once     persist NM conns,
+    partition     secrets, AP,   on the writable       enable overlay,
+    from free     hostname       root                  reboot read-only
+    card space
 
 - **App is RO-root-ready** (`docs/architecture.md` "Data model & read-only
   root"): the backend writes only under `/data` (atomic rename in-dir); the
@@ -166,17 +181,28 @@ Pi OS's own rootfs-expand behavior.
   `RuntimeDirectory` (X's cookie can't be written to the RO home otherwise).
 - **Logs to RAM** — `config/journald-volatile.conf` (`Storage=volatile`) so the
   journal never touches the card.
-- **Overlay** — the image enables an overlay filesystem on `rootfs` (Raspberry
-  Pi OS's `raspi-config nonint enable_overlayfs`, an initramfs overlay: real
-  root mounted read-only, a tmpfs on top). Reboot-gated, so it's set at build
-  time / validated on a card with physical access, never blind over SSH.
-- **`/data` partition** — a third ext4 partition labelled `LIVEPI_DATA`, mounted
-  `/data` via fstab by `LABEL=` (so it survives the overlay), RW + journaled.
-- **Boot RO** — `/boot/firmware` mounted `ro` in fstab, remounted `rw` only
-  during an OS update.
-- **`/data` expand on first boot** — a oneshot grows `LIVEPI_DATA` + its ext4 to
-  fill the card (the image ships it small), then reboots once, before the
-  overlay is active. Mirrors Pi OS's `init_resize`.
+- **`/data` partition** (`scripts/dataprep.sh`, `livepi-dataprep.service`) — the
+  first-boot oneshot appends a third ext4 partition labelled `LIVEPI_DATA` in
+  the flashed card's free space (`sfdisk --append` + `partx -a`; the stock
+  rootfs auto-grow is disabled at build time so that space survives), mkfs's it,
+  mounts `/data`, and adds the `nofail` `LABEL=LIVEPI_DATA` fstab entry (so it
+  mounts through the overlay). Runs before firstboot, which then writes the
+  per-device secrets into it.
+- **Overlay** (`scripts/lockdown.sh`, `livepi-lockdown.service`) — the last
+  first-boot step, after firstboot has personalized `/etc`. It enables the
+  initramfs overlay (`raspi-config nonint enable_overlayfs`: real root mounted
+  read-only, tmpfs on top) and reboots once. Strictly fail-safe — it never
+  reboots unless every step succeeded, and `LIVEPI_LOCKDOWN=0` builds a
+  writable dev image. Guarded by `ConditionKernelCommandLine=!boot=overlay`, so
+  it's a no-op once locked.
+- **NM connections persist on `/data`** — lockdown bind-mounts
+  `/etc/NetworkManager/system-connections` onto `/data/network/…` before
+  enabling the overlay, so venue WiFi a customer joins later (and the control
+  AP) survive the now-volatile `/etc`.
+- **Boot stays RW in v1** — `/boot/firmware` is left writable (firmware/config
+  edits are rare and low-risk). The rootfs overlay is what guards against an
+  unclean-shutdown corrupting the OS or the app; write-protecting `/boot` is a
+  later hardening step.
 
 ## First boot & device identity
 
@@ -310,13 +336,40 @@ re-image or apt for the latter.
 
 ## Build pipeline
 
-- A **CustomPiOS module** that wraps `scripts/setup-pi.sh` and the kiosk-bake
-  steps, layered on Raspberry Pi OS Lite Trixie.
-- **Image build in CI** via qemu/binfmt (reproducible, but the on-image oF/app
-  compile under emulation is slow) **or** build the `aarch64` binary separately
-  and inject it into the image (faster CI, the same artifact the in-app updater
-  ships). Lean toward the latter once the updater exists.
-- **Versioning** -- semver, with a stable and a beta release channel.
+> **Status: built (`scripts/build-image.sh`).** Produces
+> `livepi-<version>.img.xz` from stock Pi OS Lite Trixie. Not yet run
+> end-to-end / flashed (the first real build is the validation).
+
+**Self-contained builder, not CustomPiOS.** The earlier plan named CustomPiOS
+(the OctoPi framework). In practice the hard logic — the kiosk bake, the units,
+and the read-only-root / partition orchestration — is identical regardless of
+framework and now lives in **framework-agnostic scripts**, so wrapping it in a
+transparent builder we fully control (and can read line-by-line) beat taking on
+CustomPiOS's version drift + heavier surface. This also fits the project's
+ethos (it already vendors openFrameworks and owns its whole toolchain). A
+CustomPiOS wrapper could still sit on top later, since the logic is reusable.
+
+- **`scripts/provision-appliance.sh`** — the shared "turn this root filesystem
+  into a LivePi appliance" step: app user, `setup-pi.sh` (oF + deps + Pisound)
+  + `make`, kiosk bake, render + enable every unit, WiFi regdomain, disable the
+  stock rootfs auto-grow, golden-master hygiene. Path-agnostic (chroot or a real
+  Pi); only ever `enable`s units so it's chroot-safe.
+- **`scripts/build-image.sh`** — the host wrapper (**emulated build**, chosen
+  over build-on-a-real-Pi-then-capture): downloads the base image, loop-mounts
+  it, runs the provisioner in a **qemu-aarch64 `binfmt` chroot**, repacks to
+  `.img.xz` + sha256. Runs on any x86_64/arm64 Linux host (`--check` does
+  preflight only). Handles the chroot gotchas (`ld.so.preload` libarmmem,
+  `/boot/firmware`, a hard unmount/detach cleanup trap). The stock rootfs
+  auto-grow is disabled so the flashed card's free space is left for
+  `dataprep`'s `LIVEPI_DATA`.
+- **The oF/app compile under emulation is the slow part** (~tens of minutes).
+  `LIVEPI_PREBUILT=1` is a hook to inject a Pi-built binary instead — the same
+  artifact the in-app updater will ship; wire it up fully once the updater
+  exists.
+- **CI** — `build-image.sh` is CI-ready (qemu/binfmt); add a runner + release
+  upload when the cadence warrants.
+- **Versioning** -- semver (`git describe` feeds the image name), with a stable
+  and a beta release channel.
 
 ## Roadmap / phasing
 
@@ -324,9 +377,12 @@ re-image or apt for the latter.
   above) + read-only root / `/data` + ad-hoc control AP & captive portal +
   per-device secrets + in-app update. This is a shippable appliance.
   Progress: **per-device secrets + first-boot personalization done**
-  (`firstboot.sh`) and **networking done** (control AP + autohotspot + web-UI
-  provisioning + captive portal, all verified on the Pi 4); remaining v1
-  pieces are read-only root, the image pipeline, and the updater.
+  (`firstboot.sh`), **networking done** (control AP + autohotspot + web-UI
+  provisioning + captive portal, all verified on the Pi 4), and **read-only
+  root + the image pipeline built** (`build-image.sh` /
+  `provision-appliance.sh` / `dataprep.sh` / `lockdown.sh`) — pending a
+  first end-to-end flashed-card validation. The remaining v1 piece is the
+  in-app updater.
 - **v2** -- Improv BLE provisioning (Android-first), A/B-root OTA, USB clip
   auto-import, the pre-flashed hardware SKU, and the Pi 5 optimizations (native
   reverse, hardware HEVC decode).

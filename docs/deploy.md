@@ -207,3 +207,58 @@ How it works:
 Single radio: the AP and a venue-client link can't run at once (a USB WiFi
 dongle is the documented path to both). Reaching the box over **Ethernet** is
 the safe way to reconfigure WiFi without cutting your own connection.
+
+## Building the golden image
+
+The consumer path is a flashable image, not this deploy-and-build dance. One
+command turns stock Raspberry Pi OS Lite (arm64, Trixie) into a
+`livepi-<version>.img.xz` — it downloads the base image, runs the whole
+provisioning inside a **qemu-aarch64 chroot**, and repacks. Runs on any Linux
+host (x86_64 or arm64); no Pi needed to build.
+
+```sh
+# One-time host prerequisites (Debian/Ubuntu):
+sudo apt-get install qemu-user-static binfmt-support parted \
+                     xz-utils rsync e2fsprogs dosfstools nodejs npm
+
+sudo ./scripts/build-image.sh --check     # verify the host is ready (no build)
+sudo ./scripts/build-image.sh             # full build -> /var/tmp/livepi-image/
+```
+
+The heavy part is compiling openFrameworks + the renderer under emulation
+(tens of minutes). Useful knobs (env vars): `LIVEPI_LOCKDOWN=0` builds a
+**writable dev image** (skips the read-only-root flip — handy for poking at a
+flashed card), `LIVEPI_WIFI_COUNTRY=GB` sets the regdomain,
+`LIVEPI_OUTPUT_DIR=…` moves the artifact. See the header of
+`scripts/build-image.sh` for the full list.
+
+Under the hood `build-image.sh` calls `scripts/provision-appliance.sh` in the
+chroot — the same script would provision a real Pi natively if you ever want to
+capture a card instead. Flash the result with Raspberry Pi Imager or
+balenaEtcher.
+
+### What the first boot does
+
+A freshly flashed card personalizes itself with no operator, in one chain
+(each step is an idempotent, marker-guarded oneshot):
+
+1. **`dataprep`** — appends a `LIVEPI_DATA` partition in the card's free space,
+   formats it, mounts `/data`. (The image ships with the stock rootfs auto-grow
+   disabled precisely so that free space is still there to claim.)
+2. **`firstboot`** — generates the per-device password + secret key into
+   `/data/backend/.env`, sets the unique `livepi-XXXX` hostname, and creates the
+   control AP (WPA2 key = the printed password).
+3. **backend + kiosk** come up on the still-writable root.
+4. **`lockdown`** — persists the NetworkManager connections onto `/data`,
+   enables the read-only overlay, and reboots once. From here the root is
+   read-only; everything the customer changes lives on `/data`.
+
+Boots after that are the sealed appliance: read-only root, writable `/data`,
+and updates replace the app without ever reflashing (`docs/architecture.md`,
+"Data model & read-only root").
+
+> **Not yet validated end-to-end on hardware.** The builder and the first-boot
+> chain are complete and statically checked, but a real flashed-card run (the
+> overlay flip is reboot-gated) is still owed. `dataprep.sh` is dry-runnable
+> off-Pi (`LIVEPI_DATAPREP_DRYRUN=1`) and `lockdown.sh` no-ops safely with
+> `LIVEPI_LOCKDOWN=0` if you want to inspect the pieces first.
