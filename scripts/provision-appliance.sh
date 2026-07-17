@@ -67,6 +67,7 @@ log "system packages: kiosk + networking"
 # Pi OS Lite omits, nftables (captive redirect), NM + its shared-mode dnsmasq.
 apt-get update
 apt-get install -y --no-install-recommends \
+    git ca-certificates \
     xinit xserver-xorg xserver-xorg-legacy x11-xserver-utils \
     nftables dnsmasq-base network-manager avahi-daemon avahi-utils \
     raspi-config e2fsprogs
