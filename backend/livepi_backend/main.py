@@ -10,15 +10,45 @@ from fastapi.responses import FileResponse, JSONResponse
 from . import auth, captive, clips, commands, config, effects, network, shows, storage, telemetry
 
 
+def _default_show() -> dict:
+    """The starter show a fresh box boots into: one full-screen plasma
+    generator so first run is something alive and colourful, not a black
+    screen. Plasma is cheap and aspect-tolerant (looks right on any panel),
+    and the owner can edit or replace it from the web UI. Kept deliberately
+    minimal -- one layer, no effects/mappings -- so it reads as a clean
+    starting point."""
+    return {
+        "schemaVersion": 1,
+        "scenes": [
+            {
+                "id": "scene-welcome",
+                "name": "Welcome",
+                "layers": [
+                    {
+                        "id": "layer-welcome",
+                        "kind": "generator",
+                        "source": "plasma",
+                        "blendMode": "normal",
+                        "opacity": 1.0,
+                        "layerEffects": {},
+                        "params": {},
+                    }
+                ],
+                "mappings": [],
+                "postEffects": {},
+                "transition": {"style": "none", "duration": 0.8},
+            }
+        ],
+    }
+
+
 def _seed_data() -> None:
-    """A fresh Pi (deploys exclude show data -- it's Pi-authored) still
-    boots to something: an empty default show and an empty clip registry."""
+    """A fresh Pi (deploys exclude show data -- it's Pi-authored) still boots
+    to something: the starter show above and an empty clip registry."""
     config.SHOWS_DIR.mkdir(parents=True, exist_ok=True)
     if storage.get_active_show_name() is None:
         if not (config.SHOWS_DIR / "default.json").exists():
-            storage.atomic_write_json(
-                config.SHOWS_DIR / "default.json", {"schemaVersion": 1, "scenes": []}
-            )
+            storage.atomic_write_json(config.SHOWS_DIR / "default.json", _default_show())
         storage.set_active_show_name("default")
     if not config.LIBRARY_PATH.exists():
         storage.write_library({"clips": []})

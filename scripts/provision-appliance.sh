@@ -115,6 +115,21 @@ allowed_users=anybody
 needs_root_rights=yes
 XWRAP
 
+# Appliance render config. The shipped bin/data/config/app.json defaults are
+# DEV-oriented -- a 1280x720 WINDOWED render and the `mock` control source --
+# which on a real box means a 1280x720 image in the corner of the panel (black
+# everywhere else) and no response to the Pisound MIDI. This local override
+# (merged over app.json at startup, per main.cpp) makes it an appliance:
+# full-screen on whatever panel is attached, driven by the real Pisound control
+# source (MIDI + button). Left out of the dev tree so desktop dev stays windowed.
+install -d "$APP_DIR/bin/data/config"
+cat > "$APP_DIR/bin/data/config/app.local.json" <<'APPCFG'
+{
+    "control_source": "pisound",
+    "window": { "fullscreen": true }
+}
+APPCFG
+
 # ---------------------------------------------------------------------------
 log "systemd units"
 # ---------------------------------------------------------------------------
