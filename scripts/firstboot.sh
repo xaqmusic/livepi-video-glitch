@@ -104,6 +104,13 @@ if [[ "$PROVISION_SYSTEM" == "1" ]]; then
         chown -R "$APP_USER:$APP_USER" "$DATA_DIR"
         chmod 600 "$ENV_FILE"   # chown -R reset the mode; re-tighten
         log "handed $DATA_DIR to $APP_USER"
+        # Unify the box's one secret: the printed password also logs the app
+        # user into the console + SSH. The image ships the account
+        # password-LOCKED (scripts/provision-appliance.sh runs `passwd -l`, so
+        # there's never a shipped default login); this is where it gets the
+        # per-device code, matching the web-UI login and the AP's WPA2 key.
+        printf '%s:%s\n' "$APP_USER" "$INITIAL_PW" | chpasswd
+        log "set $APP_USER console/SSH password to the per-device code"
     else
         log "WARNING: app user '$APP_USER' does not exist; left $DATA_DIR root-owned"
     fi

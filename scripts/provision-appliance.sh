@@ -49,6 +49,18 @@ if ! id "$APP_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$APP_USER"
     log "created user $APP_USER"
 fi
+# Stock Trixie Lite reserves uid 1000 as a `pi` PLACEHOLDER: a /usr/sbin/nologin
+# shell, no home, and a primary gid with no matching group NAME. Creating-if-
+# missing skips it, so three things break unless we repair them here:
+#   * no login shell -> the per-device password can't log into console/SSH
+#     (systemd services exec directly, so they run fine and mask it);
+#   * no `pi` group  -> `Group=pi` in the kiosk/backend units fails with
+#     "failed to determine group credentials" and the unit never starts;
+#   * no home dir.
+# Ensure the named group first (install -d -g and usermod -g both need it).
+getent group "$APP_USER" >/dev/null 2>&1 || groupadd "$APP_USER"
+usermod -g "$APP_USER" -s /bin/bash "$APP_USER"
+install -d -o "$APP_USER" -g "$APP_USER" -m 755 "/home/$APP_USER"
 # Groups the kiosk (video/render/audio, drm), Pisound (i2c/spi/gpio/audio), and
 # input need, plus netdev for NM and sudo for maintenance. Missing groups on a
 # given base are simply skipped.
@@ -155,7 +167,15 @@ systemctl enable \
 for svc in NetworkManager.service avahi-daemon.service ssh.service; do
     systemctl enable "$svc" 2>/dev/null || warn "could not enable $svc"
 done
-# Regenerate SSH host keys per box on first boot (we wipe them below).
+# SSH host keys: golden-master hygiene (below) wipes them so every box gets
+# unique keys, but Pi OS's own regen rides the first-run hook we disabled -- so
+# sshd would otherwise start keyless and fail. A drop-in generates them right
+# before sshd starts (ssh-keygen -A is a no-op once they exist).
+install -d /etc/systemd/system/ssh.service.d
+cat > /etc/systemd/system/ssh.service.d/livepi-hostkeys.conf <<'EOF'
+[Service]
+ExecStartPre=-/usr/bin/ssh-keygen -A
+EOF
 systemctl enable regenerate_ssh_host_keys.service 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
@@ -165,6 +185,14 @@ log "WiFi regdomain: $WIFI_COUNTRY"
 # `iw reg set` half is a no-op in a chroot, but the persistent config is written.
 raspi-config nonint do_wifi_country "$WIFI_COUNTRY" 2>/dev/null || \
     warn "could not set WiFi country to $WIFI_COUNTRY (set it in the imager, or re-run on the Pi)"
+
+# Pre-configure locale + keyboard so first boot is SILENT. Pi OS Lite ships
+# these effectively unconfigured; on the first boot the keyboard-setup /
+# console-setup services (and locales) otherwise throw a debconf "Package
+# configuration" window on the console before the kiosk -- unacceptable on a
+# sealed appliance. US defaults; adjust via the knobs if ever needed.
+raspi-config nonint do_change_locale "${LIVEPI_LOCALE:-en_US.UTF-8}" 2>/dev/null || warn "could not set locale"
+raspi-config nonint do_configure_keyboard "${LIVEPI_KEYMAP:-us}" 2>/dev/null || warn "could not set keymap"
 
 # ---------------------------------------------------------------------------
 log "disable Pi OS's stock rootfs auto-grow"
@@ -207,6 +235,11 @@ if [[ "$KEEP_OF" != "1" && "$PREBUILT" != "1" && -d "$OF_ROOT" ]]; then
     rm -rf "$OF_ROOT"
     log "removed oF build tree $OF_ROOT (static-linked; not needed at runtime)"
 fi
+
+# Settle any package whose postinst was deferred/incomplete in the chroot, so
+# first boot never runs an interactive `dpkg --configure` (the source of the
+# debconf popup). Noninteractive frontend is already exported above.
+dpkg --configure -a || warn "dpkg --configure -a reported problems (check the build log)"
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*

@@ -39,7 +39,7 @@ run() {
     fi
 }
 
-FSTAB_LINE="LABEL=$DATA_LABEL  $DATA_DIR  ext4  defaults,noatime,nofail,x-systemd.growfs  0  2"
+FSTAB_LINE="LABEL=$DATA_LABEL  $DATA_DIR  ext4  defaults,noatime,nofail  0  2"
 
 # Ensure /etc/fstab mounts the data partition by label (nofail: a box that
 # somehow lost the partition still boots to a usable, if data-less, state; the
