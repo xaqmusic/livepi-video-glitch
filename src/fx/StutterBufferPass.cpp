@@ -30,72 +30,75 @@ void StutterBufferPass::setup() {
     ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/stutter_hold.frag");
 }
 
+void StutterBufferPass::recordFrame(ofFbo& src, double now) {
+    Slot& slot = ring[writeIndex];
+    if (!slot.fbo.isAllocated()) {
+        slot.fbo.allocate(src.getWidth(), src.getHeight(), GL_RGBA);
+    }
+    // Verbatim copy, blending OFF: transparent generator layers (note lasers,
+    // fire) must keep their alpha through the ring -- an alpha blend here would
+    // flatten a=1 and their black would go opaque, covering every layer beneath
+    // (found via the laser overlay test).
+    slot.fbo.begin();
+    ofClear(0, 0, 0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_DISABLED);
+    src.draw(0, 0);
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    slot.fbo.end();
+    slot.timeSeconds = now;
+    writeIndex++;
+}
+
 void StutterBufferPass::apply(ofFbo& src, ofFbo& dst, const ControlState& controlState,
                               const LiveParams& liveParams) {
     double now = ofGetElapsedTimef();
     bool engageRequested = readParam(liveParams, "stutter.engage", 0.0f) > 0.5f;
 
-    if (engageRequested && !engaged) {
-        // Capture: every recorded frame inside the last interval, oldest
-        // first. Interval from the rate param against the current tempo --
-        // bpmEstimate free-runs at a musical default when no clock is
-        // present, so this works with or without a synced keyboard.
+    const ofFbo* output = &src;
+
+    if (!engageRequested) {
+        // IDLE: record nothing (the whole point -- no ring allocation, no
+        // per-frame full-screen copy when stutter isn't in use). Reset so the
+        // next engage starts a clean forward capture; pass the live feed on.
+        capturing = false;
+        engaged = false;
+        loopSlots.clear();
+    } else {
+        // Interval from the rate param against the current tempo -- bpmEstimate
+        // free-runs at a musical default when no clock is present, so this
+        // works with or without a synced keyboard.
         double bpm = controlState.bpmEstimate > 1.0 ? controlState.bpmEstimate : 120.0;
         double intervalSecs = rateToBeats(readParam(liveParams, "stutter.rate", 0.5f)) * 60.0 / bpm;
 
-        std::vector<std::pair<double, int>> window;
-        int newest = -1;
-        double newestTime = -1.0;
-        for (int i = 0; i < kRingCapacity; i++) {
-            double t = ring[i].timeSeconds;
-            if (t < 0) continue;
-            if (t >= now - intervalSecs) window.push_back({t, i});
-            if (t > newestTime) {
-                newestTime = t;
-                newest = i;
+        if (!capturing && !engaged) {
+            // Rising edge: start capturing an interval FORWARD from now.
+            capturing = true;
+            captureStartSecs = now;
+            writeIndex = 0;
+        }
+
+        if (capturing) {
+            if (writeIndex < kRingCapacity) recordFrame(src, now);
+            // Show the live frame while the window fills, so there's no visual
+            // gap before the loop kicks in.
+            bool full = (now - captureStartSecs) >= intervalSecs || writeIndex >= kRingCapacity;
+            if (full) {
+                loopSlots.clear();
+                for (int i = 0; i < writeIndex; i++) loopSlots.push_back(i);
+                // Sub-frame interval (rate faster than the frame time): the one
+                // captured frame becomes a hard freeze.
+                if (loopSlots.empty()) loopSlots.push_back(0);
+                playIndex = 0;
+                capturing = false;
+                engaged = true;
             }
+        } else if (engaged && !loopSlots.empty()) {
+            // Step through the captured window one frame per render, wrapping.
+            // Nothing records now, so the window can't be overwritten however
+            // long the stutter is held.
+            output = &ring[loopSlots[playIndex]].fbo;
+            playIndex = (playIndex + 1) % loopSlots.size();
         }
-        std::sort(window.begin(), window.end());
-        loopSlots.clear();
-        for (const auto& [t, i] : window) loopSlots.push_back(i);
-        // Interval shorter than one frame (or no history yet): freeze the
-        // newest frame rather than doing nothing.
-        if (loopSlots.empty() && newest >= 0) loopSlots.push_back(newest);
-        playIndex = 0;
-        engaged = !loopSlots.empty();
-    } else if (!engageRequested && engaged) {
-        engaged = false;
-        loopSlots.clear();
-    }
-
-    const ofFbo* output = &src;
-
-    if (engaged) {
-        // Step through the captured window one frame per render, wrapping.
-        // Recording pauses while engaged, so the window can't be
-        // overwritten no matter how long the stutter is held.
-        output = &ring[loopSlots[playIndex]].fbo;
-        playIndex = (playIndex + 1) % loopSlots.size();
-    } else {
-        // Record continuously so an engage always has a fresh interval of
-        // history behind it. Lazy per-slot allocation: one FBO per frame as
-        // the ring first fills, no startup burst.
-        Slot& slot = ring[writeIndex];
-        if (!slot.fbo.isAllocated()) {
-            slot.fbo.allocate(src.getWidth(), src.getHeight(), GL_RGBA);
-        }
-        // Verbatim copy, blending OFF: transparent generator layers (note
-        // lasers, fire) must keep their alpha through the ring -- an alpha
-        // blend here would flatten a=1 and their black would go opaque,
-        // covering every layer beneath (found via the laser overlay test).
-        slot.fbo.begin();
-        ofClear(0, 0, 0, 0);
-        ofEnableBlendMode(OF_BLENDMODE_DISABLED);
-        src.draw(0, 0);
-        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-        slot.fbo.end();
-        slot.timeSeconds = now;
-        writeIndex = (writeIndex + 1) % kRingCapacity;
     }
 
     dst.begin();

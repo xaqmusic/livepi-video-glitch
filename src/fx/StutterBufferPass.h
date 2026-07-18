@@ -7,19 +7,25 @@
 #include "ofFbo.h"
 #include "ofShader.h"
 
-// Beat-repeat stutter (per-layer). Continuously records the layer's frames
-// into a timestamped ring; when engaged ("stutter.engage" > 0.5, typically
-// mapped to a pad/note for momentary punch-ins), it captures the last
-// interval's worth of frames -- the interval set by "stutter.rate"
-// (quantized 1/16, 1/8, 1/4, 1/2 note or a full bar against the current
-// BPM) -- and loops that window at normal speed until release. Recording
-// pauses while engaged so the captured window can't be overwritten;
-// release snaps back to the live feed.
+// Beat-repeat stutter (per-layer). Records ONLY while engaged, so an idle
+// stutter costs nothing: when "stutter.engage" crosses > 0.5 (typically a
+// pad/note momentary punch-in) it captures one interval's worth of frames
+// FORWARD from that moment -- the interval set by "stutter.rate" (quantized
+// 1/16, 1/8, 1/4, 1/2 note or a full bar against the current BPM) -- passing
+// the live feed through meanwhile, then loops that captured window at normal
+// speed until release, when it snaps back to live.
+//
+// This deliberately does NOT record while idle. The earlier design kept a
+// continuous ring so an engage could loop the interval BEFORE the press
+// (retroactive), but that meant allocating kRingCapacity full-screen FBOs
+// (~350MB at 1080-ish/wide panels) and copying the whole frame every frame
+// on EVERY layer even when stutter was never used -- a large, permanent GPU
+// tax for a momentary effect. Forward-capture loops the beat you punch ON
+// (musically the common case) for zero idle cost. If retroactive is ever
+// wanted back, do it with a small low-res ring, not a full-res one.
 //
 // The GLSL side (stutter_hold.frag) stays a pure passthrough -- the effect
-// is entirely which buffered frame gets fed in as srcTex. Frame lookup is
-// by timestamp, so it works identically at 60fps light scenes and ~26fps
-// heavy ones.
+// is entirely which buffered frame gets fed in as srcTex.
 class StutterBufferPass : public ShaderPass {
 public:
     void setup() override;
@@ -27,6 +33,10 @@ public:
     const std::string& getName() const override { return name; }
 
 private:
+    // Copy the live frame into the next ring slot (lazy-allocated). Only ever
+    // called while capturing an engaged window -- never idle.
+    void recordFrame(ofFbo& src, double now);
+
     // 64 slots ~= 1-2.5s of history depending on frame rate -- enough for a
     // full bar at typical tempos. Slots allocate lazily (one per frame as
     // the ring first fills), so startup pays no allocation burst.
@@ -41,6 +51,11 @@ private:
     std::string name = "stutter_buffer";
     std::vector<Slot> ring{kRingCapacity};
     int writeIndex = 0;
+
+    // Capturing the forward window right after an engage (recording live
+    // frames until we have one interval, then flipping to looping).
+    bool capturing = false;
+    double captureStartSecs = 0.0;
 
     bool engaged = false;
     // The captured window, oldest-first, played back by INDEX one frame
