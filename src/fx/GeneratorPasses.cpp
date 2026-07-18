@@ -22,6 +22,10 @@ void paintPass(ofShader& shader, ofFbo& dst, BindUniforms bindUniforms) {
     ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     shader.begin();
     ShaderLoader::bindMvp(shader);
+    // Panel aspect (width/height) so grid generators can keep their cells
+    // square on non-16:9 displays instead of stretching horizontally. Shaders
+    // that don't declare uAspect simply ignore this.
+    shader.setUniform1f("uAspect", dst.getHeight() > 0 ? dst.getWidth() / static_cast<float>(dst.getHeight()) : 1.0f);
     bindUniforms(shader);
     ShaderLoader::drawFullscreenQuad(dst.getWidth(), dst.getHeight());
     shader.end();

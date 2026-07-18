@@ -1,5 +1,6 @@
 uniform float phase;
 uniform float density;
+uniform float uAspect;  // display width/height, to keep star cells square
 
 
 in vec2 texCoordVarying;
@@ -28,10 +29,14 @@ float starPlane(vec2 uv, float cells, float scroll) {
 }
 
 void main() {
+    // Square up the cells on non-16:9 panels: stretch x into aspect-scaled
+    // units so stars stay round dots instead of smearing into horizontal
+    // streaks. (uAspect is always set by the generator paint pass.)
+    vec2 uv = vec2(texCoordVarying.x * max(uAspect, 0.001), texCoordVarying.y);
     float cells = 8.0 + density * 32.0;
-    float s = starPlane(texCoordVarying, cells, phase * 0.15)
-            + starPlane(texCoordVarying, cells * 1.7, phase * 0.3) * 0.7
-            + starPlane(texCoordVarying, cells * 2.9, phase * 0.6) * 0.45;
+    float s = starPlane(uv, cells, phase * 0.15)
+            + starPlane(uv, cells * 1.7, phase * 0.3) * 0.7
+            + starPlane(uv, cells * 2.9, phase * 0.6) * 0.45;
 
     // Straight alpha: stars are opaque, the empty space between them is
     // transparent, so the starfield overlays the layers beneath. Full-white

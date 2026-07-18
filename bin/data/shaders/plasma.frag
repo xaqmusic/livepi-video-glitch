@@ -3,6 +3,10 @@
 uniform float phase;
 uniform float plasmaScale;  // how busy the pattern reads
 uniform int paletteId;
+// NB: deliberately NOT aspect-corrected. Plasma is organic -- squaring it up on
+// a wide panel just makes it busier/stripier and loses the calm large-blob look
+// (the welcome scene). Aspect correction is for GEOMETRIC generators (stars),
+// not this one.
 
 in vec2 texCoordVarying;
 out vec4 fragColor;
