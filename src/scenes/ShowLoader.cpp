@@ -70,7 +70,10 @@ bool ShowLoader::load() {
     }
 
     ofJson active = ofLoadJson(activePath);
-    std::string showName = active.value("activeShow", std::string(""));
+    // .value() throws type_error.306 on a null json (an empty/corrupt file, or
+    // a first-boot race where the backend hasn't seeded active.json yet), so
+    // guard on is_object() and treat anything else as "no active show".
+    std::string showName = active.is_object() ? active.value("activeShow", std::string("")) : std::string("");
     if (showName.empty()) {
         ofLogError("ShowLoader") << "shows/active.json has no \"activeShow\" -- no show loaded.";
         captureSignatures();
@@ -117,7 +120,7 @@ void ShowLoader::captureSignatures() {
     ofJson active;
     std::string activePath = livepi::userDataPath("shows/active.json");
     if (ofFile::doesFileExist(activePath)) active = ofLoadJson(activePath);
-    std::string pointedShow = active.value("activeShow", std::string(""));
+    std::string pointedShow = active.is_object() ? active.value("activeShow", std::string("")) : std::string("");
     pointedShowPath = pointedShow.empty() ? std::string("") : livepi::userDataPath("shows/" + pointedShow + ".json");
     showSig = pointedShowPath.empty() ? FileSig{} : statPath(pointedShowPath);
     librarySig = statPath(livepi::userDataPath("clips/library.json"));
