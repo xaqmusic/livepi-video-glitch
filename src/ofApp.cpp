@@ -51,10 +51,22 @@ void ofApp::setup() {
 
     // The window itself (size, fullscreen-vs-windowed) is already set up in
     // main.cpp before this runs -- ofGetWidth/Height reflect its actual
-    // current size (the real display's native resolution in fullscreen
-    // mode), so the render pipeline always matches whatever's really on
-    // screen instead of a second, possibly-mismatched config read.
-    sceneRenderer.setup(ofGetWidth(), ofGetHeight());
+    // current size (the real display's native resolution in fullscreen mode).
+    //
+    // render.scale (default 1.0 = native) shrinks the INTERNAL render below the
+    // display, trading sharpness for frame rate on heavy scenes -- the output
+    // FBO is simply presented back up to the full window (see draw()). It
+    // multiplies both dimensions, so aspect is preserved; a low-fps-pretty look
+    // is a valid artistic choice, and a Pi 5 will just leave it at 1.0. Clamped
+    // so a typo can't ask for a 1px or larger-than-native target.
+    float renderScale = std::clamp(config.getFloat("render.scale", 1.0f), 0.25f, 1.0f);
+    int renderW = std::max(64, static_cast<int>(std::lround(ofGetWidth() * renderScale)));
+    int renderH = std::max(64, static_cast<int>(std::lround(ofGetHeight() * renderScale)));
+    sceneRenderer.setup(renderW, renderH);
+    if (renderScale < 0.999f) {
+        ofLogNotice("ofApp") << "render.scale=" << renderScale << " -> internal " << renderW << "x" << renderH
+                             << " presented to " << ofGetWidth() << "x" << ofGetHeight();
+    }
     // Ping-pong reverse is a baked boomerang (forward+reverse in one forward-
     // looping file), prepped per clip+trim by the backend -- the Pi's v4l2
     // decoder stalls on rate -1, so nothing here ever plays backwards.
