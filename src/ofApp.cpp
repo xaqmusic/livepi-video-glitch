@@ -77,6 +77,9 @@ void ofApp::setup() {
     sceneRenderer.addPostPass(std::make_unique<FracturePass>());
     sceneRenderer.addPostPass(std::make_unique<FadePass>());
 
+    // Read the hostname / device code / AP name once for the setup overlay.
+    connectionCard.gather();
+
     loadCurrentScene();
 }
 
@@ -91,7 +94,8 @@ void ofApp::update() {
     // Browser commands (Live mode next/back, editor instant-feedback
     // nudges) -- applied before the scene-index check below so a
     // click/goto loads its scene this same frame.
-    for (const auto& cmd : commandFifo.poll()) {
+    auto commands = commandFifo.poll();
+    for (const auto& cmd : commands) {
         switch (cmd.type) {
             case CommandFifo::Command::Type::Click:
                 sceneManager.injectButtonEvent(ButtonEvent::Click);
@@ -135,6 +139,22 @@ void ofApp::update() {
             it = fifoNotes.erase(it);
         } else {
             ++it;
+        }
+    }
+
+    // The setup overlay auto-hides the first time someone's clearly connected:
+    // any web command, a played note, or the scene button. [c] brings it back.
+    if (showConnectionCard && !cardDismissed) {
+        bool interacted = !commands.empty() || frameState.lastButtonEvent != ButtonEvent::None;
+        for (const auto& [note, vel] : frameState.noteValues) {
+            if (vel > 0.01f) {
+                interacted = true;
+                break;
+            }
+        }
+        if (interacted) {
+            showConnectionCard = false;
+            cardDismissed = true;
         }
     }
 
@@ -196,6 +216,10 @@ void ofApp::draw() {
     ofSetColor(255);
     sceneRenderer.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
 
+    if (showConnectionCard) {
+        connectionCard.draw(ofGetWidth(), ofGetHeight());
+    }
+
     if (showDebugOverlay) {
         const ControlState& state = frameState;
         // 5-segment ASCII meter for a normalized 0..1 band level.
@@ -231,6 +255,12 @@ void ofApp::draw() {
 void ofApp::keyPressed(int key) {
     if (key == 'd') {
         showDebugOverlay = !showDebugOverlay;
+        return;
+    }
+    if (key == 'c') {
+        // Toggle the setup overlay; mark dismissed so it doesn't auto-pop again.
+        showConnectionCard = !showConnectionCard;
+        cardDismissed = true;
         return;
     }
 

@@ -11,6 +11,7 @@
 #include "scenes/SceneManager.h"
 #include "scenes/ShowLoader.h"
 #include "util/Config.h"
+#include "util/ConnectionCard.h"
 #include "util/TelemetryWriter.h"
 
 class ofApp : public ofBaseApp {
@@ -44,6 +45,14 @@ private:
     // Starts hidden -- toggle with [d] locally or the Live-mode debug button
     // (a "debug" command on the FIFO).
     bool showDebugOverlay = false;
+
+    // On-screen setup overlay (Wi-Fi name, device code, URL). Shows on boot so
+    // a fresh box tells you how to connect, then auto-hides the first time
+    // anyone interacts (a note, the button, or any web command -- they're
+    // clearly connected by then). [c] toggles it back.
+    ConnectionCard connectionCard;
+    bool showConnectionCard = true;
+    bool cardDismissed = false;
 
     // Cached network reachability for the debug overlay, refreshed on a slow
     // cadence (getifaddrs is cheap but pointless to run every frame).
