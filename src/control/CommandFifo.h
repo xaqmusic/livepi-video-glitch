@@ -26,10 +26,13 @@
 //   debug                                   -- toggle the on-screen debug
 //                                              overlay (the [d] key has no
 //                                              equivalent from Live mode)
+//   card [off|on|toggle]                    -- the setup/connection overlay
+//                                              (backend sends "card off" on
+//                                              login; default is toggle)
 class CommandFifo {
 public:
     struct Command {
-        enum class Type { Click, Hold, Goto, Cc, Note, Param, Debug };
+        enum class Type { Click, Hold, Goto, Cc, Note, Param, Debug, Card };
         Type type;
         std::string sceneId;   // Goto / Param
         int ccNumber = 0;      // Cc / Note

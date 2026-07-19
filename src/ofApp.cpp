@@ -123,6 +123,12 @@ void ofApp::update() {
                 // there's no keyboard.
                 showDebugOverlay = !showDebugOverlay;
                 break;
+            case CommandFifo::Command::Type::Card:
+                // Setup overlay: backend sends "card off" on login; a long
+                // button press toggles. value: -1 toggle, 0 off, 1 on.
+                showConnectionCard = cmd.value < -0.5f ? !showConnectionCard : cmd.value > 0.5f;
+                cardDismissed = true;  // an explicit command wins; don't auto-repop
+                break;
             case CommandFifo::Command::Type::Cc:
                 mappingResolver.setManualCc(cmd.ccNumber, cmd.value);
                 break;

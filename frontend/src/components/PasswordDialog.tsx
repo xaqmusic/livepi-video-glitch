@@ -23,7 +23,9 @@ export default function PasswordDialog({ firstRun = false, onClose }: { firstRun
         setBusy(true);
         setStatus(null);
         try {
-            await api.changePassword(current, next);
+            // First run: you're already logged in with the printed code, so the
+            // backend doesn't ask for it again -- send an empty current.
+            await api.changePassword(firstRun ? "" : current, next);
             setStatus("Password updated ✓");
             setTimeout(onClose, 900);
         } catch (err) {
@@ -39,17 +41,25 @@ export default function PasswordDialog({ firstRun = false, onClose }: { firstRun
                 <h3 style={{ margin: 0 }}>{firstRun ? "Set your box's password" : "Change password"}</h3>
                 {firstRun && (
                     <div className="dim">
-                        This box shipped with a printed password. Re-enter it below, then choose your own to finish setup.
+                        You're logged in with the printed code. Choose a private password to finish setup.
                     </div>
+                )}
+                {!firstRun && (
+                    <input
+                        type="password"
+                        placeholder="Current password"
+                        value={current}
+                        onChange={(e) => setCurrent(e.target.value)}
+                        autoFocus
+                    />
                 )}
                 <input
                     type="password"
-                    placeholder={firstRun ? "Printed password" : "Current password"}
-                    value={current}
-                    onChange={(e) => setCurrent(e.target.value)}
-                    autoFocus
+                    placeholder="New password"
+                    value={next}
+                    onChange={(e) => setNext(e.target.value)}
+                    autoFocus={firstRun}
                 />
-                <input type="password" placeholder="New password" value={next} onChange={(e) => setNext(e.target.value)} />
                 <input
                     type="password"
                     placeholder="Repeat new password"
@@ -59,7 +69,7 @@ export default function PasswordDialog({ firstRun = false, onClose }: { firstRun
                 {status && <div className={status.endsWith("✓") ? "dim" : "warn"}>{status}</div>}
                 <div className="row" style={{ justifyContent: "flex-end" }}>
                     <button type="button" onClick={onClose}>Cancel</button>
-                    <button type="submit" disabled={busy || !current || !next}>Save</button>
+                    <button type="submit" disabled={busy || !next || (!firstRun && !current)}>Save</button>
                 </div>
             </form>
         </div>

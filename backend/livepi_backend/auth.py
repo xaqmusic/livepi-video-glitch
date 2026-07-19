@@ -11,7 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from itsdangerous import BadSignature, TimestampSigner
 from pydantic import BaseModel
 
-from . import config, storage
+from . import config, ipc, storage
 
 COOKIE_NAME = "livepi_session"
 MAX_AGE_SECS = 30 * 24 * 3600
@@ -32,8 +32,8 @@ class LoginBody(BaseModel):
 
 
 class ChangePasswordBody(BaseModel):
-    current: str
     new: str
+    current: str = ""  # not required on the first-run change (see below)
 
 
 def _hash(password: str, salt: str) -> str:
@@ -87,12 +87,21 @@ def login(body: LoginBody, response: Response):
     response.set_cookie(
         COOKIE_NAME, _make_token(), max_age=MAX_AGE_SECS, httponly=True, samesite="lax"
     )
+    # Someone just connected, so retire the on-screen setup card on the kiosk.
+    # Best-effort: no-op if the renderer isn't running.
+    ipc.send_command_line("card off")
     return {"ok": True}
 
 
 @router.post("/api/auth/password", dependencies=[Depends(require_session)])
 def change_password(body: ChangePasswordBody):
-    if not _password_matches(body.current):
+    # First-run change (no UI password set yet): the session already proves the
+    # user knows the printed device code they just logged in with, so don't make
+    # them re-type that long string. Once a private password exists, require it
+    # (so a walk-up on an open session can't silently change it).
+    stored = storage.read_json(AUTH_PATH) if AUTH_PATH.is_file() else None
+    already_set = bool(stored and "passwordHash" in stored)
+    if already_set and not _password_matches(body.current):
         raise HTTPException(status_code=401, detail="Current password is wrong")
     new = body.new.strip()
     if len(new) < 4:

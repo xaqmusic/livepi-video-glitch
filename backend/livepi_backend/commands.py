@@ -2,30 +2,31 @@
 write: if the renderer isn't running (no FIFO reader), the open fails with
 ENXIO and the client gets an honest 503 instead of a hang."""
 
-import errno
-import os
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from . import config
+from . import ipc
 from .auth import require_session
 
 router = APIRouter(dependencies=[Depends(require_session)])
 
 
 class CommandBody(BaseModel):
-    type: Literal["click", "hold", "debug", "goto", "cc", "note", "param"]
+    type: Literal["click", "hold", "debug", "goto", "cc", "note", "param", "card"]
     sceneId: Optional[str] = None
     number: Optional[int] = Field(default=None, ge=0, le=127)
     value: Optional[float] = None
     targetPath: Optional[str] = None
+    action: Optional[Literal["on", "off", "toggle"]] = None  # for "card"
 
 
 def _to_line(body: CommandBody) -> str:
     if body.type in ("click", "hold", "debug"):
         return body.type
+    if body.type == "card":
+        return f"card {body.action or 'toggle'}"
     if body.type == "goto":
         if not body.sceneId:
             raise HTTPException(422, "goto needs sceneId")
@@ -43,15 +44,6 @@ def _to_line(body: CommandBody) -> str:
 
 @router.post("/api/command")
 def send_command(body: CommandBody):
-    line = _to_line(body) + "\n"
-    try:
-        fd = os.open(str(config.COMMAND_FIFO), os.O_WRONLY | os.O_NONBLOCK)
-    except OSError as e:
-        if e.errno in (errno.ENXIO, errno.ENOENT):
-            raise HTTPException(503, "Renderer offline (command FIFO has no reader)")
-        raise
-    try:
-        os.write(fd, line.encode())
-    finally:
-        os.close(fd)
+    if not ipc.send_command_line(_to_line(body)):
+        raise HTTPException(503, "Renderer offline (command FIFO has no reader)")
     return {"ok": True}
