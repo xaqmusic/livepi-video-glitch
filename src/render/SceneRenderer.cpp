@@ -40,6 +40,59 @@ void SceneRenderer::addPostPass(std::unique_ptr<ShaderPass> pass) {
     postChain.addPass(std::move(pass));
 }
 
+void SceneRenderer::requestResize(int w, int h) {
+    if (w < 16 || h < 16) return;
+    if ((w == width && h == height) || pendingResize) return;
+    // Don't stomp a scene switch (or a prior resize) already in flight -- the
+    // thermal governor re-requests every few seconds, so just wait for idle.
+    if (transition.spec.style != TransitionStyle::None) return;
+
+    pendingResizeW = w;
+    pendingResizeH = h;
+    if (renderScene.transition.style != TransitionStyle::None) {
+        // Mask the FBO realloc with the scene's own transition: ramp its effect
+        // to peak, resize under full cover, ramp back in (render()'s peak block
+        // does the actual applyResize, same point a deferred scene swap lands).
+        transition.spec = renderScene.transition;
+        transition.startSecs = ofGetElapsedTimef();
+        transition.outDone = false;
+        transition.inStartSecs = -1.0f;
+        pendingResize = true;
+    } else {
+        applyResize();  // no transition style: resize now (brief freeze-frame)
+    }
+}
+
+void SceneRenderer::applyResize() {
+    pendingResize = false;
+    if (pendingResizeW == width && pendingResizeH == height) return;
+    width = pendingResizeW;
+    height = pendingResizeH;
+
+    // Post passes are stateless (no internal frame-sized FBOs -- verified), so
+    // re-allocating the ping-pong FBOs and keeping the passes is safe. The
+    // layer runtimes (their chains + stateful buffers like trails/stutter)
+    // rebuild fresh at the new size via applyScene below.
+    compositor.setup(width, height);
+    postChain.setup(width, height);
+    ofFboSettings settings;
+    settings.width = width;
+    settings.height = height;
+    settings.internalformat = GL_RGBA;
+    outputFbo.allocate(settings);
+    outputFbo.begin();
+    ofClear(0, 0, 0, 255);
+    outputFbo.end();
+    blackFbo.allocate(settings);
+    blackFbo.begin();
+    ofClear(0, 0, 0, 255);
+    blackFbo.end();
+
+    Scene current = renderScene;  // copy: applyScene does renderScene = scene
+    applyScene(current);
+    ofLogNotice("SceneRenderer") << "internal render resized to " << width << "x" << height;
+}
+
 void SceneRenderer::loadScene(const Scene& scene) {
     // A real switch (different scene id) with a transition style DEFERS
     // the swap: the old scene keeps playing while the OUT ramp rises over
@@ -249,6 +302,12 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
         applyScene(*pendingScene);
         pendingScene.reset();
         liveParams.scene = liveParamsIn.scene;
+    }
+    if (transition.outDone && pendingResize) {
+        // Peak obliteration: swap the render resolution under full cover, just
+        // like the scene swap above. layersReady() then holds the peak while
+        // any clips respin, and the in-ramp dissolves back over the new size.
+        applyResize();
     }
     if (tv > 0.0f) {
         switch (transition.spec.style) {

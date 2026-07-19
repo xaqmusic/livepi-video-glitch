@@ -32,6 +32,16 @@ public:
     void setup(int width, int height);
     void addPostPass(std::unique_ptr<ShaderPass> pass);
 
+    // Change the internal render resolution (the thermal governor drops it to
+    // shed GPU heat). Reallocating the pipeline FBOs is a brief hitch, so this
+    // MASKS it with the current scene's transition -- ramp the scene's effect
+    // to peak, resize under full cover, ramp back in -- exactly how a scene
+    // switch hides decoder spin-up. Scenes with transition style None resize
+    // immediately (a short freeze-frame). No-op if already at w x h, or if a
+    // transition is already running (the caller retries -- thermal is slow).
+    void requestResize(int width, int height);
+    int renderWidth() const { return width; }
+
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
     void render(const ControlState& controlState, const LiveParams& liveParams);
@@ -93,6 +103,14 @@ private:
     std::unique_ptr<Scene> pendingScene;
     Scene renderScene;  // the scene the CURRENT runtimes represent
     void applyScene(const Scene& scene);
+
+    // Deferred internal-resolution change, applied at the transition's peak
+    // obliteration (same point as a deferred scene swap) so the FBO realloc is
+    // hidden. See requestResize().
+    bool pendingResize = false;
+    int pendingResizeW = 0;
+    int pendingResizeH = 0;
+    void applyResize();
 
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;
     LayerCompositor compositor;

@@ -59,14 +59,21 @@ void ofApp::setup() {
     // multiplies both dimensions, so aspect is preserved; a low-fps-pretty look
     // is a valid artistic choice, and a Pi 5 will just leave it at 1.0. Clamped
     // so a typo can't ask for a 1px or larger-than-native target.
-    float renderScale = std::clamp(config.getFloat("render.scale", 1.0f), 0.25f, 1.0f);
-    int renderW = std::max(64, static_cast<int>(std::lround(ofGetWidth() * renderScale)));
-    int renderH = std::max(64, static_cast<int>(std::lround(ofGetHeight() * renderScale)));
+    baseW = ofGetWidth();
+    baseH = ofGetHeight();
+    configRenderScale = std::clamp(config.getFloat("render.scale", 1.0f), 0.25f, 1.0f);
+    int renderW = std::max(64, static_cast<int>(std::lround(baseW * configRenderScale)));
+    int renderH = std::max(64, static_cast<int>(std::lround(baseH * configRenderScale)));
     sceneRenderer.setup(renderW, renderH);
-    if (renderScale < 0.999f) {
-        ofLogNotice("ofApp") << "render.scale=" << renderScale << " -> internal " << renderW << "x" << renderH
-                             << " presented to " << ofGetWidth() << "x" << ofGetHeight();
+    if (configRenderScale < 0.999f) {
+        ofLogNotice("ofApp") << "render.scale=" << configRenderScale << " -> internal " << renderW << "x" << renderH
+                             << " presented to " << baseW << "x" << baseH;
     }
+    // Thermal rescue: drop the internal render resolution when the SoC overheats
+    // (keeps a heavy scene alive instead of throttling to black). On by default;
+    // set thermal.rescue=false to pin native res and accept the risk.
+    thermalRescue = config.getBool("thermal.rescue", true);
+    if (thermalRescue) thermal.setup();
     // Ping-pong reverse is a baked boomerang (forward+reverse in one forward-
     // looping file), prepped per clip+trim by the backend -- the Pi's v4l2
     // decoder stalls on rate -1, so nothing here ever plays backwards.
@@ -210,6 +217,19 @@ void ofApp::update() {
         netSummary = NetInfo::summary();
         lastNetRefreshSecs = now;
     }
+
+    // Thermal rescue: the governor self-throttles its sysfs read; if the tier
+    // it wants differs from what the renderer is at, ask for a (transition-
+    // masked) resize. Comparing against the actual render width means a resize
+    // deferred while a transition runs is simply retried next tick.
+    if (thermalRescue) {
+        float effective = configRenderScale * thermal.update(now);
+        int wantW = std::max(64, static_cast<int>(std::lround(baseW * effective)));
+        int wantH = std::max(64, static_cast<int>(std::lround(baseH * effective)));
+        if (wantW != sceneRenderer.renderWidth()) {
+            sceneRenderer.requestResize(wantW, wantH);
+        }
+    }
 }
 
 void ofApp::exit() {
@@ -263,6 +283,10 @@ void ofApp::draw() {
            << "\n"
            << sceneRenderer.describeLayers() << "\n"
            << "app fps: " << ofGetFrameRate() << "  (t=" << ofGetElapsedTimef() << ")\n"
+           << "render: " << sceneRenderer.renderWidth() << "px wide"
+           << (thermalRescue ? "  soc " + std::to_string(static_cast<int>(thermal.tempC())) + "C" : "")
+           << (thermalRescue && configRenderScale * thermal.scale() < 0.999f ? "  [THERMAL-REDUCED]" : "")
+           << "\n"
            << "net: " << netSummary << "   [web :8080]\n"
            << "[d] toggle this overlay";
         ofSetColor(255);

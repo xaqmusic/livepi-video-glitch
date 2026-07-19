@@ -12,6 +12,7 @@
 #include "scenes/ShowLoader.h"
 #include "util/Config.h"
 #include "util/ConnectionCard.h"
+#include "util/ThermalGovernor.h"
 #include "util/TelemetryWriter.h"
 
 class ofApp : public ofBaseApp {
@@ -58,4 +59,14 @@ private:
     // cadence (getifaddrs is cheap but pointless to run every frame).
     std::string netSummary;
     float lastNetRefreshSecs = -1000.0f;
+
+    // Thermal rescue: drop the internal render resolution when the Pi overheats
+    // so a heavy scene degrades gracefully instead of throttling to black. The
+    // effective scale is the render.scale config baseline times the governor's
+    // tier; the display is always the full window (the output FBO upscales).
+    ThermalGovernor thermal;
+    bool thermalRescue = true;
+    int baseW = 0;                    // display size; render target = base * scale
+    int baseH = 0;
+    float configRenderScale = 1.0f;   // render.scale config baseline
 };
