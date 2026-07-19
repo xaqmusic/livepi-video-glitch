@@ -42,6 +42,17 @@ warn() { printf '[provision] WARNING: %s\n' "$*" >&2; }
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Appliance debconf posture: NEVER prompt, permanently. The read-only overlay
+# can't persist a debconf answer, so ANY package that defers configuration to
+# first boot would pop its "Package configuration" dialog on the console EVERY
+# boot. Bake the frontend to noninteractive into the shipped system (not just
+# this build) so first-boot config silently takes defaults instead of blocking.
+if command -v debconf-set-selections >/dev/null 2>&1; then
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+    echo 'debconf debconf/priority select critical'       | debconf-set-selections
+    dpkg-reconfigure -f noninteractive debconf >/dev/null 2>&1 || true
+fi
+
 # ---------------------------------------------------------------------------
 log "app account: $APP_USER"
 # ---------------------------------------------------------------------------
@@ -207,7 +218,32 @@ raspi-config nonint do_wifi_country "$WIFI_COUNTRY" 2>/dev/null || \
 # configuration" window on the console before the kiosk -- unacceptable on a
 # sealed appliance. US defaults; adjust via the knobs if ever needed.
 raspi-config nonint do_change_locale "${LIVEPI_LOCALE:-en_US.UTF-8}" 2>/dev/null || warn "could not set locale"
-raspi-config nonint do_configure_keyboard "${LIVEPI_KEYMAP:-us}" 2>/dev/null || warn "could not set keymap"
+
+# Keyboard + console: configure DIRECTLY, not via raspi-config's nonint helper
+# -- that left keyboard-configuration half-configured in the qemu chroot, so
+# first boot ran its "Configuring keyboard-configuration" debconf dialog
+# (confirmed on hardware). Write the defaults file, preseed the questions as
+# SEEN, and reconfigure noninteractively so nothing is ever asked on the box.
+KEYMAP="${LIVEPI_KEYMAP:-us}"
+cat > /etc/default/keyboard <<KBD
+XKBMODEL="pc105"
+XKBLAYOUT="$KEYMAP"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+KBD
+debconf-set-selections <<SEL
+keyboard-configuration keyboard-configuration/modelcode string pc105
+keyboard-configuration keyboard-configuration/layoutcode string $KEYMAP
+keyboard-configuration keyboard-configuration/variantcode string
+keyboard-configuration keyboard-configuration/optionscode string
+keyboard-configuration keyboard-configuration/xkb-keymap select $KEYMAP
+keyboard-configuration keyboard-configuration/store_defaults_in_debconf_db boolean true
+console-setup console-setup/charmap47 select UTF-8
+console-setup console-setup/codeset47 select . Combined - Latin; Slavic Cyrillic; Greek
+SEL
+dpkg-reconfigure -f noninteractive keyboard-configuration >/dev/null 2>&1 || warn "keyboard-configuration reconfigure failed"
+dpkg-reconfigure -f noninteractive console-setup >/dev/null 2>&1 || warn "console-setup reconfigure failed"
 
 # ---------------------------------------------------------------------------
 log "disable Pi OS's stock rootfs auto-grow"
