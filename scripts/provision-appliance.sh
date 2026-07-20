@@ -53,6 +53,23 @@ if command -v debconf-set-selections >/dev/null 2>&1; then
     dpkg-reconfigure -f noninteractive debconf >/dev/null 2>&1 || true
 fi
 
+# Unattended apt for the WHOLE build. Our own `apt-get install -y` below is fine,
+# but the sub-installers we shell out to -- oF's install_dependencies.sh and the
+# Pisound `curl | sh` installer (via setup-pi.sh) -- run apt WITHOUT -y, and each
+# is invoked through `sudo`, which resets the environment and drops the
+# DEBIAN_FRONTEND we exported. The result is a "Do you want to continue? [Y/n]"
+# that blocks the build waiting for a keypress. A drop-in apt.conf makes assume-
+# yes global (read by every apt invocation regardless of who launched it or what
+# env it kept), so the build runs unattended end to end. Removed before finalize
+# so the shipped image doesn't carry a silent-yes apt (it's a build-time policy,
+# not a runtime one). --force-conf{def,old} keeps our config on the rare package
+# conffile clash instead of prompting.
+APT_UNATTENDED=/etc/apt/apt.conf.d/90livepi-build-unattended
+cat > "$APT_UNATTENDED" <<'APTCFG'
+APT::Get::Assume-Yes "true";
+Dpkg::Options { "--force-confdef"; "--force-confold"; };
+APTCFG
+
 # ---------------------------------------------------------------------------
 log "app account: $APP_USER"
 # ---------------------------------------------------------------------------
@@ -313,6 +330,9 @@ dpkg --configure -a || warn "dpkg --configure -a reported problems (check the bu
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
+# Drop the build-time assume-yes policy so the shipped image's apt behaves
+# normally (prompts) if anyone ever runs it by hand.
+rm -f "$APT_UNATTENDED"
 
 log "provisioning complete"
 echo "[provision] app=$APP_DIR user=$APP_USER data=$DATA_DIR lockdown=$LOCKDOWN"
