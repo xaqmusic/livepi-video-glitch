@@ -110,13 +110,17 @@ preflight() {
 }
 
 # --- host-side frontend build ----------------------------------------------
+# ALWAYS rebuild by default: a stale frontend/dist left on the build machine
+# would silently ship a UI that doesn't match the committed source (this bit us
+# -- a PasswordDialog fix never reached the image). Skip only when explicitly
+# asked, and only if a dist already exists.
 build_frontend() {
-    if [[ -f "$REPO_DIR/frontend/dist/index.html" && "${LIVEPI_REBUILD_FRONTEND:-0}" != "1" ]]; then
-        log "frontend/dist present -- skipping web build (LIVEPI_REBUILD_FRONTEND=1 to force)"
+    if [[ "${LIVEPI_SKIP_FRONTEND:-0}" == "1" && -f "$REPO_DIR/frontend/dist/index.html" ]]; then
+        log "LIVEPI_SKIP_FRONTEND=1 -- reusing existing frontend/dist (unchanged UI)"
         return
     fi
-    log "building the web UI on the host"
-    ( cd "$REPO_DIR/frontend" && npm ci && npm run build )
+    log "building the web UI on the host (rebuilt every image; LIVEPI_SKIP_FRONTEND=1 to reuse)"
+    ( cd "$REPO_DIR/frontend" && npm ci && npm run build ) || die "frontend build failed"
     [[ -f "$REPO_DIR/frontend/dist/index.html" ]] || die "web build did not produce frontend/dist/index.html"
 }
 

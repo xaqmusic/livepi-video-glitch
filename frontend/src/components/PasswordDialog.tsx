@@ -7,7 +7,15 @@ import { useState } from "react";
 
 import { api, ApiError } from "../api/client";
 
-export default function PasswordDialog({ firstRun = false, onClose }: { firstRun?: boolean; onClose: () => void }) {
+export default function PasswordDialog({
+    firstRun = false,
+    onClose,
+    onChanged,
+}: {
+    firstRun?: boolean;
+    onClose: () => void;
+    onChanged?: () => void;
+}) {
     const [current, setCurrent] = useState("");
     const [next, setNext] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -27,6 +35,7 @@ export default function PasswordDialog({ firstRun = false, onClose }: { firstRun
             // backend doesn't ask for it again -- send an empty current.
             await api.changePassword(firstRun ? "" : current, next);
             setStatus("Password updated ✓");
+            onChanged?.();
             setTimeout(onClose, 900);
         } catch (err) {
             setStatus(err instanceof ApiError ? String(err.detail) : "Failed");
