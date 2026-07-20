@@ -1,10 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "ControlState.h"
 
 class Config;
+class ofxMidiIn;
 
 // Abstract source of everything the glitch engine reacts to: MIDI clock/CC,
 // button events, and audio level. See docs/architecture.md for why this
@@ -26,3 +28,15 @@ public:
 // unrecognized, so a misconfigured build never silently blocks on hardware
 // that isn't there.
 std::unique_ptr<ControlSource> createControlSource(const Config& config);
+
+// Open the MIDI input port whose name CONTAINS `wanted` (case-insensitive),
+// else the first port that is NOT ALSA's "Midi Through" loopback. Logs the port
+// list and the choice. Returns true if a port was opened.
+//
+// This replaces `ofxMidiIn::openPort(name)` + its `openPort(0)` fallback, both
+// of which are wrong on real hardware: openPort(name) is an EXACT match that
+// never equals ALSA's decorated names (e.g. "pisound:pisound MIDI PS-1a2b 24:0"),
+// so it always fell through to port 0 -- usually "Midi Through", which receives
+// no external input. That silent mis-open is why MIDI Learn saw nothing while
+// the Pisound's own activity LED still blinked.
+bool openMidiInByName(ofxMidiIn& midiIn, const std::string& wanted);

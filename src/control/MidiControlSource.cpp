@@ -1,5 +1,6 @@
 #include "MidiControlSource.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "ofLog.h"
@@ -12,21 +13,10 @@ void MidiControlSource::setup(const Config& config) {
     knobACcNumber = config.getInt("midi.knobA_cc", 21);
     knobBCcNumber = config.getInt("midi.knobB_cc", 22);
 
-    midiIn.listInPorts();  // always visible in the log, regardless of open() outcome below
-
-    std::string portName = config.getString("midi.port_name", "");
-    bool opened = !portName.empty() && midiIn.openPort(portName);
-    if (!portName.empty() && !opened) {
-        ofLogWarning("MidiControlSource")
-            << "Could not open MIDI port '" << portName << "', falling back to the first available port.";
-    }
-    if (!opened) {
-        opened = midiIn.openPort(0);
-    }
-    if (!opened) {
-        ofLogError("MidiControlSource") << "No MIDI input ports available.";
-    }
-
+    // Empty wanted-name -> auto-pick the first non-"Midi Through" port (a USB
+    // controller); see openMidiInByName for why openPort(name)/openPort(0) were
+    // both wrong.
+    openMidiInByName(midiIn, config.getString("midi.port_name", ""));
     midiIn.addListener(this);
     midiIn.ignoreTypes(false, false, false);  // don't ignore clock/sysex/active-sense
 
@@ -40,11 +30,14 @@ void MidiControlSource::setup(const Config& config) {
                                           << (device.isDefaultInput ? " [default input]" : "");
     }
 
+    // Low-latency audio input, tunable in app.json (see PisoundControlSource).
+    levelSmoothing = std::clamp(config.getFloat("audio.level_smoothing", 0.6f), 0.0f, 0.98f);
     ofSoundStreamSettings settings;
     settings.numInputChannels = 1;
     settings.numOutputChannels = 0;
-    settings.sampleRate = 48000;
-    settings.bufferSize = 256;
+    settings.sampleRate = config.getInt("audio.sample_rate", 48000);
+    settings.bufferSize = config.getInt("audio.buffer_size", 128);
+    settings.numBuffers = config.getInt("audio.num_buffers", 2);
     settings.setInListener(this);
 
     std::string audioDeviceName = config.getString("audio.device_name", "");
@@ -73,8 +66,8 @@ void MidiControlSource::update() {
     state.healthy = true;  // a missing clock just means free-run, not a fault
 
     std::lock_guard<std::mutex> lock(audioLevelMutex);
-    // One-pole smoothing so the level doesn't jitter frame to frame.
-    state.audioLevel = state.audioLevel * 0.8f + currentAudioLevel * 0.2f;
+    // One-pole smoothing so the overall level doesn't jitter frame to frame.
+    state.audioLevel = state.audioLevel * levelSmoothing + currentAudioLevel * (1.0f - levelSmoothing);
     state.lowBand = currentLowBand;
     state.midBand = currentMidBand;
     state.highBand = currentHighBand;

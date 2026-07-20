@@ -54,6 +54,7 @@ private:
     int buttonFifoFd = -1;
 
     ofSoundStream soundStream;
+    float levelSmoothing = 0.6f;  // one-pole coeff for the overall level (audio.level_smoothing)
     float currentAudioLevel = 0.0f;
     AudioBandSplitter bandSplitter;
     float currentLowBand = 0.0f;

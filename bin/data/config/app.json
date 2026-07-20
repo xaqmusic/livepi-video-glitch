@@ -4,9 +4,16 @@
         "bpm": 120.0
     },
     "midi": {
-        "port_name": "pisound MIDI",
+        "port_name": "pisound",
         "knobA_cc": 21,
         "knobB_cc": 22
+    },
+    "audio": {
+        "buffer_size": 128,
+        "num_buffers": 2,
+        "sample_rate": 48000,
+        "level_smoothing": 0.6,
+        "device_name": ""
     },
     "pisound": {
         "button_fifo": "/tmp/livepi-button.fifo"

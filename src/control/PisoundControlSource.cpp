@@ -17,12 +17,7 @@ void PisoundControlSource::setup(const Config& config) {
     knobBCcNumber = config.getInt("midi.knobB_cc", 22);
     buttonFifoPath = config.getString("pisound.button_fifo", "/tmp/livepi-button.fifo");
 
-    std::string portName = config.getString("midi.port_name", "pisound MIDI");
-    if (!midiIn.openPort(portName)) {
-        ofLogWarning("PisoundControlSource")
-            << "Could not open MIDI port '" << portName << "', falling back to the first available port.";
-        midiIn.openPort(0);
-    }
+    openMidiInByName(midiIn, config.getString("midi.port_name", "pisound"));
     midiIn.addListener(this);
     midiIn.ignoreTypes(false, false, false);  // don't ignore clock/sysex/active-sense
 
@@ -35,12 +30,28 @@ void PisoundControlSource::setup(const Config& config) {
         ofLogWarning("PisoundControlSource") << "Could not open button FIFO at " << buttonFifoPath;
     }
 
+    // Small input buffer + few periods for low audio-reactive latency, all
+    // tunable in app.json: drop to 64 / 2 for maximum reactivity, or raise to
+    // 256 / 3 if the audio thread underruns (crackle) under GPU load. At 48k,
+    // 128 frames x 2 periods is ~5.3ms of ALSA latency.
+    levelSmoothing = std::clamp(config.getFloat("audio.level_smoothing", 0.6f), 0.0f, 0.98f);
     ofSoundStreamSettings settings;
     settings.numInputChannels = 1;
     settings.numOutputChannels = 0;
-    settings.sampleRate = 48000;
-    settings.bufferSize = 256;
+    settings.sampleRate = config.getInt("audio.sample_rate", 48000);
+    settings.bufferSize = config.getInt("audio.buffer_size", 128);
+    settings.numBuffers = config.getInt("audio.num_buffers", 2);
     settings.setInListener(this);
+    std::string audioDeviceName = config.getString("audio.device_name", "");
+    if (!audioDeviceName.empty()) {
+        auto matches = soundStream.getMatchingDevices(audioDeviceName, 1);
+        if (!matches.empty()) {
+            settings.setInDevice(matches.front());
+        } else {
+            ofLogWarning("PisoundControlSource")
+                << "No audio input device matching '" << audioDeviceName << "', using the default.";
+        }
+    }
     soundStream.setup(settings);
     bandSplitter.setup(static_cast<float>(settings.sampleRate));
 
@@ -75,8 +86,10 @@ void PisoundControlSource::pollButtonFifo() {
 
 void PisoundControlSource::pollAudioLevel() {
     std::lock_guard<std::mutex> lock(audioLevelMutex);
-    // One-pole smoothing so the level doesn't jitter frame to frame.
-    state.audioLevel = state.audioLevel * 0.8f + currentAudioLevel * 0.2f;
+    // One-pole smoothing so the overall level doesn't jitter frame to frame.
+    // Lower audio.level_smoothing = snappier/less lag (the band envelopes below
+    // are unsmoothed here -- their own attack is already 5ms).
+    state.audioLevel = state.audioLevel * levelSmoothing + currentAudioLevel * (1.0f - levelSmoothing);
     state.lowBand = currentLowBand;
     state.midBand = currentMidBand;
     state.highBand = currentHighBand;
