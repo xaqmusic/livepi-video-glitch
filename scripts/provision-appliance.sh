@@ -165,6 +165,58 @@ cat > "$APP_DIR/bin/data/config/app.local.json" <<APPCFG
 APPCFG
 
 # ---------------------------------------------------------------------------
+log "Pisound button: LivePi gesture map"
+# ---------------------------------------------------------------------------
+# setup-pi.sh installed pisound-btn (the GPIO button daemon) with Blokas' stock
+# map, which is actively hostile to a video appliance: CLICK starts PureData,
+# HOLD_3S toggles a WiFi hotspot, and HOLD_5S SHUTS THE PI DOWN -- a 5-7s press
+# would kill the box mid-show. Replace the whole map with ours.
+#
+# One bridge script (scripts/pisound/livepi-btn.sh) forwards a gesture to the
+# renderer's command FIFO; it picks its action from its OWN NAME (pisound.conf
+# lines are `EVENT /path`, no reliable arg), so install it once and symlink three
+# names. Every gesture is a verb the renderer already handles (click/debug/card),
+# so nothing about the button is tied to a renderer rebuild.
+PB_DIR=/usr/local/pisound/scripts/pisound-btn
+install -D -m 755 "$APP_DIR/scripts/pisound/livepi-btn.sh" "$PB_DIR/livepi-btn.sh"
+for a in scene debug card; do
+    ln -sf livepi-btn.sh "$PB_DIR/livepi-$a.sh"
+done
+
+# Overwrite the button map. Explicit do_nothing on every bucket we neutralize
+# (esp. HOLD_5S, the shutdown) so a stock default can never leak back in. DOWN/UP
+# keep Blokas' LED-blink feedback so a press visibly registers. CLICK_COUNT_LIMIT
+# 1 fires a single click immediately instead of waiting ~400ms to see if more
+# clicks follow -- a snappy scene advance matters live (we use no multi-click
+# gesture anyway). Written to the real file behind the /etc/pisound.conf symlink.
+install -d /usr/local/etc
+cat > /usr/local/etc/pisound.conf <<PBCONF
+# LivePi button map -- replaces the Blokas stock map (CLICK=puredata,
+# HOLD_3S=wifi-hotspot, HOLD_5S=SHUTDOWN). See scripts/pisound/livepi-btn.sh.
+#   quick press     -> next scene
+#   hold ~3s (3-5s) -> toggle debug overlay
+#   hold >7s        -> toggle the setup / QR card
+DOWN              $PB_DIR/system/down.sh
+UP                $PB_DIR/system/up.sh
+CLICK_1           $PB_DIR/livepi-scene.sh
+CLICK_2           $PB_DIR/do_nothing.sh
+CLICK_3           $PB_DIR/do_nothing.sh
+CLICK_OTHER       $PB_DIR/do_nothing.sh
+CLICK_COUNT_LIMIT 1
+HOLD_1S           $PB_DIR/do_nothing.sh
+HOLD_3S           $PB_DIR/livepi-debug.sh
+HOLD_5S           $PB_DIR/do_nothing.sh
+HOLD_OTHER        $PB_DIR/livepi-card.sh
+PBCONF
+# The pisound install makes /etc/pisound.conf a symlink to the file above;
+# recreate it if a future package layout ever drops that.
+[ -e /etc/pisound.conf ] || ln -sf /usr/local/etc/pisound.conf /etc/pisound.conf
+
+# The daemon is enabled by the Blokas install; assert it so a future base change
+# can't silently ship a dead button.
+systemctl enable pisound-btn.service 2>/dev/null || warn "could not enable pisound-btn.service (is pisound installed?)"
+
+# ---------------------------------------------------------------------------
 log "systemd units"
 # ---------------------------------------------------------------------------
 # Render a unit template's placeholders and drop it in /etc/systemd/system.
