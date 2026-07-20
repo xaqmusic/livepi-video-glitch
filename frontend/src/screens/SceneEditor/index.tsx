@@ -82,6 +82,23 @@ export default function SceneEditor() {
                             }}
                         />
                     )}
+                    <span className="dim" style={{ fontSize: 12 }}>resolution</span>
+                    <select
+                        value={String(scene.renderScale ?? 1)}
+                        title="Internal render resolution for THIS scene — lower trades sharpness for frame rate on heavy scenes (thermal rescue caps it further when hot)"
+                        onChange={(e) => {
+                            const rs = parseFloat(e.target.value);
+                            useShowStore.getState().edit((draft) => {
+                                const s = draft.scenes.find((x) => x.id === scene.id);
+                                if (s) s.renderScale = rs;
+                            });
+                        }}
+                    >
+                        <option value="1">Full</option>
+                        <option value="0.75">75%</option>
+                        <option value="0.66">66%</option>
+                        <option value="0.5">50%</option>
+                    </select>
                     <SaveStatus />
                     <button
                         title="Jump the renderer to this scene"

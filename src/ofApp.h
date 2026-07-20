@@ -68,9 +68,10 @@ private:
     // so a heavy scene degrades gracefully instead of throttling to black. The
     // effective scale is the render.scale config baseline times the governor's
     // tier; the display is always the full window (the output FBO upscales).
+    // Thermal rescue caps the internal render scale when the SoC overheats; the
+    // on/off toggle is live from settings.json via sceneControlMap.thermalRescue().
     ThermalGovernor thermal;
-    bool thermalRescue = true;
     int baseW = 0;                    // display size; render target = base * scale
     int baseH = 0;
-    float configRenderScale = 1.0f;   // render.scale config baseline
+    float configRenderScale = 1.0f;   // render.scale config: optional GLOBAL ceiling
 };

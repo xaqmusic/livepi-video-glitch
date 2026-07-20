@@ -65,15 +65,20 @@ void ofApp::setup() {
     int renderW = std::max(64, static_cast<int>(std::lround(baseW * configRenderScale)));
     int renderH = std::max(64, static_cast<int>(std::lround(baseH * configRenderScale)));
     sceneRenderer.setup(renderW, renderH);
+    // Resolution is now per-scene (Scene::renderScale); render.scale stays as an
+    // optional GLOBAL ceiling. The renderer sizes each scene to base * min(scene
+    // scale, ceiling) as it enters, under that scene's transition.
+    sceneRenderer.setBaseSize(baseW, baseH);
+    sceneRenderer.setMaxScale(configRenderScale);
     if (configRenderScale < 0.999f) {
-        ofLogNotice("ofApp") << "render.scale=" << configRenderScale << " -> internal " << renderW << "x" << renderH
-                             << " presented to " << baseW << "x" << baseH;
+        ofLogNotice("ofApp") << "render.scale ceiling=" << configRenderScale
+                             << " (per-scene renderScale caps under it), display " << baseW << "x" << baseH;
     }
-    // Thermal rescue: drop the internal render resolution when the SoC overheats
-    // (keeps a heavy scene alive instead of throttling to black). On by default;
-    // set thermal.rescue=false to pin native res and accept the risk.
-    thermalRescue = config.getBool("thermal.rescue", true);
-    if (thermalRescue) thermal.setup();
+    // Thermal rescue: cap the internal render scale when the SoC overheats (keeps
+    // a heavy scene alive instead of throttling to black). Always set up so the
+    // live toggle (settings.json, via sceneControlMap.thermalRescue) can enable
+    // it at any time without a restart.
+    thermal.setup();
     // Ping-pong reverse is a baked boomerang (forward+reverse in one forward-
     // looping file), prepped per clip+trim by the backend -- the Pi's v4l2
     // decoder stalls on rate -1, so nothing here ever plays backwards.
@@ -247,17 +252,21 @@ void ofApp::update() {
         lastNetRefreshSecs = now;
     }
 
-    // Thermal rescue: the governor self-throttles its sysfs read; if the tier
-    // it wants differs from what the renderer is at, ask for a (transition-
-    // masked) resize. Comparing against the actual render width means a resize
-    // deferred while a transition runs is simply retried next tick.
-    if (thermalRescue) {
-        float effective = configRenderScale * thermal.update(now);
-        int wantW = std::max(64, static_cast<int>(std::lround(baseW * effective)));
-        int wantH = std::max(64, static_cast<int>(std::lround(baseH * effective)));
-        if (wantW != sceneRenderer.renderWidth()) {
-            sceneRenderer.requestResize(wantW, wantH);
-        }
+    // Effective internal render scale = the tightest of this scene's own setting,
+    // the optional global ceiling, and the thermal cap. Per-scene gives balance;
+    // thermal is a GLOBAL OVERRIDE that only pulls a high scene down (never up).
+    // A scene switch already applies its own scale under the entry transition
+    // (SceneRenderer::loadScene); this catches thermal tier steps mid-scene and
+    // any residual, comparing against the live render width so a resize deferred
+    // during a transition just retries next tick. The governor self-throttles its
+    // sysfs read, so calling update() every frame is cheap.
+    const float thermalCap = sceneControlMap.thermalRescue() ? thermal.update(now) : 1.0f;
+    const float sceneScale = std::clamp(sceneManager.getCurrentScene().renderScale, 0.25f, 1.0f);
+    const float effective = std::min({sceneScale, configRenderScale, thermalCap});
+    const int wantW = std::max(64, static_cast<int>(std::lround(baseW * effective)));
+    const int wantH = std::max(64, static_cast<int>(std::lround(baseH * effective)));
+    if (wantW != sceneRenderer.renderWidth()) {
+        sceneRenderer.requestResize(wantW, wantH);
     }
 }
 
@@ -313,8 +322,11 @@ void ofApp::draw() {
            << sceneRenderer.describeLayers() << "\n"
            << "app fps: " << ofGetFrameRate() << "  (t=" << ofGetElapsedTimef() << ")\n"
            << "render: " << sceneRenderer.renderWidth() << "px wide"
-           << (thermalRescue ? "  soc " + std::to_string(static_cast<int>(thermal.tempC())) + "C" : "")
-           << (thermalRescue && configRenderScale * thermal.scale() < 0.999f ? "  [THERMAL-REDUCED]" : "")
+           << "  scene scale " << std::clamp(sceneManager.getCurrentScene().renderScale, 0.25f, 1.0f)
+           << (sceneControlMap.thermalRescue()
+                   ? "  soc " + std::to_string(static_cast<int>(thermal.tempC())) + "C"
+                   : "  thermal off")
+           << (sceneControlMap.thermalRescue() && thermal.scale() < 0.999f ? "  [THERMAL-CAPPED]" : "")
            << "\n"
            << "net: " << netSummary << "   [web :8080]\n"
            << "[d] toggle this overlay";

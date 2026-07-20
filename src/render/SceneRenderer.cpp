@@ -93,6 +93,26 @@ void SceneRenderer::applyResize() {
     ofLogNotice("SceneRenderer") << "internal render resized to " << width << "x" << height;
 }
 
+void SceneRenderer::setBaseSize(int w, int h) {
+    baseWidth = w;
+    baseHeight = h;
+}
+
+void SceneRenderer::setMaxScale(float s) {
+    maxScale = std::clamp(s, 0.25f, 1.0f);
+}
+
+void SceneRenderer::sceneRenderDims(float sceneScale, int& outW, int& outH) const {
+    if (baseWidth <= 0 || baseHeight <= 0) {
+        outW = 0;
+        outH = 0;  // base size unknown -> caller leaves the current size alone
+        return;
+    }
+    const float s = std::min(std::clamp(sceneScale, 0.25f, 1.0f), maxScale);
+    outW = std::max(64, static_cast<int>(std::lround(baseWidth * s)));
+    outH = std::max(64, static_cast<int>(std::lround(baseHeight * s)));
+}
+
 void SceneRenderer::loadScene(const Scene& scene) {
     // A real switch (different scene id) with a transition style DEFERS
     // the swap: the old scene keeps playing while the OUT ramp rises over
@@ -108,6 +128,17 @@ void SceneRenderer::loadScene(const Scene& scene) {
         transition.outDone = false;
         transition.inStartSecs = -1.0f;
         pendingScene = std::make_unique<Scene>(scene);
+        // Ride the SAME entry transition for this scene's render resolution:
+        // queue the resize so render()'s peak block applies it alongside the
+        // scene swap (one transition covers both -- no double blink). thermal
+        // re-caps it next tick if the SoC is hot.
+        int tw = 0, th = 0;
+        sceneRenderDims(scene.renderScale, tw, th);
+        if (tw > 0 && (tw != width || th != height)) {
+            pendingResizeW = tw;
+            pendingResizeH = th;
+            pendingResize = true;
+        }
         lastLoadedSceneId = scene.id;
         ofLogNotice("SceneRenderer") << "transition: style " << static_cast<int>(scene.transition.style)
                                      << " duration " << scene.transition.duration << "s into \"" << scene.name << "\"";
@@ -116,6 +147,16 @@ void SceneRenderer::loadScene(const Scene& scene) {
     firstSceneLoaded = true;
     lastLoadedSceneId = scene.id;
     pendingScene.reset();
+    // Immediate entry (first scene, or a None-transition switch): size the
+    // internal render to this scene's scale BEFORE building its runtimes, so
+    // they allocate at the right resolution -- no separate resize hitch.
+    int tw = 0, th = 0;
+    sceneRenderDims(scene.renderScale, tw, th);
+    if (tw > 0 && (tw != width || th != height)) {
+        pendingResizeW = tw;
+        pendingResizeH = th;
+        applyResize();
+    }
     applyScene(scene);
 }
 

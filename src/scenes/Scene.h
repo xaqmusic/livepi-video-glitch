@@ -108,6 +108,12 @@ struct Scene {
     std::vector<Mapping> mappings;
     std::map<std::string, float> params;
     TransitionSpec transition;
+    // Per-scene internal render resolution (0.25..1.0 of the display), so a
+    // heavy scene can trade sharpness for frame rate while a light one runs
+    // full -- "balance" per scene. The switch INTO this scene applies it under
+    // the entry transition (SceneRenderer::loadScene). The thermal governor
+    // caps it globally when the SoC overheats (min, never raises it).
+    float renderScale = 1.0f;
 
     // Transitional (removed with the layered SceneRenderer in Phase A.2):
     // the first clip layer's resolved path, so the current single-clip

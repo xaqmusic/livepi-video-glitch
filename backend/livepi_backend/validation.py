@@ -51,6 +51,10 @@ class Scene(BaseModel):
     mappings: list[Mapping] = []
     postEffects: dict[str, float] = {}
     transition: TransitionSpec | None = None
+    # Per-scene internal render resolution (fraction of the display): trade
+    # sharpness for frame rate on heavy scenes. The renderer caps it further
+    # when the SoC overheats.
+    renderScale: float = Field(default=1.0, ge=0.25, le=1.0)
 
 
 class Show(BaseModel):

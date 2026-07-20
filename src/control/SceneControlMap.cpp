@@ -64,10 +64,12 @@ void SceneControlMap::load() {
     const ofJson root = ofLoadJson(path);
     advanceTrigger = parseTrigger(root, "sceneAdvance");
     backTrigger = parseTrigger(root, "sceneBack");
+    thermalRescueEnabled = root.is_object() ? root.value("thermalRescue", true) : true;
     ofLogNotice("SceneControlMap")
-        << "loaded scene controls from " << path
+        << "loaded device settings from " << path
         << " (advance " << (advanceTrigger.active() ? "bound" : "none")
-        << ", back " << (backTrigger.active() ? "bound" : "none") << ")";
+        << ", back " << (backTrigger.active() ? "bound" : "none")
+        << ", thermalRescue " << (thermalRescueEnabled ? "on" : "off") << ")";
 }
 
 bool SceneControlMap::risingEdge(const Trigger& t, const ControlState& state, float& prev) const {

@@ -43,6 +43,7 @@ def _public(stored: dict | None = None) -> dict:
         "showCardOnBoot": _card_on_boot(),
         "sceneAdvance": stored.get("sceneAdvance"),
         "sceneBack": stored.get("sceneBack"),
+        "thermalRescue": stored.get("thermalRescue", True),
     }
 
 
@@ -60,6 +61,7 @@ class SettingsPatch(BaseModel):
     # All optional. For the scene fields, ABSENT means "leave unchanged" while
     # an explicit null means "unbind" -- distinguished via model_fields_set.
     showCardOnBoot: bool | None = None
+    thermalRescue: bool | None = None
     sceneAdvance: SceneTrigger | None = None
     sceneBack: SceneTrigger | None = None
 
@@ -81,6 +83,10 @@ def update_settings(patch: SettingsPatch):
         except OSError:
             pass
         stored["showCardOnBoot"] = patch.showCardOnBoot
+
+    if patch.thermalRescue is not None:
+        # Read live by the renderer from settings.json (SceneControlMap).
+        stored["thermalRescue"] = patch.thermalRescue
 
     for field in ("sceneAdvance", "sceneBack"):
         if field not in provided:

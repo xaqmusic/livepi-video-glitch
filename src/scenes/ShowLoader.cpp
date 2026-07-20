@@ -264,6 +264,9 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
             scene.transition.duration = std::clamp(t.value("duration", 0.8f), 0.1f, 5.0f);
         }
 
+        // Per-scene internal render scale (fps-vs-sharpness), default full.
+        scene.renderScale = std::clamp(sceneNode.value("renderScale", 1.0f), 0.25f, 1.0f);
+
         // Transitional single-clip bridge until the layered SceneRenderer
         // lands (Phase A.2): the first resolvable clip layer is what the
         // current render path plays.

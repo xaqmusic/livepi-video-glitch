@@ -41,6 +41,8 @@ export interface Settings {
     sceneAdvance?: SceneTrigger | null;
     /** Control that jumps to the first scene, or null if unbound. */
     sceneBack?: SceneTrigger | null;
+    /** Global thermal-rescue toggle: cap render scale when the SoC overheats. */
+    thermalRescue?: boolean;
 }
 
 export interface MappingTarget {
@@ -74,6 +76,8 @@ export interface Scene {
     /** How this scene is ENTERED: effect ramps up over the old frame,
      *  holds while decoders spin up, ramps down over the new scene. */
     transition?: { style: "none" | "fade" | "tear" | "shatter" | "static"; duration: number } | null;
+    /** Internal render resolution, 0.25..1.0 of the display (fps vs sharpness). */
+    renderScale?: number;
 }
 
 export interface Show {

@@ -42,6 +42,13 @@ public:
     void requestResize(int width, int height);
     int renderWidth() const { return width; }
 
+    // The native display size the per-scene renderScale is a fraction OF, and
+    // an optional global ceiling (the render.scale config baseline). loadScene
+    // sizes the internal render to base * min(scene.renderScale, maxScale) as it
+    // enters each scene, under that scene's transition.
+    void setBaseSize(int width, int height);
+    void setMaxScale(float maxScale);
+
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
     void render(const ControlState& controlState, const LiveParams& liveParams);
@@ -111,6 +118,14 @@ private:
     int pendingResizeW = 0;
     int pendingResizeH = 0;
     void applyResize();
+
+    // Native display size + global scale ceiling for per-scene renderScale.
+    int baseWidth = 0;
+    int baseHeight = 0;
+    float maxScale = 1.0f;
+    // Internal render dimensions for a scene's renderScale (capped by maxScale),
+    // or {0,0} if the base size isn't known yet (leave the size untouched).
+    void sceneRenderDims(float sceneScale, int& outW, int& outH) const;
 
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;
     LayerCompositor compositor;

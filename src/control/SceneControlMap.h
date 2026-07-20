@@ -6,13 +6,14 @@
 #include "control/ControlState.h"
 #include "ofJson.h"
 
-// A device-global "this control switches scenes" binding, learned in the web
-// UI's gear menu and persisted by the backend into settings.json on DATA_DIR.
-// The renderer watches that file (mtime poll, like ShowLoader) so a binding
-// learned live takes effect without a restart, and edge-detects the mapped
-// note/CC each frame: the advance control fires a Click (next scene), the
-// optional back control fires a Hold (jump to the first scene) -- the same two
-// actions the physical button and the command FIFO already drive.
+// The renderer's view of the device-global settings the backend persists into
+// settings.json on DATA_DIR (set from the web UI's gear menu). It watches that
+// file (mtime poll, like ShowLoader) so a change takes effect without a restart.
+// Two things the renderer honors from it:
+//   * scene-switch bindings -- a learned note/CC, edge-detected each frame: the
+//     advance control fires a Click (next scene), the optional back control a
+//     Hold (first scene), the same actions the button and command FIFO drive.
+//   * thermalRescue -- the global toggle for the SoC-overheat resolution cap.
 //
 // An empty path disables the feature (desktop dev that hasn't opted in); the
 // appliance points control.scene_map at $DATA_DIR/settings.json in app.local.json.
@@ -33,6 +34,10 @@ public:
     // so call it exactly once per frame.
     ButtonEvent poll(const ControlState& state);
 
+    // Global thermal-rescue toggle (also lives in settings.json, set from the
+    // gear menu). Hot-reloaded with the rest of the file. Defaults on.
+    bool thermalRescue() const { return thermalRescueEnabled; }
+
 private:
     void load();
     bool risingEdge(const Trigger& t, const ControlState& state, float& prev) const;
@@ -42,6 +47,7 @@ private:
     bool everLoaded = false;
     Trigger advanceTrigger;
     Trigger backTrigger;
+    bool thermalRescueEnabled = true;
     float prevAdvance = 0.0f;
     float prevBack = 0.0f;
 };

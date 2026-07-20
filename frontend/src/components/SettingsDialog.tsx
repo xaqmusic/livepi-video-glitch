@@ -107,6 +107,18 @@ export default function SettingsDialog({
         }
     };
 
+    const setThermal = async (on: boolean) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, thermalRescue: on } : s)); // optimistic
+        try {
+            const res = await api.updateSettings({ thermalRescue: on });
+            setSettings((s) => (s ? { ...s, thermalRescue: res.thermalRescue } : s));
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.getSettings().then(setSettings).catch(() => {});
+        }
+    };
+
     const setBinding = async (field: "sceneAdvance" | "sceneBack", value: SceneTrigger | null) => {
         setError(null);
         setSettings((s) => (s ? { ...s, [field]: value } : s)); // optimistic
@@ -168,6 +180,24 @@ export default function SettingsDialog({
                             onLearn={(t) => setBinding("sceneBack", t)}
                             onClear={() => setBinding("sceneBack", null)}
                         />
+                    </section>
+
+                    <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <strong>Performance</strong>
+                        <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <input
+                                type="checkbox"
+                                checked={settings?.thermalRescue ?? true}
+                                disabled={!settings}
+                                onChange={(e) => setThermal(e.target.checked)}
+                            />
+                            <span>Thermal rescue — drop resolution when the box overheats</span>
+                        </label>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            A global safety cap: pulls high-resolution scenes down as the SoC heats up, so a heavy
+                            set degrades gracefully instead of stuttering to black. Per-scene resolution lives in the
+                            scene editor.
+                        </div>
                     </section>
 
                     {error && <div className="warn">{error}</div>}
