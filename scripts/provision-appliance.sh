@@ -248,6 +248,16 @@ SEL
 dpkg-reconfigure -f noninteractive keyboard-configuration >/dev/null 2>&1 || warn "keyboard-configuration reconfigure failed"
 dpkg-reconfigure -f noninteractive console-setup >/dev/null 2>&1 || warn "console-setup reconfigure failed"
 
+# THE fix for the first-boot "Configuring keyboard-configuration" dialog: Pi OS's
+# userconf-pi first-boot service (userconfig.service, enabled by vendor preset)
+# runs `dpkg-reconfigure -p critical keyboard-configuration` + whiptail on the
+# console as an interactive setup, then disables itself -- which is why the
+# baked Noninteractive debconf frontend didn't stop it (found on hardware). We
+# build the user + configure the keyboard ourselves, so this whole flow is
+# redundant. Mask it so it can never run.
+systemctl disable userconfig.service 2>/dev/null || true
+systemctl mask    userconfig.service 2>/dev/null || true
+
 # ---------------------------------------------------------------------------
 log "disable Pi OS's stock rootfs auto-grow"
 # ---------------------------------------------------------------------------
