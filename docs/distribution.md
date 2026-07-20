@@ -146,10 +146,14 @@ This maps directly onto the existing `.rsyncfilter` app-vs-data boundary:
   i.e. onto `/data`.
 - **Logs** go to the journal (volatile) so nothing hammers the card.
 
-First boot **claims the card's free space as `/data`** — a new `LIVEPI_DATA`
-partition — mirroring how Raspberry Pi OS's own `init_resize` grows rootfs,
-except LivePi *appends* a trailing partition (safer: no in-place move of a
-mounted filesystem).
+The image ships **three** partitions: boot, rootfs, and a small trailing
+`LIVEPI_DATA` seed planted right after rootfs by the build. That trailing
+partition **boxes rootfs in** so no first-boot resizer can grow rootfs into the
+card's free space; instead the first boot **grows the `LIVEPI_DATA` partition to
+fill the card** (`growpart` + `resize2fs`). This is more robust than the earlier
+"append a partition to unclaimed free space" approach, which depended on having
+disabled *every* stock rootfs-auto-grow path (and one slipped through, giving a
+7 MB `/data`).
 
 ### How it's implemented
 
@@ -181,18 +185,26 @@ still writable. That dictates the sequence: the image ships with the overlay
   `RuntimeDirectory` (X's cookie can't be written to the RO home otherwise).
 - **Logs to RAM** — `config/journald-volatile.conf` (`Storage=volatile`) so the
   journal never touches the card.
-- **`/data` partition** (`scripts/dataprep.sh`, `livepi-dataprep.service`) — the
-  first-boot oneshot appends a third ext4 partition labelled `LIVEPI_DATA` in
-  the flashed card's free space (`sfdisk --append` + `partx -a`; the stock
-  rootfs auto-grow is disabled at build time so that space survives), mkfs's it,
-  mounts `/data`, and adds the `nofail` `LABEL=LIVEPI_DATA` fstab entry (so it
-  mounts through the overlay). Runs before firstboot, which then writes the
-  per-device secrets into it.
+- **`/data` partition** (`scripts/build-image.sh`, `scripts/dataprep.sh`,
+  `livepi-dataprep.service`) — the build plants a small ext4 `LIVEPI_DATA`
+  partition as the **last** partition, right after rootfs, so rootfs is boxed in
+  and can't auto-grow. The first-boot oneshot then **grows** that partition to
+  fill the card (`growpart` + `resize2fs`, idempotent), mounts `/data`, and adds
+  the `nofail` `LABEL=LIVEPI_DATA` fstab entry. Belt-and-braces, the build also
+  masks the stock rootfs-auto-grow services (`resize2fs_once`, `rpi-resize` →
+  `systemd-growfs-root`) and strips any `init=` first-run hook. Runs before
+  firstboot, which then writes the per-device secrets into `/data`. (A fallback
+  path still *appends* a partition for images built before the trailing-seed
+  change.)
 - **Overlay** (`scripts/lockdown.sh`, `livepi-lockdown.service`) — the last
   first-boot step, after firstboot has personalized `/etc`. It enables the
-  initramfs overlay (`raspi-config nonint enable_overlayfs`: real root mounted
-  read-only, tmpfs on top) and reboots once. Strictly fail-safe — it never
-  reboots unless every step succeeded, and `LIVEPI_LOCKDOWN=0` builds a
+  overlay (`raspi-config nonint enable_overlayfs`: real root mounted read-only,
+  tmpfs on top) and reboots once. **Crucially it then patches the cmdline to
+  `overlayroot=tmpfs:recurse=0`** — the `overlayroot` package's default
+  (`recurse=1`) overlays *every* mount, which would wrap `/data` in a volatile
+  tmpfs too (all user data lost on reboot); `recurse=0` confines the overlay to
+  `/` alone, leaving `/data` a real persistent partition. Strictly fail-safe —
+  it never reboots unless every step succeeded, and `LIVEPI_LOCKDOWN=0` builds a
   writable dev image. Guarded by `ConditionKernelCommandLine=!boot=overlay`, so
   it's a no-op once locked.
 - **NM connections persist on `/data`** — lockdown bind-mounts

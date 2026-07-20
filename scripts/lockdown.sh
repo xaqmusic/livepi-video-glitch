@@ -102,6 +102,24 @@ fi
 grep -qE 'boot=overlay|overlayroot=' "$CMDLINE" 2>/dev/null \
     || fail "enable_overlayfs returned success but $CMDLINE has no overlay marker"
 
+# CRUCIAL: raspi-config writes a bare `overlayroot=tmpfs`, and overlayroot's
+# default (recurse=1) then overlays EVERY mount, not just / -- including the
+# separate writable LIVEPI_DATA partition. That wraps /data in a volatile tmpfs
+# upper (real partition demoted to a read-only lower), so everything the box
+# writes there -- shows, clips, settings, auth.json, the per-device secrets, the
+# .claimed marker, joined-WiFi profiles -- evaporates on the next reboot. Exactly
+# the opposite of the persistent-/data design. recurse=0 confines the overlay to
+# / alone, leaving /data (and any other fstab mount) as its real, writable,
+# persistent self; /etc/overlayroot.conf documents this very case ("separate
+# partition ... recurse set to 0"). The kernel cmdline overlayroot= overrides
+# overlayroot.conf, so it must be patched here, where enable_overlayfs wrote it.
+if grep -q 'overlayroot=tmpfs' "$CMDLINE" && ! grep -q 'recurse=0' "$CMDLINE"; then
+    sed -i 's/overlayroot=tmpfs/overlayroot=tmpfs:recurse=0/' "$CMDLINE"
+    grep -q 'overlayroot=tmpfs:recurse=0' "$CMDLINE" \
+        || fail "could not set overlayroot recurse=0 in $CMDLINE (/data would be volatile)"
+    log "overlayroot: confined the overlay to / (recurse=0); /data stays persistent"
+fi
+
 log "root filesystem will be read-only after reboot. Rebooting into the locked-down appliance now."
 # Give the journal a moment to flush the above (journald is volatile, so this
 # is only for anyone watching the console live).

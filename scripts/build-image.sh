@@ -36,6 +36,12 @@ DATA_DIR="${LIVEPI_DATA_DIR:-/data}"
 LOCKDOWN="${LIVEPI_LOCKDOWN:-1}"
 WIFI_COUNTRY="${LIVEPI_WIFI_COUNTRY:-US}"
 ENLARGE_MB="${LIVEPI_ENLARGE_MB:-4096}"
+# Size of the LIVEPI_DATA partition planted at the END of the shipped image. It
+# stays small (the image ships compact); dataprep grows it to fill the customer's
+# card on first boot. Its whole job in the image is to sit right after rootfs so
+# rootfs is physically boxed in and can't auto-grow into the free space dataprep
+# needs (docs/distribution.md "Filesystem & partitions").
+DATA_SEED_MB="${LIVEPI_DATA_SEED_MB:-128}"
 PREBUILT="${LIVEPI_PREBUILT:-0}"
 WORK_DIR="${LIVEPI_WORK_DIR:-/var/tmp/livepi-image}"
 OUTPUT_DIR="${LIVEPI_OUTPUT_DIR:-$WORK_DIR}"
@@ -141,16 +147,35 @@ fetch_base() {
 
 # --- enlarge the image + grow rootfs for the build -------------------------
 enlarge() {
-    log "enlarging rootfs by ${ENLARGE_MB}MB for the build"
-    truncate -s "+${ENLARGE_MB}M" "$BUILD_IMG"
+    log "enlarging rootfs by ${ENLARGE_MB}MB (build headroom) + a ${DATA_SEED_MB}MB trailing LIVEPI_DATA seed"
+    truncate -s "+$((ENLARGE_MB + DATA_SEED_MB))M" "$BUILD_IMG"
     LOOP="$(losetup -f --show -P "$BUILD_IMG")"
     udevadm settle 2>/dev/null || sleep 1   # partition nodes can lag losetup -P
     [[ -b "${LOOP}p2" ]] || die "expected ${LOOP}p2 after losetup -P; base image layout unexpected"
-    # Grow partition 2 to the end of the now-larger disk, then its filesystem.
-    parted -s "$LOOP" resizepart 2 100%
+
+    # Total disk size (integer MiB) from parted's machine-ish output.
+    local disk_mib
+    disk_mib="$(parted -s "$LOOP" unit MiB print 2>/dev/null | sed -nE 's/^Disk [^:]*: ([0-9]+)(\.[0-9]+)?MiB.*/\1/p')"
+    [[ -n "$disk_mib" ]] || die "could not read disk size from parted"
+
+    # Grow rootfs to fill everything EXCEPT a trailing slice, then plant the seed
+    # LIVEPI_DATA partition in that slice (1MiB alignment gap between them). On
+    # the customer's card this trailing partition permanently boxes rootfs in --
+    # no first-boot resizer can grow rootfs into the space dataprep needs, and
+    # dataprep grows THIS partition instead of appending one. p2 only ever grows
+    # here (base p2 -> nearly full), so there is no risky filesystem shrink.
+    local p2_end=$(( disk_mib - DATA_SEED_MB - 1 ))
+    local p3_start=$(( disk_mib - DATA_SEED_MB ))
+    parted -s "$LOOP" resizepart 2 "${p2_end}MiB"
+    parted -s "$LOOP" mkpart primary ext4 "${p3_start}MiB" 100%
     partprobe "$LOOP"
+    udevadm settle 2>/dev/null || sleep 1
+    [[ -b "${LOOP}p3" ]] || die "expected ${LOOP}p3 after planting the seed data partition"
+
     e2fsck -pf "${LOOP}p2" || true   # -p auto-fixes; rc 1 = fixed, still ok
     resize2fs "${LOOP}p2"
+    mkfs.ext4 -q -L LIVEPI_DATA -F "${LOOP}p3"
+    log "rootfs boxed in by trailing LIVEPI_DATA seed (${LOOP}p3, ${DATA_SEED_MB}MB; dataprep grows it on first boot)"
 }
 
 # --- mount + prepare the chroot --------------------------------------------

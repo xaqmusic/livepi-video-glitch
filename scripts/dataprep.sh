@@ -8,18 +8,21 @@
 # WHY this exists: the read-only-root appliance keeps all writable user content
 # on a SEPARATE partition (LABEL=LIVEPI_DATA, mounted /data) so it survives the
 # overlay that makes the rest of the card read-only (docs/architecture.md
-# "Data model & read-only root"). The shipped image is a plain two-partition
-# Pi OS (boot + rootfs) with the rest of the card left unpartitioned; this
-# script claims that free space as /data on first boot. That's deliberately the
-# same trick Raspberry Pi OS's own init_resize uses to grow rootfs to fill a
-# card -- except we ADD a trailing partition rather than grow an existing one,
-# which is strictly safer (no in-place filesystem move of a mounted volume).
+# "Data model & read-only root"). The shipped image already carries THREE
+# partitions -- boot + rootfs + a small trailing LIVEPI_DATA seed that
+# build-image.sh plants right after rootfs. That trailing partition boxes rootfs
+# in so no first-boot resizer can grow rootfs into the card's free space; this
+# script instead GROWS the seed partition to fill the card on first boot
+# (growpart + resize2fs), which is strictly safer than the older "append a new
+# partition to unclaimed space" approach (kept below only as a fallback for
+# images built before the trailing-seed change).
 #
-# The build DISABLES Pi OS's stock rootfs auto-grow (resize2fs_once) precisely
-# so that free space is still here for us to claim -- see scripts/build-image.sh.
+# The build also masks Pi OS's stock rootfs auto-grow services and strips its
+# first-run init= hook (belt and braces) -- see scripts/provision-appliance.sh.
 #
-# Everything is idempotent: the partition labelled LIVEPI_DATA existing is the
-# single source of truth for "done". A reboot re-runs the oneshot; it no-ops.
+# Everything is idempotent: growpart/resize2fs no-op once the partition already
+# fills the disk, and .dataprep-done gates the whole oneshot. A reboot re-runs
+# it; it no-ops.
 #
 # Dry-run off a Pi (prints the destructive commands instead of running them):
 #   LIVEPI_DATAPREP_DRYRUN=1 ./scripts/dataprep.sh
@@ -66,10 +69,50 @@ seed_tree() {
     done
 }
 
-# --- already provisioned? ---------------------------------------------------
+# Grow the seed LIVEPI_DATA partition -- planted at the END of the shipped image
+# by build-image.sh, deliberately small -- to fill the rest of the customer's
+# card, then grow its filesystem to match. This is the counterpart of the "box
+# rootfs in with a trailing partition" strategy: rootfs can't auto-grow (a
+# partition sits right after it), so instead WE claim the free space here, into
+# the data partition, on first boot.
+#
+# Idempotent: growpart exits 1 (NOCHANGE) once the partition already reaches the
+# disk end, and resize2fs is a no-op on an already-full fs -- so a re-run no-ops.
+# MUST run before the partition is mounted (offline resize2fs); the caller does.
+grow_to_fill() {
+    local dev="$1"                       # e.g. /dev/mmcblk0p3
+    if mountpoint -q "$DATA_DIR"; then
+        log "$DATA_DIR already mounted -- skipping grow (needs an unmounted fs)"
+        return 0
+    fi
+    local disk partnum
+    disk="/dev/$(lsblk -no pkname "$dev" 2>/dev/null | head -n1)"
+    partnum="$(lsblk -no PARTN "$dev" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)"
+    if [[ ! -b "$disk" || -z "$partnum" ]]; then
+        log "WARNING: could not resolve disk/partition number for $dev; leaving it at seed size"
+        return 0
+    fi
+    if ! command -v growpart >/dev/null 2>&1; then
+        log "WARNING: growpart not found; $DATA_DIR stays at its seed size"
+        return 0
+    fi
+    log "growing $dev to fill $disk"
+    run growpart "$disk" "$partnum" || true   # rc 1 = NOCHANGE (already fills disk)
+    run partprobe "$disk" 2>/dev/null || true
+    run udevadm settle 2>/dev/null || true
+    run e2fsck -pf "$dev" || true             # resize2fs wants a clean fs
+    run resize2fs "$dev" || true
+}
+
+# --- normal path: the image already ships a (seed) LIVEPI_DATA partition ----
 # blkid -L returns the device for a label if it exists anywhere on the system.
+# This is now the EXPECTED case: build-image.sh plants a small LIVEPI_DATA
+# partition as the last partition, and here we grow it to fill the card. (The
+# "claim free space by appending a partition" path below is a fallback for an
+# older image built before the trailing-seed change, or one whose seed is gone.)
 if EXISTING="$(blkid -L "$DATA_LABEL" 2>/dev/null)"; then
-    log "$DATA_LABEL already exists at $EXISTING -- ensuring it's mounted"
+    log "$DATA_LABEL exists at $EXISTING -- growing it to fill the card + mounting"
+    grow_to_fill "$EXISTING"
     ensure_fstab
     if ! mountpoint -q "$DATA_DIR"; then
         run mkdir -p "$DATA_DIR"
@@ -77,11 +120,11 @@ if EXISTING="$(blkid -L "$DATA_LABEL" 2>/dev/null)"; then
     fi
     seed_tree
     run touch "$DATA_DIR/.dataprep-done"
-    log "done (existing data partition)"
+    log "done (grew + mounted the shipped data partition)"
     exit 0
 fi
 
-log "no $DATA_LABEL partition yet -- claiming the card's free space for $DATA_DIR"
+log "no $DATA_LABEL partition (fallback) -- claiming the card's free space for $DATA_DIR"
 
 # --- locate the disk and the next partition slot ---------------------------
 # The root filesystem's block device -> its parent whole disk. At this point

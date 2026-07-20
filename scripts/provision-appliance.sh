@@ -342,13 +342,31 @@ log "disable Pi OS's stock rootfs auto-grow"
 # LIVEPI_DATA partition. Kill both the resize service and the cmdline init hook
 # that drives Pi OS's first-run (which also does the resize); we regenerate the
 # machine-id + SSH keys ourselves below, which is the hook's other job.
-systemctl disable resize2fs_once.service 2>/dev/null || true
-systemctl mask    resize2fs_once.service 2>/dev/null || true
+# Pi OS grows the rootfs to fill the whole card on first boot through SEVERAL
+# independent paths; every one must die or dataprep finds no free space to claim
+# for LIVEPI_DATA (measured on hardware: rootfs ate a 16GB card, /data got 7MB).
+#   * resize2fs_once.service  -- legacy SysV-style oneshot.
+#   * rpi-resize.service      -- Trixie's ConditionFirstBoot shim that pulls in
+#                                systemd-growfs-root (blanking machine-id below
+#                                re-arms ConditionFirstBoot, so this WOULD fire).
+#   * systemd-growfs-root      -- the unit that actually runs `systemd-growfs /`.
+#   * init= first-run hooks in cmdline.txt (older images grow the PARTITION here).
+# NOTE: masking the growfs services stops the FILESYSTEM grow but not a PARTITION
+# grow; the guaranteed defence against the partition growing is that the image
+# ships LIVEPI_DATA as the trailing partition (see build-image.sh), which blocks
+# any growpart/resizepart of rootfs. Belt and braces -- do both.
+for unit in resize2fs_once.service rpi-resize.service systemd-growfs-root.service; do
+    systemctl disable "$unit" 2>/dev/null || true
+    systemctl mask    "$unit" 2>/dev/null || true
+done
 CMDLINE="/boot/firmware/cmdline.txt"; [[ -f "$CMDLINE" ]] || CMDLINE="/boot/cmdline.txt"
 if [[ -f "$CMDLINE" ]]; then
-    # Strip only the resize/first-run init= token; leave every other param.
-    sed -i -E 's# init=/usr/lib/raspberrypi-sys-mods/firstboot(\s+splash)?##; s# init=/usr/lib/raspi-config/init_resize\.sh##' "$CMDLINE"
-    log "cmdline.txt: removed stock first-run/resize init hook"
+    # Strip ANY init= first-run hook (format varies by base-image version), not
+    # just the two known paths; our own dataprep->firstboot->lockdown chain does
+    # everything the vendor hook would (resize excluded, machine-id + SSH keys
+    # regenerated below), so no init= shim is wanted. Leaves every other param.
+    sed -i -E 's/[[:space:]]+init=[^[:space:]]+//g' "$CMDLINE"
+    log "cmdline.txt: stripped stock first-run/resize init= hook(s)"
 else
     warn "no cmdline.txt found; ensure stock rootfs auto-grow is disabled some other way"
 fi
