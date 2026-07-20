@@ -47,7 +47,7 @@ def _public(stored: dict | None = None) -> dict:
         # Live audio-reactivity tuning the renderer hot-reads from this file
         # (SceneControlMap): the overall-level one-pole smoothing coefficient
         # (0 = snappiest, ~0.95 = steadiest) and the adaptive-gain toggle (off =
-        # fixed reference, for a line source ridden with the Pisound gain knob).
+        # unity gain, level set entirely by the Pisound's own input gain knob).
         "audioSmoothing": stored.get("audioSmoothing", 0.6),
         "audioAutoGain": stored.get("audioAutoGain", True),
     }

@@ -261,8 +261,8 @@ export default function SettingsDialog({
                         </label>
                         <div className="dim" style={{ fontSize: 12 }}>
                             On: auto-normalizes to the room, so quiet and loud both fill the range (good for a
-                            microphone). Off: fixed gain that keeps absolute dynamics — better for a line source patched
-                            in, where you ride the level with the Pisound's own gain knob.
+                            microphone). Off: unity gain — no auto-adjustment at all; you set the level entirely with
+                            the Pisound's own input gain knob (best for a line source patched in).
                         </div>
                     </section>
 

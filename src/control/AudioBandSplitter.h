@@ -17,12 +17,12 @@ public:
     void setup(float sampleRate);
     void process(const float* samples, size_t numFrames);
 
-    // Auto-gain OFF freezes each band's peak at its last auto-calibrated value
-    // (no decay, no new maxima), turning normalization into a fixed reference:
-    // absolute dynamics are preserved and the operator rides the level with the
-    // Pisound's own gain knob -- better for a line source. ON is the adaptive
-    // room-tracking normalizer, good for a microphone (the default). Live-set
-    // from the gear menu via the control source.
+    // Auto-gain OFF = unity gain: the band envelope passes straight to 0..1 with
+    // no software normalization, so the operator sets the level entirely with
+    // the Pisound's own input gain knob (stays true through a set -- nothing to
+    // re-calibrate). ON is the adaptive room-tracking normalizer, good for a
+    // microphone (the default). Live-set from the gear menu via the control
+    // source.
     void setAutoGain(bool on) { adaptive = on; }
 
     // Peak-normalized 0..1 (relative to each band's own recent loudness --
@@ -87,8 +87,8 @@ private:
     float midPeak = 0.0f;
     float highPeak = 0.0f;
 
-    // true = adaptive room-tracking normalization; false = frozen peaks (fixed
-    // reference). Read on the audio thread, set on the main thread -- a plain
-    // bool is a benign race here (a one-buffer delay switching modes).
+    // true = adaptive room-tracking normalization; false = unity gain (raw
+    // envelope, knob does the work). Read on the audio thread, set on the main
+    // thread -- a plain bool is a benign race here (a one-buffer delay).
     bool adaptive = true;
 };
