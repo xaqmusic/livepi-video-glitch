@@ -101,13 +101,17 @@ def login(body: LoginBody, response: Response):
     # Best-effort: no-op if the renderer isn't running.
     ipc.send_command_line("card off")
     # And latch it off for good: mark the box claimed so the card doesn't
-    # re-pop on the next boot. Best-effort -- a failure here just means the
-    # card shows once more, never a broken login.
-    try:
-        CLAIMED_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CLAIMED_PATH.touch()
-    except OSError:
-        pass
+    # re-pop on the next boot -- UNLESS the owner has explicitly chosen a
+    # show-card-on-boot preference in the gear menu (then respect their choice;
+    # settings.py keeps the marker in sync with it). Best-effort: a failure here
+    # just means the card shows once more, never a broken login.
+    stored_settings = storage.read_json(config.SETTINGS_PATH) if config.SETTINGS_PATH.is_file() else None
+    if not (stored_settings and "showCardOnBoot" in stored_settings):
+        try:
+            CLAIMED_PATH.parent.mkdir(parents=True, exist_ok=True)
+            CLAIMED_PATH.touch()
+        except OSError:
+            pass
     return {"ok": True}
 
 

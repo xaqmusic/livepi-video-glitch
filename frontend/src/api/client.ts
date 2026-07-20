@@ -1,7 +1,7 @@
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 
-import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Show, UploadJob, WifiNetwork } from "./types";
+import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Settings, Show, UploadJob, WifiNetwork } from "./types";
 
 export class ApiError extends Error {
     status: number;
@@ -97,6 +97,10 @@ export const api = {
 
     command: (cmd: Record<string, unknown>) =>
         request<{ ok: boolean }>("/api/command", { method: "POST", body: JSON.stringify(cmd) }),
+
+    getSettings: () => request<Settings>("/api/settings"),
+    updateSettings: (patch: Partial<Settings>) =>
+        request<{ ok: boolean } & Settings>("/api/settings", { method: "POST", body: JSON.stringify(patch) }),
 };
 
 // Quantize a normalized trim position to the boomerang key. MUST match the

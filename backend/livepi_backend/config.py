@@ -22,6 +22,11 @@ PINGPONG_DIR = CLIPS_DIR / ".pingpong"
 STATUS_PATH = Path(os.environ.get("LIVEPI_STATUS_PATH", "/tmp/livepi/status.json"))
 COMMAND_FIFO = Path(os.environ.get("LIVEPI_COMMAND_FIFO", "/tmp/livepi/command.fifo"))
 
+# Device-global settings the owner sets from the gear menu (setup-card-on-boot,
+# scene-switch control binding). Persisted on DATA_DIR so it survives deploys
+# and the read-only root, like auth.json and the shows.
+SETTINGS_PATH = DATA_DIR / "settings.json"
+
 # Shared password for the session cookie -- LAN-only single-user gear, per
 # docs/videosynth-backend.md. Change it in backend/.env for anything beyond
 # the home network.

@@ -27,6 +27,12 @@ export interface MappingTrigger {
     band?: AudioBand;
 }
 
+// Device-global settings from the gear menu (backend/livepi_backend/settings.py).
+export interface Settings {
+    /** Whether the on-screen setup/QR card appears on every boot. */
+    showCardOnBoot: boolean;
+}
+
 export interface MappingTarget {
     layerId?: string | null;
     param: string;

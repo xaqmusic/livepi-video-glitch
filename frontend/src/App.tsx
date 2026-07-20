@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom"
 
 import JobsBanner from "./components/JobsBanner";
 import PasswordDialog from "./components/PasswordDialog";
+import SettingsDialog from "./components/SettingsDialog";
 import ClipLibrary from "./screens/ClipLibrary";
 import LiveMode from "./screens/LiveMode";
 import Login from "./screens/Login";
@@ -29,6 +30,7 @@ export default function App() {
     // only for the new one (the session already proves the printed code).
     const [mustChange, setMustChange] = useState(firstRun);
     const [nudgeDismissed, setNudgeDismissed] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     useEffect(() => {
         if (firstRun) setMustChange(true);
     }, [firstRun]);
@@ -46,8 +48,8 @@ export default function App() {
                     <NavLink to="/clips">Clips</NavLink>
                     <NavLink to="/network">Network</NavLink>
                     <NavLink to="/live">Live</NavLink>
-                    <button className="icon" style={{ marginLeft: "auto" }} title="Change password"
-                        onClick={() => setPwDialog({ firstRun: mustChange })}>🔑</button>
+                    <button className="icon" style={{ marginLeft: "auto" }} title="Settings"
+                        onClick={() => setSettingsOpen(true)}>⚙️</button>
                 </nav>
             )}
             {!isLive && !isLogin && mustChange && !nudgeDismissed && (
@@ -65,6 +67,13 @@ export default function App() {
                     firstRun={pwDialog.firstRun}
                     onChanged={() => setMustChange(false)}
                     onClose={() => setPwDialog(null)}
+                />
+            )}
+            {settingsOpen && (
+                <SettingsDialog
+                    firstRunPassword={mustChange}
+                    onPasswordChanged={() => setMustChange(false)}
+                    onClose={() => setSettingsOpen(false)}
                 />
             )}
             <Routes>
