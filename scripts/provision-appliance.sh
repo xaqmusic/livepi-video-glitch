@@ -93,7 +93,8 @@ apt-get install -y --no-install-recommends \
     git ca-certificates \
     xinit xserver-xorg xserver-xorg-legacy x11-xserver-utils \
     nftables dnsmasq-base network-manager avahi-daemon avahi-utils \
-    raspi-config e2fsprogs
+    raspi-config e2fsprogs \
+    overlayroot initramfs-tools
 
 # ---------------------------------------------------------------------------
 if [[ "$PREBUILT" == "1" ]]; then

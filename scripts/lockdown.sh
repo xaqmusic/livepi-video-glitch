@@ -41,10 +41,12 @@ if [[ "$DO_LOCKDOWN" != "1" ]]; then
 fi
 
 # --- already locked down? ---------------------------------------------------
-# cmdline.txt carrying boot=overlay is the source of truth: the overlay is
-# either active now or will be on the next boot. Either way, done.
-if grep -qw 'boot=overlay' "$CMDLINE" 2>/dev/null; then
-    log "overlay already enabled ($CMDLINE has boot=overlay) -- nothing to do"
+# cmdline.txt carrying the overlay marker is the source of truth: the overlay is
+# either active now or will be on the next boot. Trixie's raspi-config writes
+# `overlayroot=tmpfs` (the overlayroot package); older ones wrote `boot=overlay`
+# -- accept either, or lockdown re-runs every boot and fails on the NM copy.
+if grep -qE 'boot=overlay|overlayroot=' "$CMDLINE" 2>/dev/null; then
+    log "overlay already enabled ($CMDLINE) -- nothing to do"
     exit 0
 fi
 
@@ -68,7 +70,10 @@ persist_nm_connections() {
     # Seed it with whatever already exists (the AP profile, at least), matching
     # NM's required 0700 dir / 0600 file perms. cp -a is a no-op if the source
     # is empty.
-    if compgen -G "$NM_CONN_DIR/*" >/dev/null 2>&1; then
+    # Skip once the fstab bind is already active (a re-run): $NM_CONN_DIR is then
+    # a mountpoint of the persist dir itself, and cp errors copying a directory
+    # onto itself (the actual failure seen on hardware).
+    if ! mountpoint -q "$NM_CONN_DIR" && compgen -G "$NM_CONN_DIR/*" >/dev/null 2>&1; then
         cp -a "$NM_CONN_DIR/." "$NM_CONN_PERSIST/" \
             || fail "could not copy existing NM connections to $NM_CONN_PERSIST"
     fi
@@ -94,8 +99,8 @@ log "enabling overlayfs via raspi-config..."
 if ! raspi-config nonint enable_overlayfs; then
     fail "raspi-config nonint enable_overlayfs failed"
 fi
-grep -qw 'boot=overlay' "$CMDLINE" 2>/dev/null \
-    || fail "enable_overlayfs returned success but $CMDLINE has no boot=overlay"
+grep -qE 'boot=overlay|overlayroot=' "$CMDLINE" 2>/dev/null \
+    || fail "enable_overlayfs returned success but $CMDLINE has no overlay marker"
 
 log "root filesystem will be read-only after reboot. Rebooting into the locked-down appliance now."
 # Give the journal a moment to flush the above (journald is volatile, so this

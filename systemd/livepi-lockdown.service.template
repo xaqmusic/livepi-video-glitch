@@ -19,6 +19,7 @@ Wants=network-online.target
 # kernel command line carries boot=overlay, so this condition is false and the
 # unit never runs again. Belt-and-braces with the firstboot marker.
 ConditionKernelCommandLine=!boot=overlay
+ConditionKernelCommandLine=!overlayroot
 ConditionPathExists=__DATA_DIR__/.provisioned
 
 [Service]
