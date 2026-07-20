@@ -22,6 +22,16 @@ MAX_AGE_SECS = 30 * 24 * 3600
 # deploys, same as shows and the clip registry.
 AUTH_PATH = config.DATA_DIR / "auth.json"
 
+# Dropped on the first successful login and never removed. Its presence is the
+# box's persistent "an owner has reached this and knows how to control it"
+# signal: the kiosk's on-screen setup card (AP name, device code, URL, QR)
+# reads it at startup and stays hidden once it exists, instead of re-popping on
+# every boot. Independent of the password change (which we don't force), so a
+# box whose owner never changes the password still stops nagging. Wiped only by
+# re-provisioning (dataprep recreates /data), which is exactly a new-owner
+# setup. The gear-menu "show card on boot" toggle will delete/recreate it.
+CLAIMED_PATH = config.DATA_DIR / ".claimed"
+
 _signer = TimestampSigner(config.SECRET_KEY)
 
 router = APIRouter()
@@ -90,6 +100,14 @@ def login(body: LoginBody, response: Response):
     # Someone just connected, so retire the on-screen setup card on the kiosk.
     # Best-effort: no-op if the renderer isn't running.
     ipc.send_command_line("card off")
+    # And latch it off for good: mark the box claimed so the card doesn't
+    # re-pop on the next boot. Best-effort -- a failure here just means the
+    # card shows once more, never a broken login.
+    try:
+        CLAIMED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CLAIMED_PATH.touch()
+    except OSError:
+        pass
     return {"ok": True}
 
 

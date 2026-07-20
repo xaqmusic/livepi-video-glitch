@@ -135,10 +135,15 @@ XWRAP
 # full-screen on whatever panel is attached, driven by the real Pisound control
 # source (MIDI + button). Left out of the dev tree so desktop dev stays windowed.
 install -d "$APP_DIR/bin/data/config"
-cat > "$APP_DIR/bin/data/config/app.local.json" <<'APPCFG'
+# NB: unquoted heredoc -- $DATA_DIR is expanded here. ui.claimed_marker points
+# the kiosk at the persistent "an owner has logged in once" flag the backend
+# drops on /data, so the on-screen setup card retires after first login instead
+# of re-popping every boot (see auth.py CLAIMED_PATH / ofApp setup()).
+cat > "$APP_DIR/bin/data/config/app.local.json" <<APPCFG
 {
     "control_source": "pisound",
-    "window": { "fullscreen": true }
+    "window": { "fullscreen": true },
+    "ui": { "claimed_marker": "$DATA_DIR/.claimed" }
 }
 APPCFG
 

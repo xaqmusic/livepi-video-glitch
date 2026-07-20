@@ -18,5 +18,8 @@
     "window": {
         "width": 1280,
         "height": 720
+    },
+    "ui": {
+        "claimed_marker": ""
     }
 }

@@ -99,6 +99,20 @@ void ofApp::setup() {
     // Read the hostname / device code / AP name once for the setup overlay.
     connectionCard.gather();
 
+    // The setup card defaults on (showConnectionCard = true) so a fresh box
+    // greets its new owner with the AP/code/URL/QR. Once that owner has logged
+    // into the web UI once, the backend drops a persistent marker on /data;
+    // from then on the box is "claimed" and the card must NOT re-pop every
+    // boot. ui.claimed_marker is that marker's path (empty on desktop dev, set
+    // to $DATA_DIR/.claimed on the appliance) -- if it exists at startup, start
+    // with the card already retired. Absolute path, so not relative to data/.
+    // Re-showable anytime via the button hold, [c], or the gear-menu toggle.
+    const std::string claimedMarker = config.getString("ui.claimed_marker", "");
+    if (!claimedMarker.empty() && ofFile::doesFileExist(claimedMarker, false)) {
+        showConnectionCard = false;
+        cardDismissed = true;
+    }
+
     loadCurrentScene();
 }
 

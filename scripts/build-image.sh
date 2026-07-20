@@ -191,6 +191,7 @@ provision() {
 
     log "running provision-appliance.sh inside the chroot (this is the long part)"
     chroot "$MNT" /usr/bin/env \
+        LC_ALL=C.UTF-8 LANG=C.UTF-8 \
         LIVEPI_APP_DIR="$APP_DIR" \
         LIVEPI_APP_USER="$APP_USER" \
         LIVEPI_DATA_DIR="$DATA_DIR" \
