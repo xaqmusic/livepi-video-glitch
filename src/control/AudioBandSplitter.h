@@ -17,6 +17,14 @@ public:
     void setup(float sampleRate);
     void process(const float* samples, size_t numFrames);
 
+    // Auto-gain OFF freezes each band's peak at its last auto-calibrated value
+    // (no decay, no new maxima), turning normalization into a fixed reference:
+    // absolute dynamics are preserved and the operator rides the level with the
+    // Pisound's own gain knob -- better for a line source. ON is the adaptive
+    // room-tracking normalizer, good for a microphone (the default). Live-set
+    // from the gear menu via the control source.
+    void setAutoGain(bool on) { adaptive = on; }
+
     // Peak-normalized 0..1 (relative to each band's own recent loudness --
     // see the normalization notes in the .cpp). The raw envelope scale is
     // an implementation detail no consumer should see.
@@ -58,7 +66,7 @@ private:
     static Biquad butterworthLowpass(float freq, float sampleRate);
     static Biquad butterworthHighpass(float freq, float sampleRate);
     static float updateEnvelope(float envelope, float rectified, float attackCoeff, float releaseCoeff);
-    static float normalize(float envelope, float peak);
+    float normalize(float envelope, float peak) const;
 
     // Stage 1 splits at 2000 Hz into "low+mid" and "high". Stage 2 takes
     // the "low+mid" output and splits again at 100 Hz into "low" and
@@ -78,4 +86,9 @@ private:
     float lowPeak = 0.0f;
     float midPeak = 0.0f;
     float highPeak = 0.0f;
+
+    // true = adaptive room-tracking normalization; false = frozen peaks (fixed
+    // reference). Read on the audio thread, set on the main thread -- a plain
+    // bool is a benign race here (a one-buffer delay switching modes).
+    bool adaptive = true;
 };

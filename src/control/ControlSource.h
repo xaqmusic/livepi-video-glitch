@@ -21,6 +21,11 @@ public:
     virtual void update() = 0;
     virtual const ControlState& getState() const = 0;
     virtual void shutdown() = 0;
+
+    // Live audio tuning pushed from settings.json (via SceneControlMap) each
+    // frame. Default no-ops -- only the audio-capable sources react.
+    virtual void setLevelSmoothing(float /*smoothing*/) {}
+    virtual void setAutoGain(bool /*enabled*/) {}
 };
 
 // Reads config's "control_source" field ("mock" | "midi" | "pisound") and

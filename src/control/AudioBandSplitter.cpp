@@ -27,6 +27,11 @@ constexpr float kNoiseFloor = 0.0005f;
 // within 70% of the peak as full deflection keeps pulses punchy at every
 // volume instead of only on the single loudest hit.
 constexpr float kHeadroom = 0.7f;
+// Auto-gain OFF freezes the peaks, so normalization becomes a fixed reference.
+// If the box booted with auto-gain already off, no peak was ever calibrated --
+// fall back to this envelope reference so a line source still drives 0..1, then
+// the operator trims with the Pisound's own gain knob.
+constexpr float kDefaultFixedReference = 0.2f;
 }  // namespace
 
 void AudioBandSplitter::setup(float sampleRate) {
@@ -96,14 +101,24 @@ void AudioBandSplitter::process(const float* samples, size_t numFrames) {
         midEnvelope = updateEnvelope(midEnvelope, std::fabs(mid), attackCoeff, releaseCoeff);
         highEnvelope = updateEnvelope(highEnvelope, std::fabs(high), attackCoeff, releaseCoeff);
 
-        lowPeak = std::max(lowEnvelope, lowPeak * peakDecayCoeff);
-        midPeak = std::max(midEnvelope, midPeak * peakDecayCoeff);
-        highPeak = std::max(highEnvelope, highPeak * peakDecayCoeff);
+        // Auto-gain on: track each band's rolling peak (jumps up to new maxima,
+        // slow decay). Off: hold the last peak so normalization is a fixed
+        // reference and absolute dynamics survive (see normalize()).
+        if (adaptive) {
+            lowPeak = std::max(lowEnvelope, lowPeak * peakDecayCoeff);
+            midPeak = std::max(midEnvelope, midPeak * peakDecayCoeff);
+            highPeak = std::max(highEnvelope, highPeak * peakDecayCoeff);
+        }
     }
 }
 
-float AudioBandSplitter::normalize(float envelope, float peak) {
-    if (peak < kNoiseFloor) return 0.0f;
-    float v = envelope / (peak * kHeadroom);
+float AudioBandSplitter::normalize(float envelope, float peak) const {
+    // Frozen mode (auto-gain off) with no calibrated peak yet falls back to a
+    // fixed reference so there's still output; otherwise divide by the (live or
+    // frozen) rolling peak.
+    float ref = peak;
+    if (!adaptive && ref < kNoiseFloor) ref = kDefaultFixedReference;
+    if (ref < kNoiseFloor) return 0.0f;
+    float v = envelope / (ref * kHeadroom);
     return v > 1.0f ? 1.0f : v;
 }

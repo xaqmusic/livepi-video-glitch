@@ -27,6 +27,10 @@ public:
     };
 
     void setup(const std::string& jsonPath);
+    // Whether a settings file is wired at all (appliance yes, bare desktop dev
+    // no) -- lets callers skip pushing live overrides that would otherwise stomp
+    // config defaults with this map's own defaults.
+    bool configured() const { return !path.empty(); }
     // Cheap mtime check; reloads the bindings only when the file changed.
     void pollForChanges();
     // Edge-detects the mapped controls against this frame and returns the scene
@@ -38,6 +42,12 @@ public:
     // gear menu). Hot-reloaded with the rest of the file. Defaults on.
     bool thermalRescue() const { return thermalRescueEnabled; }
 
+    // Live audio tuning from the gear menu, hot-reloaded with the rest of the
+    // file: the overall-level one-pole smoothing coefficient (0..0.98) and the
+    // adaptive-gain toggle. ofApp pushes these onto the control source.
+    float audioSmoothing() const { return audioSmoothingValue; }
+    bool audioAutoGain() const { return audioAutoGainEnabled; }
+
 private:
     void load();
     bool risingEdge(const Trigger& t, const ControlState& state, float& prev) const;
@@ -48,6 +58,8 @@ private:
     Trigger advanceTrigger;
     Trigger backTrigger;
     bool thermalRescueEnabled = true;
+    float audioSmoothingValue = 0.6f;
+    bool audioAutoGainEnabled = true;
     float prevAdvance = 0.0f;
     float prevBack = 0.0f;
 };

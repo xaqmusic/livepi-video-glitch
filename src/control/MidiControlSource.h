@@ -38,6 +38,9 @@ public:
     const ControlState& getState() const override { return state; }
     void shutdown() override;
 
+    void setLevelSmoothing(float smoothing) override;
+    void setAutoGain(bool enabled) override;
+
     // ofxMidiListener
     void newMidiMessage(ofxMidiMessage& message) override;
 

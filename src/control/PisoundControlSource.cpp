@@ -58,6 +58,14 @@ void PisoundControlSource::setup(const Config& config) {
     clock.start();
 }
 
+void PisoundControlSource::setLevelSmoothing(float smoothing) {
+    levelSmoothing = std::clamp(smoothing, 0.0f, 0.98f);
+}
+
+void PisoundControlSource::setAutoGain(bool enabled) {
+    bandSplitter.setAutoGain(enabled);
+}
+
 void PisoundControlSource::update() {
     state.lastButtonEvent = ButtonEvent::None;  // latched for exactly one update() cycle
     pollButtonFifo();

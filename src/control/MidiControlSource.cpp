@@ -54,6 +54,14 @@ void MidiControlSource::setup(const Config& config) {
     bandSplitter.setup(static_cast<float>(settings.sampleRate));
 }
 
+void MidiControlSource::setLevelSmoothing(float smoothing) {
+    levelSmoothing = std::clamp(smoothing, 0.0f, 0.98f);
+}
+
+void MidiControlSource::setAutoGain(bool enabled) {
+    bandSplitter.setAutoGain(enabled);
+}
+
 void MidiControlSource::update() {
     state.lastButtonEvent = pendingButtonEvent;  // latched for exactly one update() cycle
     pendingButtonEvent = ButtonEvent::None;

@@ -2,6 +2,8 @@
 
 #include <sys/stat.h>
 
+#include <algorithm>
+
 #include "ofFileUtils.h"
 #include "ofLog.h"
 
@@ -65,11 +67,16 @@ void SceneControlMap::load() {
     advanceTrigger = parseTrigger(root, "sceneAdvance");
     backTrigger = parseTrigger(root, "sceneBack");
     thermalRescueEnabled = root.is_object() ? root.value("thermalRescue", true) : true;
+    audioSmoothingValue =
+        root.is_object() ? std::clamp(root.value("audioSmoothing", 0.6f), 0.0f, 0.98f) : 0.6f;
+    audioAutoGainEnabled = root.is_object() ? root.value("audioAutoGain", true) : true;
     ofLogNotice("SceneControlMap")
         << "loaded device settings from " << path
         << " (advance " << (advanceTrigger.active() ? "bound" : "none")
         << ", back " << (backTrigger.active() ? "bound" : "none")
-        << ", thermalRescue " << (thermalRescueEnabled ? "on" : "off") << ")";
+        << ", thermalRescue " << (thermalRescueEnabled ? "on" : "off")
+        << ", audioSmoothing " << audioSmoothingValue
+        << ", audioAutoGain " << (audioAutoGainEnabled ? "on" : "off") << ")";
 }
 
 bool SceneControlMap::risingEdge(const Trigger& t, const ControlState& state, float& prev) const {

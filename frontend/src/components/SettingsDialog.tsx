@@ -119,6 +119,37 @@ export default function SettingsDialog({
         }
     };
 
+    const setAudioAutoGain = async (on: boolean) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, audioAutoGain: on } : s)); // optimistic
+        try {
+            const res = await api.updateSettings({ audioAutoGain: on });
+            setSettings((s) => (s ? { ...s, audioAutoGain: res.audioAutoGain } : s));
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.getSettings().then(setSettings).catch(() => {});
+        }
+    };
+
+    // Slider: reflect the drag instantly (optimistic) but debounce the save, so
+    // dragging doesn't fire a POST per step -- the renderer only reacts on the
+    // write to settings.json anyway.
+    const smoothingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const setAudioSmoothing = (v: number) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, audioSmoothing: v } : s));
+        if (smoothingTimer.current) clearTimeout(smoothingTimer.current);
+        smoothingTimer.current = setTimeout(async () => {
+            try {
+                const res = await api.updateSettings({ audioSmoothing: v });
+                setSettings((s) => (s ? { ...s, audioSmoothing: res.audioSmoothing } : s));
+            } catch (err) {
+                setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+                api.getSettings().then(setSettings).catch(() => {});
+            }
+        }, 250);
+    };
+
     const setBinding = async (field: "sceneAdvance" | "sceneBack", value: SceneTrigger | null) => {
         setError(null);
         setSettings((s) => (s ? { ...s, [field]: value } : s)); // optimistic
@@ -197,6 +228,41 @@ export default function SettingsDialog({
                             A global safety cap: pulls high-resolution scenes down as the SoC heats up, so a heavy
                             set degrades gracefully instead of stuttering to black. Per-scene resolution lives in the
                             scene editor.
+                        </div>
+                    </section>
+
+                    <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <strong>Audio reactivity</strong>
+                        <label className="row" style={{ gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                            <span>Level smoothing</span>
+                            <input
+                                type="range"
+                                min={0}
+                                max={0.95}
+                                step={0.05}
+                                value={settings?.audioSmoothing ?? 0.6}
+                                disabled={!settings}
+                                onChange={(e) => setAudioSmoothing(parseFloat(e.target.value))}
+                                style={{ flex: 1, maxWidth: 200 }}
+                            />
+                        </label>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            Lower = snappier reaction (more jitter); higher = steadier (more lag). Smooths the overall
+                            audio level only — the low/mid/high bands stay fast regardless.
+                        </div>
+                        <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <input
+                                type="checkbox"
+                                checked={settings?.audioAutoGain ?? true}
+                                disabled={!settings}
+                                onChange={(e) => setAudioAutoGain(e.target.checked)}
+                            />
+                            <span>Automatic level adjustment</span>
+                        </label>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            On: auto-normalizes to the room, so quiet and loud both fill the range (good for a
+                            microphone). Off: fixed gain that keeps absolute dynamics — better for a line source patched
+                            in, where you ride the level with the Pisound's own gain knob.
                         </div>
                     </section>
 

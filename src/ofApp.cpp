@@ -212,6 +212,13 @@ void ofApp::update() {
     // CCs and inject the same Click/Hold the physical button would. frameState
     // already has FIFO-injected notes merged in, so a web-played note counts too.
     sceneControlMap.pollForChanges();
+    // Live audio tuning from the gear menu (settings.json): push the smoothing +
+    // auto-gain onto the control source. Only when a settings file is wired, so
+    // bare desktop dev keeps its app.json audio defaults.
+    if (sceneControlMap.configured()) {
+        controlSource->setLevelSmoothing(sceneControlMap.audioSmoothing());
+        controlSource->setAutoGain(sceneControlMap.audioAutoGain());
+    }
     ButtonEvent sceneButton = sceneControlMap.poll(frameState);
     if (sceneButton != ButtonEvent::None) {
         sceneManager.injectButtonEvent(sceneButton);

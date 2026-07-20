@@ -44,6 +44,12 @@ def _public(stored: dict | None = None) -> dict:
         "sceneAdvance": stored.get("sceneAdvance"),
         "sceneBack": stored.get("sceneBack"),
         "thermalRescue": stored.get("thermalRescue", True),
+        # Live audio-reactivity tuning the renderer hot-reads from this file
+        # (SceneControlMap): the overall-level one-pole smoothing coefficient
+        # (0 = snappiest, ~0.95 = steadiest) and the adaptive-gain toggle (off =
+        # fixed reference, for a line source ridden with the Pisound gain knob).
+        "audioSmoothing": stored.get("audioSmoothing", 0.6),
+        "audioAutoGain": stored.get("audioAutoGain", True),
     }
 
 
@@ -62,6 +68,8 @@ class SettingsPatch(BaseModel):
     # an explicit null means "unbind" -- distinguished via model_fields_set.
     showCardOnBoot: bool | None = None
     thermalRescue: bool | None = None
+    audioSmoothing: float | None = Field(default=None, ge=0.0, le=0.98)
+    audioAutoGain: bool | None = None
     sceneAdvance: SceneTrigger | None = None
     sceneBack: SceneTrigger | None = None
 
@@ -87,6 +95,11 @@ def update_settings(patch: SettingsPatch):
     if patch.thermalRescue is not None:
         # Read live by the renderer from settings.json (SceneControlMap).
         stored["thermalRescue"] = patch.thermalRescue
+
+    if patch.audioSmoothing is not None:
+        stored["audioSmoothing"] = patch.audioSmoothing
+    if patch.audioAutoGain is not None:
+        stored["audioAutoGain"] = patch.audioAutoGain
 
     for field in ("sceneAdvance", "sceneBack"):
         if field not in provided:
