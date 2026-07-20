@@ -113,6 +113,11 @@ void ofApp::setup() {
         cardDismissed = true;
     }
 
+    // A MIDI note/CC bound to scene switching in the gear menu, if any. The
+    // backend persists it into settings.json; we watch that file (absolute path
+    // set on the appliance, empty => feature off).
+    sceneControlMap.setup(config.getString("controls.scene_map", ""));
+
     loadCurrentScene();
 }
 
@@ -195,6 +200,16 @@ void ofApp::update() {
             showConnectionCard = false;
             cardDismissed = true;
         }
+    }
+
+    // A learned MIDI/CC scene-switch binding (gear menu) acts here: hot-reload
+    // the binding if it changed, then edge-detect it against this frame's notes/
+    // CCs and inject the same Click/Hold the physical button would. frameState
+    // already has FIFO-injected notes merged in, so a web-played note counts too.
+    sceneControlMap.pollForChanges();
+    ButtonEvent sceneButton = sceneControlMap.poll(frameState);
+    if (sceneButton != ButtonEvent::None) {
+        sceneManager.injectButtonEvent(sceneButton);
     }
 
     sceneManager.update(frameState);

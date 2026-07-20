@@ -1,13 +1,79 @@
 // Global device settings, opened from the ⚙️ in the topbar. Not per-show
 // (those live in the scene editor) -- box-wide things the owner sets once:
 // the login password, whether the on-screen setup/QR card shows on boot, and
-// (Pass 2) a MIDI key/knob bound to scene switching.
+// a MIDI key/knob bound to scene switching (learned live off the telemetry WS).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "../api/client";
-import type { Settings } from "../api/types";
+import type { SceneTrigger, Settings } from "../api/types";
+import { useTelemetry, useTelemetryStore } from "../state/telemetryStore";
 import PasswordDialog from "./PasswordDialog";
+
+// One "bind a control to a scene action" row. Same Learn mechanism as
+// MappableControl: arm, then bind the first CC/note that arrives NEWER than the
+// arming instant (timestamp-guarded against a stale latched event), via an
+// imperative store subscription rather than a render-cycle effect.
+function SceneLearnRow({
+    label,
+    binding,
+    onLearn,
+    onClear,
+}: {
+    label: string;
+    binding: SceneTrigger | null | undefined;
+    onLearn: (t: SceneTrigger) => void;
+    onClear: () => void;
+}) {
+    const [armed, setArmed] = useState(false);
+    const armedAt = useRef(0);
+    useTelemetry(); // keep the shared telemetry WS alive while this row is mounted
+    const connected = useTelemetryStore((s) => s.connected);
+    const onLearnRef = useRef(onLearn);
+    onLearnRef.current = onLearn;
+
+    useEffect(() => {
+        if (!armed) return;
+        let done = false;
+        const maybeBind = (latest: ReturnType<typeof useTelemetryStore.getState>["latest"]) => {
+            const lc = latest?.lastControl;
+            if (done || !lc || lc.kind === "none" || lc.ts <= armedAt.current) return;
+            done = true;
+            setArmed(false);
+            onLearnRef.current({ type: lc.kind, number: lc.number });
+        };
+        maybeBind(useTelemetryStore.getState().latest);
+        return useTelemetryStore.subscribe((s) => maybeBind(s.latest));
+    }, [armed]);
+
+    const arm = () => {
+        armedAt.current = useTelemetryStore.getState().latest?.lastControl?.ts ?? 0;
+        setArmed(true);
+    };
+
+    const badge = binding ? (binding.type === "cc" ? `CC ${binding.number}` : `Note ${binding.number}`) : null;
+
+    return (
+        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            <span style={{ flex: 1 }}>{label}</span>
+            <button
+                className="icon"
+                style={{
+                    minWidth: 88,
+                    borderColor: armed ? "var(--warn)" : badge ? "var(--accent)" : undefined,
+                    color: armed ? "var(--warn)" : badge ? "var(--accent)" : "var(--text-dim)",
+                }}
+                title={armed ? "Listening… press a key or turn a knob" : "Bind a MIDI key or knob"}
+                onClick={() => (armed ? setArmed(false) : arm())}
+            >
+                {armed ? (connected ? "listen…" : "no WS!") : (badge ?? "Learn")}
+            </button>
+            {badge && (
+                <button className="danger icon" title="Remove binding" onClick={onClear}>✕</button>
+            )}
+        </div>
+    );
+}
 
 export default function SettingsDialog({
     onClose,
@@ -41,10 +107,22 @@ export default function SettingsDialog({
         }
     };
 
+    const setBinding = async (field: "sceneAdvance" | "sceneBack", value: SceneTrigger | null) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, [field]: value } : s)); // optimistic
+        try {
+            const res = await api.updateSettings({ [field]: value } as Partial<Settings>);
+            setSettings((s) => (s ? { ...s, sceneAdvance: res.sceneAdvance, sceneBack: res.sceneBack } : s));
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.getSettings().then(setSettings).catch(() => {});
+        }
+    };
+
     return (
         <>
             <div className="dialog-backdrop" onClick={onClose}>
-                <div className="card dialog" onClick={(e) => e.stopPropagation()} style={{ minWidth: 340 }}>
+                <div className="card dialog" onClick={(e) => e.stopPropagation()} style={{ minWidth: 360 }}>
                     <h3 style={{ margin: 0 }}>Settings</h3>
 
                     <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -71,6 +149,25 @@ export default function SettingsDialog({
                         <div className="dim" style={{ fontSize: 12 }}>
                             Turns itself off after the first login. Re-enable to help someone connect at a new venue.
                         </div>
+                    </section>
+
+                    <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <strong>Scene switch (MIDI)</strong>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            Bind a key or knob on your controller to change scenes hands-free.
+                        </div>
+                        <SceneLearnRow
+                            label="Next scene"
+                            binding={settings?.sceneAdvance}
+                            onLearn={(t) => setBinding("sceneAdvance", t)}
+                            onClear={() => setBinding("sceneAdvance", null)}
+                        />
+                        <SceneLearnRow
+                            label="First scene"
+                            binding={settings?.sceneBack}
+                            onLearn={(t) => setBinding("sceneBack", t)}
+                            onClear={() => setBinding("sceneBack", null)}
+                        />
                     </section>
 
                     {error && <div className="warn">{error}</div>}

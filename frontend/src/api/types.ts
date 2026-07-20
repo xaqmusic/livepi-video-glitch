@@ -27,10 +27,20 @@ export interface MappingTrigger {
     band?: AudioBand;
 }
 
+// A MIDI note/CC bound to a scene action (learned in the gear menu).
+export interface SceneTrigger {
+    type: "cc" | "note";
+    number: number;
+}
+
 // Device-global settings from the gear menu (backend/livepi_backend/settings.py).
 export interface Settings {
     /** Whether the on-screen setup/QR card appears on every boot. */
     showCardOnBoot: boolean;
+    /** Control that advances to the next scene, or null if unbound. */
+    sceneAdvance?: SceneTrigger | null;
+    /** Control that jumps to the first scene, or null if unbound. */
+    sceneBack?: SceneTrigger | null;
 }
 
 export interface MappingTarget {

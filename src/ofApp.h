@@ -5,6 +5,7 @@
 #include "control/CommandFifo.h"
 #include "control/ControlSource.h"
 #include "control/MappingResolver.h"
+#include "control/SceneControlMap.h"
 #include "ofMain.h"
 #include "render/SceneRenderer.h"
 #include "scenes/LiveParams.h"
@@ -38,6 +39,9 @@ private:
     SceneManager sceneManager;
     SceneRenderer sceneRenderer;
     MappingResolver mappingResolver;
+    // A MIDI note/CC learned in the gear menu that switches scenes, watched from
+    // the backend's settings.json (empty config path => disabled).
+    SceneControlMap sceneControlMap;
     LiveParams liveParams;
     TelemetryWriter telemetryWriter;
     CommandFifo commandFifo;

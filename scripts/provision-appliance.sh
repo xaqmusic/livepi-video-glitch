@@ -160,7 +160,8 @@ cat > "$APP_DIR/bin/data/config/app.local.json" <<APPCFG
 {
     "control_source": "pisound",
     "window": { "fullscreen": true },
-    "ui": { "claimed_marker": "$DATA_DIR/.claimed" }
+    "ui": { "claimed_marker": "$DATA_DIR/.claimed" },
+    "controls": { "scene_map": "$DATA_DIR/settings.json" }
 }
 APPCFG
 

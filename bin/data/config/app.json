@@ -21,5 +21,8 @@
     },
     "ui": {
         "claimed_marker": ""
+    },
+    "controls": {
+        "scene_map": ""
     }
 }
