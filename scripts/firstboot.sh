@@ -154,6 +154,12 @@ if [[ "$PROVISION_SYSTEM" == "1" ]]; then
     systemctl enable --now avahi-daemon >/dev/null 2>&1 || \
         log "WARNING: could not enable avahi-daemon (is it installed?)"
 
+    # SSH host keys: the image ships with none (so every box is unique). Generate
+    # them here, on the first boot while the root is still writable (before
+    # lockdown), so they bake into the read-only layer and stay stable across
+    # reboots. ssh-keygen -A is a no-op once they exist.
+    ssh-keygen -A >/dev/null 2>&1 || log "WARNING: ssh-keygen -A failed"
+
     # --- standing control-network AP ----------------------------------
     # The box's own hotspot. autoconnect at the LOWEST priority makes it the
     # automatic fallback: any venue-WiFi client profile (default priority 0)
