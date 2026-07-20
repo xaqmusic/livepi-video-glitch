@@ -35,14 +35,25 @@ GPIO-interrupt-driven daemon (`pisound-btn`) dispatches to user-installed
 shell scripts based on click pattern (single/double/triple/4-8x click, and
 several hold-duration buckets), configured via `sudo pisound-config`.
 
-Integration shape used here: `scripts/pisound/advance-scene-btn.sh` gets
-installed under `/usr/local/pisound/scripts/pisound-btn/` and wired to a
-click pattern via `pisound-config`; when it fires, it writes a one-byte
-marker (`c` for click, `h` for hold) into a FIFO
-(`/tmp/livepi-button.fifo` by default, configurable via
-`pisound.button_fifo` in `bin/data/config/app.json`) that
-`PisoundControlSource::pollButtonFifo()` reads non-blockingly once per
-frame. See `deploy.md` for the exact `pisound-config` steps.
+Integration shape used here: `scripts/pisound/livepi-btn.sh` is installed once
+under `/usr/local/pisound/scripts/pisound-btn/` and symlinked as
+`livepi-{scene,debug,card}.sh`; each name is wired to an event in
+`/etc/pisound.conf` -- single click -> next scene, ~3s hold -> toggle the debug
+overlay, >7s hold -> toggle the setup/QR card. The script forwards the gesture
+to the renderer's command FIFO (`ipc.command_fifo`), whose `click`/`debug`/
+`card` verbs already do those jobs, so the button needs no renderer changes. It
+selects its action from its own basename because pisound-btn passes no argument
+(confirmed on hardware: the daemon logs `args = ''`, and a >7s hold fires only
+the long bucket -- it does not trip the 3s action on the way past). The image
+build wires all of this (`scripts/provision-appliance.sh`), explicitly pointing
+the buckets it doesn't use -- **especially `HOLD_5S`, whose stock action is
+`shutdown.sh`** -- at `do_nothing.sh`. See `deploy.md` for the manual steps.
+
+An earlier, simpler bridge -- `scripts/pisound/advance-scene-btn.sh` -- writes a
+one-byte marker (`c`/`h`) into `pisound.button_fifo` (`/tmp/livepi-button.fifo`,
+configurable in `bin/data/config/app.json`) that
+`PisoundControlSource::pollButtonFifo()` reads once per frame. That path handles
+click/hold only and is superseded by `livepi-btn.sh`.
 
 ## Pi 5 compatibility
 

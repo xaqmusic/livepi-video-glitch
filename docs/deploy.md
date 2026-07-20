@@ -61,13 +61,35 @@ doesn't need its own git remote/auth configured at all.
 
 ## Button wiring
 
-After `setup-pi.sh`:
+The **image build wires this automatically** (`scripts/provision-appliance.sh`
+rewrites `/etc/pisound.conf` -- that section is the canonical map). To do it by
+hand on a dev Pi after `setup-pi.sh`, install the one bridge script and its
+three name-symlinks:
 
 ```sh
-sudo cp scripts/pisound/advance-scene-btn.sh /usr/local/pisound/scripts/pisound-btn/
-sudo chmod +x /usr/local/pisound/scripts/pisound-btn/advance-scene-btn.sh
-sudo pisound-config   # wire it to a click pattern (e.g. single click)
+PB=/usr/local/pisound/scripts/pisound-btn
+sudo install -m755 scripts/pisound/livepi-btn.sh "$PB/livepi-btn.sh"
+sudo ln -sf livepi-btn.sh "$PB/livepi-scene.sh"
+sudo ln -sf livepi-btn.sh "$PB/livepi-debug.sh"
+sudo ln -sf livepi-btn.sh "$PB/livepi-card.sh"
 ```
+
+Then point the events at them in `/etc/pisound.conf` (a symlink to
+`/usr/local/etc/pisound.conf`) and `sudo systemctl restart pisound-btn`:
+
+```
+CLICK_1     .../livepi-scene.sh   # quick press -> next scene
+HOLD_3S     .../livepi-debug.sh   # ~3s hold    -> toggle debug overlay
+HOLD_OTHER  .../livepi-card.sh    # >7s hold    -> toggle the setup / QR card
+```
+
+**Neutralize the Blokas defaults you're not using -- especially `HOLD_5S`**
+(stock = `shutdown.sh`): point it at `do_nothing.sh`, or a 5-7s hold powers the
+Pi off mid-set. `livepi-btn.sh` picks its action from its own name (pisound-btn
+passes no argument) and forwards it to the renderer's command FIFO
+(`click`/`debug`/`card`), so it drives the full gesture set with no renderer
+changes. The older `advance-scene-btn.sh` (click/hold only, via
+`pisound.button_fifo`) is superseded by it.
 
 ## Autostart at boot (kiosk)
 
