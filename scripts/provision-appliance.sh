@@ -388,6 +388,13 @@ rm -f /var/lib/dbus/machine-id
 rm -f /etc/ssh/ssh_host_*                 # regenerate_ssh_host_keys makes new ones
 rm -f /root/.bash_history "/home/$APP_USER/.bash_history" 2>/dev/null || true
 find /var/log -type f -delete 2>/dev/null || true
+# Wipe any baked-in NetworkManager profiles. The Pisound/Blokas installer (run
+# by setup-pi.sh) drops a `pb-hotspot` AP profile whose SSID is `$(hostname)` --
+# and under the qemu chroot that resolves to the BUILD HOST's hostname, so every
+# image shipped the builder's machine name as a stray hotspot that also fights
+# our own control AP. The box makes its `livepi-ap` at firstboot and joins venue
+# nets at runtime, so NO NM connection profile belongs in the golden master.
+rm -f /etc/NetworkManager/system-connections/*.nmconnection
 
 # App tree owned by the app user (world-readable; read-only at runtime anyway).
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
