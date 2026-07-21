@@ -58,6 +58,7 @@ private:
     ConnectionCard connectionCard;
     bool showConnectionCard = true;
     bool cardDismissed = false;
+    ConnectionCard::Mode cardMode = ConnectionCard::Mode::Setup;
 
     // Cached network reachability for the debug overlay, refreshed on a slow
     // cadence (getifaddrs is cheap but pointless to run every frame).

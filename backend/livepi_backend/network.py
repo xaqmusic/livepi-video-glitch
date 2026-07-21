@@ -20,6 +20,7 @@ import subprocess
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from . import ipc
 from .auth import require_session
 
 router = APIRouter(dependencies=[Depends(require_session)])
@@ -179,6 +180,13 @@ def connect(body: ConnectBody):
         _ensure_ap()
         detail = r.stderr.strip() or "Could not connect"
         raise HTTPException(status_code=400, detail=detail)
+    # Joining a venue network drops the setup hotspot, so the phone that was on
+    # it is now stranded looking at the box's video output. Paint the LAN
+    # reconnect card (box's mDNS name + IP + QR) on the kiosk so the user knows
+    # where to go next. Best-effort; the HTTP response itself may never reach the
+    # phone (its route to us just vanished with the AP). The renderer fills in
+    # the client IP once DHCP assigns it.
+    ipc.send_command_line("card lan")
     return {"ok": True, "ssid": ssid}
 
 

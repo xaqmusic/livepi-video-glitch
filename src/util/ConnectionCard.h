@@ -16,11 +16,18 @@
 // filtered, so it's big and crisp without shipping a TrueType font.
 class ConnectionCard {
 public:
+    // Setup   = join the box's hotspot (shown on a fresh/unclaimed box).
+    // Lan      = the box just joined a venue Wi-Fi and the hotspot dropped, so
+    //            tell the user how to reach it on the LAN instead (the phone
+    //            that was on the hotspot is now stranded). Same panel + QR
+    //            machinery, different content.
+    enum class Mode { Setup, Lan };
+
     // Read the static bits once (hostname, derived AP SSID, device code).
     void gather();
 
     // Overlay the card onto the current frame, centered.
-    void draw(int screenW, int screenH);
+    void draw(int screenW, int screenH, Mode mode = Mode::Setup);
 
 private:
     std::string hostname;

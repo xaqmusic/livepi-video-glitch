@@ -80,34 +80,76 @@ void ConnectionCard::gather() {
     code = readDeviceCode();
 }
 
-void ConnectionCard::draw(int screenW, int screenH) {
-    // --- text content (live IPs included) ------------------------------------
-    const bool haveCode = !code.empty();
+void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
+    // --- text content + QR payload/caption (mode-specific) -------------------
     std::vector<std::string> lines;
-    lines.push_back("CONNECT TO LIVEPI");
-    lines.push_back("");
-    lines.push_back("Wi-Fi network   " + apSsid);
-    lines.push_back("Password        " + (haveCode ? code : std::string("(set on first boot)")));
-    lines.push_back("");
-    lines.push_back("Then open       http://" + hostname + ".local:8080");
-    lines.push_back("  on hotspot    http://10.42.0.1:8080");
+    std::string qrPayload;   // empty -> no QR
+    std::string qrCaption;
 
-    auto ifaces = NetInfo::interfaces();
-    if (!ifaces.empty()) {
-        std::string ipLine = "This box        ";
-        for (size_t i = 0; i < ifaces.size(); i++) {
-            ipLine += ifaces[i].name + " " + ifaces[i].ip + (ifaces[i].isAp ? " (hotspot)" : "");
-            if (i + 1 < ifaces.size()) ipLine += "   ";
+    if (mode == Mode::Lan) {
+        // The box just joined a venue Wi-Fi; the setup hotspot has dropped, so
+        // the phone that was on it is stranded. Point the user at the box's LAN
+        // address (mDNS name + client IP) with a QR to open once they're back on
+        // their own Wi-Fi. The IP arrives a beat after the join (DHCP), and the
+        // content cache re-renders when it does.
+        std::string lanIp;
+        for (const auto& i : NetInfo::interfaces()) {
+            if (!i.isAp) {
+                lanIp = i.ip;
+                break;
+            }
         }
-        lines.push_back(ipLine);
+        const std::string mdns = "http://" + hostname + ".local:8080";
+        const std::string ipUrl = lanIp.empty() ? std::string() : ("http://" + lanIp + ":8080");
+        lines.push_back("LIVEPI IS ON YOUR WI-FI");
+        lines.push_back("");
+        lines.push_back("The setup hotspot has closed. Reconnect this");
+        lines.push_back("phone or laptop to your own Wi-Fi network,");
+        lines.push_back("then open the box at:");
+        lines.push_back("");
+        lines.push_back("  " + mdns);
+        if (!ipUrl.empty()) lines.push_back("  " + ipUrl);
+        lines.push_back("");
+        lines.push_back(lanIp.empty() ? "Getting an address -- this updates on its own..."
+                                      : "Scan the code once you're on the same Wi-Fi.");
+        // QR the client-IP URL (most reliably scannable on the subnet); fall
+        // back to the mDNS name until an IP lands.
+        qrPayload = ipUrl.empty() ? mdns : ipUrl;
+        qrCaption = "scan to open";
+    } else {
+        const bool haveCode = !code.empty();
+        lines.push_back("CONNECT TO LIVEPI");
+        lines.push_back("");
+        lines.push_back("Wi-Fi network   " + apSsid);
+        lines.push_back("Password        " + (haveCode ? code : std::string("(set on first boot)")));
+        lines.push_back("");
+        lines.push_back("Then open       http://" + hostname + ".local:8080");
+        lines.push_back("  on hotspot    http://10.42.0.1:8080");
+
+        auto ifaces = NetInfo::interfaces();
+        if (!ifaces.empty()) {
+            std::string ipLine = "This box        ";
+            for (size_t i = 0; i < ifaces.size(); i++) {
+                ipLine += ifaces[i].name + " " + ifaces[i].ip + (ifaces[i].isAp ? " (hotspot)" : "");
+                if (i + 1 < ifaces.size()) ipLine += "   ";
+            }
+            lines.push_back(ipLine);
+        }
+        lines.push_back("");
+        lines.push_back(haveCode ? "Scan the code to join, or enter it by hand."
+                                 : "Waiting for first-boot setup...");
+        if (haveCode) {
+            qrPayload = wifiJoinPayload(apSsid, code);
+            qrCaption = "scan to join Wi-Fi";
+        }
     }
-    lines.push_back("");
-    lines.push_back(haveCode ? "Scan the code to join, or enter it by hand." : "Waiting for first-boot setup...");
+
+    const bool hasQr = !qrPayload.empty();
 
     // Cache key: re-render the FBO only when anything visible changed.
     std::string content;
     for (const auto& l : lines) content += l + "\n";
-    content += "|qr:" + (haveCode ? wifiJoinPayload(apSsid, code) : std::string());
+    content += "|qr:" + qrPayload;
 
     // --- geometry ------------------------------------------------------------
     size_t maxLen = 0;
@@ -116,12 +158,10 @@ void ConnectionCard::draw(int screenW, int screenH) {
     int textH = static_cast<int>(lines.size()) * kLineH;
 
     // QR sized to the text column's height (with a caption line beneath).
-    int qrTarget = haveCode ? textH : 0;
     int qrBlock = 0;  // full QR side once drawn
     int cw, ch;
-    if (haveCode) {
-        // Approximate QR side for layout; drawQr floors modules to fit.
-        qrBlock = qrTarget;
+    if (hasQr) {
+        qrBlock = textH;  // approximate; drawQr floors modules to fit
         cw = kPad + textW + kGap + qrBlock + kPad;
         ch = kPad + std::max(textH, qrBlock + kLineH) + kPad;
     } else {
@@ -158,12 +198,12 @@ void ConnectionCard::draw(int screenW, int screenH) {
                                         ofColor(0, 0, 0, 0), fg);
         }
 
-        if (haveCode) {
+        if (hasQr) {
             float qx = cw - kPad - qrBlock;
             float qy = kPad;
-            float drawn = drawQr(wifiJoinPayload(apSsid, code), qx, qy, qrBlock);
+            float drawn = drawQr(qrPayload, qx, qy, qrBlock);
             ofSetColor(180, 210, 230);
-            ofDrawBitmapStringHighlight("scan to join Wi-Fi", static_cast<int>(qx),
+            ofDrawBitmapStringHighlight(qrCaption, static_cast<int>(qx),
                                         static_cast<int>(qy + drawn) + 12, ofColor(0, 0, 0, 0),
                                         ofColor(180, 210, 230));
         }

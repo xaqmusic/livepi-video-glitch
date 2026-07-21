@@ -69,8 +69,12 @@ std::vector<CommandFifo::Command> CommandFifo::poll() {
             cmd.type = Command::Type::Card;
             std::string action;
             in >> action;
-            // value carries the intent: 0 = off, 1 = on, -1 = toggle (default).
-            cmd.value = action == "off" ? 0.0f : (action == "on" ? 1.0f : -1.0f);
+            // value carries the intent: 0 = off, 1 = setup on, 2 = LAN-reconnect
+            // card on, -1 = toggle (default).
+            cmd.value = action == "off"  ? 0.0f
+                        : action == "on"  ? 1.0f
+                        : action == "lan" ? 2.0f
+                                          : -1.0f;
         } else if (verb == "goto") {
             cmd.type = Command::Type::Goto;
             in >> cmd.sceneId;

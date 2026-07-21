@@ -155,9 +155,20 @@ void ofApp::update() {
                 showDebugOverlay = !showDebugOverlay;
                 break;
             case CommandFifo::Command::Type::Card:
-                // Setup overlay: backend sends "card off" on login; a long
-                // button press toggles. value: -1 toggle, 0 off, 1 on.
-                showConnectionCard = cmd.value < -0.5f ? !showConnectionCard : cmd.value > 0.5f;
+                // Setup overlay: backend sends "card off" on login, "card lan"
+                // after a venue-Wi-Fi join; a long button press toggles. value:
+                // -1 toggle, 0 off, 1 setup-on, 2 lan-on.
+                if (cmd.value > 1.5f) {  // lan
+                    cardMode = ConnectionCard::Mode::Lan;
+                    showConnectionCard = true;
+                } else if (cmd.value > 0.5f) {  // setup on
+                    cardMode = ConnectionCard::Mode::Setup;
+                    showConnectionCard = true;
+                } else if (cmd.value < -0.5f) {  // toggle
+                    showConnectionCard = !showConnectionCard;
+                } else {  // off
+                    showConnectionCard = false;
+                }
                 cardDismissed = true;  // an explicit command wins; don't auto-repop
                 break;
             case CommandFifo::Command::Type::Cc:
@@ -305,7 +316,7 @@ void ofApp::draw() {
     sceneRenderer.getOutputFbo().draw(0, 0, ofGetWidth(), ofGetHeight());
 
     if (showConnectionCard) {
-        connectionCard.draw(ofGetWidth(), ofGetHeight());
+        connectionCard.draw(ofGetWidth(), ofGetHeight(), cardMode);
     }
 
     if (showDebugOverlay) {
