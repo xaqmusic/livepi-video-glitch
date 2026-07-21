@@ -21,7 +21,9 @@ WorkingDirectory=__APP_DIR__/backend
 # (leading '-'), so a dev Pi with no /data still starts fine.
 EnvironmentFile=-__APP_DIR__/backend/.env
 EnvironmentFile=-__DATA_DIR__/backend/.env
-ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080
+# --no-access-log: the per-request GET/POST log floods the (volatile) journal
+# with the web UI's telemetry + param-preview traffic; warnings/errors still log.
+ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080 --no-access-log --log-level warning
 Restart=on-failure
 RestartSec=2
 

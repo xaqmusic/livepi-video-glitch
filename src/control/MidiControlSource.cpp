@@ -142,7 +142,10 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
             float normalized = message.value / 127.0f;
             state.ccValues[message.control] = normalized;
             state.lastControlEvent = {LastControlEvent::Kind::CC, message.control, normalized, nowSecs};
-            ofLogNotice("MidiControlSource")
+            // Per-message, so verbose-only (--verbose): this floods the console
+            // on every knob turn. Web-UI MIDI-learn is the primary mapping path
+            // now; the console readout is a fallback for --verbose sessions.
+            ofLogVerbose("MidiControlSource")
                 << "CC " << message.control << " = " << normalized
                 << "  (set midi.knobA_cc / midi.knobB_cc in app.local.json to map it, or press 'a'/'b' to learn it)";
 

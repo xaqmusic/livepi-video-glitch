@@ -8,7 +8,17 @@
 // coming first is a hard error ("gl.h included before glew.h").
 #include <GLFW/glfw3.h>
 
-int main() {
+int main(int argc, char** argv) {
+    // --verbose (passed by run.sh, or on a direct launch) raises the log level
+    // to VERBOSE so per-message chatter shows -- notably MidiControlSource's
+    // per-CC readout. Default stays NOTICE: startup/device-detect notices show,
+    // but the console isn't flooded on every knob turn.
+    bool verbose = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--verbose") verbose = true;
+    }
+    ofSetLogLevel(verbose ? OF_LOG_VERBOSE : OF_LOG_NOTICE);
+
     // Must happen before any texture/FBO is created: switches oF from its
     // default GL_TEXTURE_RECTANGLE_ARB (pixel-space coordinates) to plain
     // GL_TEXTURE_2D with normalized 0..1 coordinates. GLES (the Pi's driver)
