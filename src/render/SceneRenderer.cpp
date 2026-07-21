@@ -9,10 +9,23 @@
 #include "fx/GeneratorPasses.h"
 #include "fx/StutterBufferPass.h"
 #include "ofAppRunner.h"
+#include "ofFileUtils.h"
 #include "ofGraphics.h"
 #include "ofImage.h"
 #include "ofLog.h"
 #include "ofUtils.h"
+#include "util/DataPath.h"
+
+namespace {
+// A clip-source layer whose file is a still image (png/jpg) renders as a static
+// texture instead of a decoder session -- see loadScene/render. Same layer kind
+// ("clip"), inferred purely from the resolved file extension so nothing in the
+// show schema has to distinguish the two.
+bool isImagePath(const std::string& path) {
+    std::string ext = ofToLower(ofFilePath::getFileExt(path));
+    return ext == "png" || ext == "jpg" || ext == "jpeg";
+}
+}  // namespace
 
 void SceneRenderer::setup(int w, int h) {
     width = w;
@@ -183,10 +196,19 @@ void SceneRenderer::applyScene(const Scene& scene) {
         };
 
         if (layer.kind == LayerKind::Clip) {
-            runtime->player = std::make_unique<ClipPlayer>();
             runtime->loadedPath = layer.resolvedPath;
             runtime->bakedLoop = layer.bakedLoop;
-            if (!layer.resolvedPath.empty()) {
+            if (isImagePath(layer.resolvedPath)) {
+                // Still image used as a clip source: a static texture, no
+                // decoder/retry machinery. Loads synchronously and is ready at
+                // once (layersReady only waits on clip players).
+                runtime->isImage = true;
+                if (!runtime->image.load(livepi::userDataPath(layer.resolvedPath))) {
+                    ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
+                                                  << "\": could not load image " << layer.resolvedPath;
+                }
+            } else if (!layer.resolvedPath.empty()) {
+                runtime->player = std::make_unique<ClipPlayer>();
                 runtime->player->load(layer.resolvedPath);
                 if (!runtime->player->isLoaded()) {
                     runtime->retriesLeft = 3;
@@ -411,15 +433,27 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
         }
         if (!layer) continue;  // runtime for a layer the scene no longer has
 
+        // A clip player's planar frame or a still image's texture -- both feed
+        // the same contain-fit transform and effect chain.
+        const ofBaseDraws* source = nullptr;
+        float texW = 0.0f, texH = 0.0f;
         if (runtime->player && runtime->player->isLoaded()) {
-            // Layer transform: contain-fit the clip's native aspect ratio
+            source = &runtime->player->getDrawable();
+            texW = runtime->player->getTexture().getWidth();
+            texH = runtime->player->getTexture().getHeight();
+        } else if (runtime->isImage && runtime->image.isAllocated()) {
+            source = &runtime->image.getTexture();
+            texW = runtime->image.getWidth();
+            texH = runtime->image.getHeight();
+        }
+
+        if (source) {
+            // Layer transform: contain-fit the source's native aspect ratio
             // (portrait footage pillarboxes instead of stretching), then
             // user scale and x/y position on top -- all live-mappable.
-            // x/y are normalized: ±1 moves the clip's center to the screen
+            // x/y are normalized: ±1 moves the source's center to the screen
             // edge, so three portrait clips sit side by side at roughly
             // x = -0.6 / 0 / +0.6.
-            float texW = runtime->player->getTexture().getWidth();
-            float texH = runtime->player->getTexture().getHeight();
             ofRectangle dest(0, 0, width, height);
             if (texW > 0 && texH > 0) {
                 float fit = std::min(width / texW, height / texH);
@@ -441,7 +475,7 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
                     dest.height = -dest.height;
                 }
             }
-            runtime->chain.process(runtime->player->getDrawable(), dest, controlState, liveParams);
+            runtime->chain.process(*source, dest, controlState, liveParams);
         } else {
             // Generator (its paint pass overwrites the black seed) or
             // unresolved clip (chain has no paint pass: stays black).

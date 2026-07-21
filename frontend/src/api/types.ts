@@ -95,6 +95,8 @@ export interface Show {
 
 export interface Clip {
     id: string;
+    /** "clip" (video) or "image" (png/jpg still). Absent on old entries == clip. */
+    kind?: "clip" | "image";
     path: string;
     name?: string;
     width?: number;
@@ -105,6 +107,8 @@ export interface Clip {
     exists?: boolean;
     /** All-intra re-encode done: tight loop-wrap seeks on trimmed clips. */
     intra?: boolean;
+    /** Image only: downscaled to <=1080 via the optimize action. */
+    optimized?: boolean;
     /** Baked ping-pong boomerangs, as [startKey, endKey] pairs (pingpongKey). */
     pingpong?: [number, number][];
 }

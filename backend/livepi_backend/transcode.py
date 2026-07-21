@@ -111,13 +111,19 @@ def boomerang_path(clip_path: str, start: float, end: float) -> Path:
     return config.PINGPONG_DIR / f"{stem}__{pingpong_key(start):04d}-{pingpong_key(end):04d}.mp4"
 
 
+IMAGE_EXTS = (".png", ".jpg", ".jpeg")
+
+
 def make_thumbnail(clip_path: Path, clip_id: str) -> str | None:
     config.THUMBS_DIR.mkdir(parents=True, exist_ok=True)
     thumb = config.THUMBS_DIR / f"{clip_id}.jpg"
+    # A still image has no "1s" mark to seek to -- seeking past its single frame
+    # yields an empty thumbnail, so skip -ss for images.
+    seek = [] if clip_path.suffix.lower() in IMAGE_EXTS else ["-ss", "1"]
     subprocess.run(
         [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", "1", "-i", str(clip_path),
+            *seek, "-i", str(clip_path),
             "-frames:v", "1", "-vf", "scale=320:-2", str(thumb),
         ],
         capture_output=True, timeout=60,
@@ -233,7 +239,7 @@ def _boomerang(job: Job, info: dict) -> None:
         raise RuntimeError(proc.stderr.read()[-500:] if proc.stderr else "ffmpeg failed")
 
 
-def _register_clip(job: Job) -> dict:
+def _register_clip(job: Job, kind: str = "clip") -> dict:
     from . import storage  # late import to avoid cycles
 
     clip_id = f"clip-{uuid.uuid4().hex[:8]}"
@@ -241,6 +247,7 @@ def _register_clip(job: Job) -> dict:
     thumb = make_thumbnail(job.dest, clip_id)
     clip = {
         "id": clip_id,
+        "kind": kind,  # "clip" (video) | "image"; absent on old entries == clip
         "path": f"clips/{job.dest.name}",
         "name": job.display_name,
         "width": info.get("width", 0),
@@ -252,6 +259,60 @@ def _register_clip(job: Job) -> dict:
     library.setdefault("clips", []).append(clip)
     storage.write_library(library)
     return clip
+
+
+def _downscale_image(job: Job) -> None:
+    """The 'optimize' action for a still image: downscale to <=1080 tall so a
+    gigantic import becomes a sane GPU texture. Single-frame encode, quick, no
+    progress stream to parse."""
+    cmd = [
+        "nice", "-n", str(config.FFMPEG_NICE),
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(job.src),
+        "-vf", "scale=-2:'min(1080,ih)'",
+        str(job.dest),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if not (job.dest.is_file() and job.dest.stat().st_size > 0):
+        raise RuntimeError((proc.stderr or "image downscale failed")[-500:])
+
+
+def enqueue_image_optimize(clip: dict) -> "Job":
+    """Queue an in-place downscale of a still image to <=1080. Runs through the
+    same single-worker queue and jobs banner as a clip transcode."""
+    src = config.DATA_DIR / clip["path"]
+    dest = src.with_name(src.stem + ".opt-tmp" + src.suffix)
+    job = Job(
+        id=uuid.uuid4().hex[:12],
+        src=src,
+        dest=dest,
+        display_name=(clip.get("name") or clip["id"]) + " (optimize)",
+        mode="image_optimize",
+        clip_id=clip["id"],
+    )
+    _jobs[job.id] = job
+    _ensure_worker()
+    _queue.put(job)
+    return job
+
+
+def _mark_image_optimized(clip_id: str | None) -> dict | None:
+    from . import storage  # late import to avoid cycles
+
+    library = storage.read_library()
+    for clip in library.get("clips", []):
+        if clip["id"] == clip_id:
+            clip["optimized"] = True
+            info = probe(config.DATA_DIR / clip["path"]) or {}
+            if info.get("width"):
+                clip["width"] = info["width"]
+                clip["height"] = info["height"]
+            thumb = make_thumbnail(config.DATA_DIR / clip["path"], clip_id)
+            if thumb:
+                clip["thumb"] = thumb
+            storage.write_library(library)
+            return clip
+    return None
 
 
 def enqueue_intra(clip: dict) -> "Job":
@@ -369,9 +430,23 @@ def _worker() -> None:
                 job.state = "probing"
             info = probe(job.src)
             if info is None:
-                raise RuntimeError("Not a readable video file")
+                raise RuntimeError("Not a readable media file")
 
-            if job.mode == "intra":
+            if job.mode == "image":
+                # Still image ingest: no transcode, store the file as-is (a
+                # gigantic one can be downscaled later via the optimize action).
+                # Move the spool to its final .png/.jpg name.
+                job.src.rename(job.dest)
+                with job.lock:
+                    job.progress = 1.0
+                clip = _register_clip(job, kind="image")
+            elif job.mode == "image_optimize":
+                with job.lock:
+                    job.state = "transcoding"
+                _downscale_image(job)
+                os.replace(job.dest, job.src)  # in place
+                clip = _mark_image_optimized(job.clip_id)
+            elif job.mode == "intra":
                 # Re-encode an existing clip all-intra IN PLACE: temp file
                 # next to it, atomic replace on success. The library entry
                 # keeps its id/path; only the "intra" flag flips.
@@ -421,9 +496,9 @@ def _ensure_worker() -> None:
             _worker_started = True
 
 
-def enqueue(src: Path, dest: Path, display_name: str) -> Job:
+def enqueue(src: Path, dest: Path, display_name: str, mode: str = "ingest") -> Job:
     _ensure_worker()
-    job = Job(id=uuid.uuid4().hex[:12], src=src, dest=dest, display_name=display_name)
+    job = Job(id=uuid.uuid4().hex[:12], src=src, dest=dest, display_name=display_name, mode=mode)
     _jobs[job.id] = job
     _queue.put(job)
     return job

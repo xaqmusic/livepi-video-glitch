@@ -305,12 +305,19 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
                                 <SourceThumb clip={clip} generatorKey={layer.kind === "generator" ? layer.source : undefined} />
                                 <select value={sourceValue} onChange={(e) => setLayerSource(layer.id, e.target.value)}>
                                     <optgroup label="Clips">
-                                        {clips.map((c) => (
+                                        {clips.filter((c) => c.kind !== "image").map((c) => (
                                             <option key={c.id} value={c.id}>
                                                 {c.name ?? c.path} {c.height ? `(${c.height}p)` : ""}
                                             </option>
                                         ))}
                                     </optgroup>
+                                    {clips.some((c) => c.kind === "image") && (
+                                        <optgroup label="Images">
+                                            {clips.filter((c) => c.kind === "image").map((c) => (
+                                                <option key={c.id} value={c.id}>{c.name ?? c.path}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
                                     <optgroup label="Generators">
                                         {generatorNames.filter((g) => !manifest.generators[g].trigger).map((g) => (
                                             <option key={g} value={GEN_PREFIX + g}>{manifest.generators[g].label}</option>

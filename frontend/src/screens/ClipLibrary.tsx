@@ -47,7 +47,9 @@ export default function ClipLibrary() {
             <h2>Clip library</h2>
             <UploadDropzone onUploaded={() => void refresh()} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-                {clips.map((clip) => (
+                {clips.map((clip) => {
+                    const isImage = clip.kind === "image";
+                    return (
                     <div key={clip.id} className="card" style={{ padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                         {clip.thumbUrl ? (
                             <img src={clip.thumbUrl} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 4 }} />
@@ -60,10 +62,26 @@ export default function ClipLibrary() {
                             {clip.name ?? clip.path}
                         </div>
                         <div className="dim" style={{ fontSize: 12 }}>
-                            {clip.height ? `${clip.height}p` : "?"} · {clip.duration ? `${Math.round(clip.duration)}s` : "?"}
+                            {isImage
+                                ? `${clip.width ?? "?"}×${clip.height ?? "?"} · image`
+                                : `${clip.height ? `${clip.height}p` : "?"} · ${clip.duration ? `${Math.round(clip.duration)}s` : "?"}`}
                             {clip.exists === false && <span className="error"> · file missing!</span>}
                         </div>
-                        {clip.intra ? (
+                        {isImage ? (
+                            clip.optimized || (clip.height ?? 0) <= 1080 ? (
+                                <div className="dim" style={{ fontSize: 12 }}>
+                                    {clip.optimized ? "✓ optimized to 1080" : "≤1080 — light already"}
+                                </div>
+                            ) : (
+                                <button
+                                    disabled={prepping.has(clip.id) || clip.exists === false}
+                                    title="Downscale this large image to 1080 so it's a light GPU texture."
+                                    onClick={() => prep(clip)}
+                                >
+                                    {prepping.has(clip.id) ? "optimizing…" : "Optimize to 1080"}
+                                </button>
+                            )
+                        ) : clip.intra ? (
                             <div className="dim" style={{ fontSize: 12 }}>⧗ tight loops ready</div>
                         ) : (
                             <button
@@ -84,7 +102,8 @@ export default function ClipLibrary() {
                             Delete
                         </button>
                     </div>
-                ))}
+                    );
+                })}
             </div>
             {clips.length === 0 && <div className="dim">No clips yet -- drop some footage above.</div>}
         </div>

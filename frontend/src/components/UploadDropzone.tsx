@@ -70,17 +70,18 @@ export default function UploadDropzone({ onUploaded }: { onUploaded: (clip: Clip
                 </div>
             ) : (
                 <div className="dim">
-                    Drop a video here, or{" "}
+                    Drop a video or image here, or{" "}
                     <button onClick={() => fileInput.current?.click()}>Browse…</button>
                     <div style={{ fontSize: 12, marginTop: 6 }}>
-                        Anything a phone or camera produces works -- non-H.264 files get transcoded automatically.
+                        Video from a phone or camera just works (non-H.264 gets transcoded). PNG (with transparency)
+                        and JPEG images are added too -- optimize a huge one to 1080 in the library.
                     </div>
                 </div>
             )}
             <input
                 ref={fileInput}
                 type="file"
-                accept="video/*"
+                accept="video/*,image/png,image/jpeg"
                 hidden
                 onChange={(e) => {
                     const file = e.target.files?.[0];

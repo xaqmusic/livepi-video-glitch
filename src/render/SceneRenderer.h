@@ -10,6 +10,7 @@
 #include "fx/ShaderChain.h"
 #include "fx/ShaderPass.h"
 #include "ofFbo.h"
+#include "ofImage.h"
 #include "scenes/Scene.h"
 #include "video/ClipPlayer.h"
 
@@ -77,7 +78,11 @@ private:
         std::string loadedPath;  // resolved clip path this runtime is playing
         std::string generatorSource;  // generator name (kind==Generator); a
                                       // source change must rebuild the chain
-        std::unique_ptr<ClipPlayer> player;  // null for generator layers
+        std::unique_ptr<ClipPlayer> player;  // null for generator + image layers
+        // A clip-source layer whose file is a still image: a static texture, no
+        // decoder. Inferred from the resolved path's extension (isImagePath).
+        bool isImage = false;
+        ofImage image;
         ShaderChain chain;
         // loadedPath is a baked boomerang (ping-pong reverse baked in): play
         // it whole/forward/looping, no trim enforcement (see ShowLoader).

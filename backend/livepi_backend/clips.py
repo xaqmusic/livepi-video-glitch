@@ -57,14 +57,22 @@ def upload_clip(file: UploadFile):
     config.CLIPS_DIR.mkdir(parents=True, exist_ok=True)
     stem = _safe_stem(file.filename or "clip")
     suffix = uuid.uuid4().hex[:6]
+    ext = Path(file.filename or "").suffix.lower()
+    is_image = ext in transcode.IMAGE_EXTS
     # Spool the upload next to its destination (same filesystem -> the
-    # compliant-passthrough rename is atomic and instant).
+    # compliant-passthrough / image rename is atomic and instant).
     spool = config.CLIPS_DIR / f".upload-{suffix}-{stem}"
-    dest = config.CLIPS_DIR / f"{stem}-{suffix}.mp4"
     with open(spool, "wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    job = transcode.enqueue(spool, dest, display_name=stem)
+    if is_image:
+        # Keep the source format (png preserves transparency; jpeg stays jpeg).
+        out_ext = ".png" if ext == ".png" else ".jpg"
+        dest = config.CLIPS_DIR / f"{stem}-{suffix}{out_ext}"
+        job = transcode.enqueue(spool, dest, display_name=stem, mode="image")
+    else:
+        dest = config.CLIPS_DIR / f"{stem}-{suffix}.mp4"
+        job = transcode.enqueue(spool, dest, display_name=stem)
     return {"jobId": job.id}
 
 
@@ -90,16 +98,22 @@ def job_status(job_id: str):
 
 @router.post("/api/clips/{clip_id}/smooth-reverse")
 def smooth_reverse(clip_id: str):
-    """Queue an all-intra in-place re-encode so ping-pong reverse plays
-    smoothly on the Pi's hardware decoder (and loop-wrap seeks tighten)."""
+    """The 'optimize' action. For a video: an all-intra in-place re-encode so
+    ping-pong reverse plays smoothly on the Pi's hardware decoder (and loop-wrap
+    seeks tighten). For a still image: downscale a huge import to <=1080."""
     library = storage.read_library()
     clip = next((c for c in library.get("clips", []) if c["id"] == clip_id), None)
     if clip is None:
         raise HTTPException(404, "No such clip")
-    if clip.get("intra"):
-        raise HTTPException(409, "Already prepped for smooth reverse")
     if not (config.DATA_DIR / clip["path"]).exists():
         raise HTTPException(409, "Clip file missing on disk")
+    if clip.get("kind") == "image":
+        if clip.get("optimized") or (clip.get("height") or 0) <= 1080:
+            raise HTTPException(409, "Image is already 1080p or smaller")
+        job = transcode.enqueue_image_optimize(clip)
+        return {"jobId": job.id}
+    if clip.get("intra"):
+        raise HTTPException(409, "Already prepped for smooth reverse")
     job = transcode.enqueue_intra(clip)
     return {"jobId": job.id}
 
