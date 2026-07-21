@@ -41,6 +41,10 @@ public:
     // Global thermal-rescue toggle (also lives in settings.json, set from the
     // gear menu). Hot-reloaded with the rest of the file. Defaults on.
     bool thermalRescue() const { return thermalRescueEnabled; }
+    // Whether a mid-scene thermal step-down is masked with the scene's
+    // transition (else it resizes silently). Defaults off -- a random static/
+    // tear mid-scene reads as a glitch; the scene just restarting is quieter.
+    bool thermalTransition() const { return thermalTransitionEnabled; }
 
     // Live audio tuning from the gear menu, hot-reloaded with the rest of the
     // file: the overall-level one-pole smoothing coefficient (0..0.98) and the
@@ -58,6 +62,7 @@ private:
     Trigger advanceTrigger;
     Trigger backTrigger;
     bool thermalRescueEnabled = true;
+    bool thermalTransitionEnabled = false;
     float audioSmoothingValue = 0.6f;
     bool audioAutoGainEnabled = true;
     float prevAdvance = 0.0f;

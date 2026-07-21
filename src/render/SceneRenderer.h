@@ -33,21 +33,26 @@ public:
     void addPostPass(std::unique_ptr<ShaderPass> pass);
 
     // Change the internal render resolution (the thermal governor drops it to
-    // shed GPU heat). Reallocating the pipeline FBOs is a brief hitch, so this
-    // MASKS it with the current scene's transition -- ramp the scene's effect
-    // to peak, resize under full cover, ramp back in -- exactly how a scene
-    // switch hides decoder spin-up. Scenes with transition style None resize
-    // immediately (a short freeze-frame). No-op if already at w x h, or if a
-    // transition is already running (the caller retries -- thermal is slow).
-    void requestResize(int width, int height);
+    // shed GPU heat). Reallocating the pipeline FBOs is a brief hitch. When
+    // useTransition is true (and the scene has a transition style) this MASKS it
+    // with the scene's transition -- ramp the effect to peak, resize under full
+    // cover, ramp back in. When false, or the scene's style is None, it resizes
+    // immediately (a short freeze-frame / scene restart). Callers pass false to
+    // honor the "no transition on thermal safety" gear-menu option. No-op if
+    // already at w x h, or if a transition is already running (caller retries).
+    void requestResize(int width, int height, bool useTransition = true);
     int renderWidth() const { return width; }
 
-    // The native display size the per-scene renderScale is a fraction OF, and
-    // an optional global ceiling (the render.scale config baseline). loadScene
-    // sizes the internal render to base * min(scene.renderScale, maxScale) as it
-    // enters each scene, under that scene's transition.
+    // The native display size the per-scene renderScale is a fraction OF, an
+    // optional global ceiling (render.scale config baseline), and the live
+    // thermal cap. loadScene sizes the internal render to
+    // base * min(scene.renderScale, maxScale, thermalScale) as it enters each
+    // scene -- so a scene entered while the SoC is hot lands at the reduced
+    // resolution under its OWN entry transition, with no second transition after.
     void setBaseSize(int width, int height);
     void setMaxScale(float maxScale);
+    // Live thermal cap (1.0 = no cap), pushed every frame before scene loads.
+    void setThermalScale(float thermalScale);
 
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
@@ -123,8 +128,10 @@ private:
     int baseWidth = 0;
     int baseHeight = 0;
     float maxScale = 1.0f;
-    // Internal render dimensions for a scene's renderScale (capped by maxScale),
-    // or {0,0} if the base size isn't known yet (leave the size untouched).
+    float thermalScale = 1.0f;  // live SoC-heat cap, folded into sceneRenderDims
+    // Internal render dimensions for a scene's renderScale (capped by maxScale
+    // and the thermal cap), or {0,0} if the base size isn't known yet (leave the
+    // size untouched).
     void sceneRenderDims(float sceneScale, int& outW, int& outH) const;
 
     std::vector<std::unique_ptr<LayerRuntime>> runtimes;

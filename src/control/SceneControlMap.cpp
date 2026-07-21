@@ -67,6 +67,7 @@ void SceneControlMap::load() {
     advanceTrigger = parseTrigger(root, "sceneAdvance");
     backTrigger = parseTrigger(root, "sceneBack");
     thermalRescueEnabled = root.is_object() ? root.value("thermalRescue", true) : true;
+    thermalTransitionEnabled = root.is_object() ? root.value("thermalTransition", false) : false;
     audioSmoothingValue =
         root.is_object() ? std::clamp(root.value("audioSmoothing", 0.6f), 0.0f, 0.98f) : 0.6f;
     audioAutoGainEnabled = root.is_object() ? root.value("audioAutoGain", true) : true;
@@ -75,6 +76,7 @@ void SceneControlMap::load() {
         << " (advance " << (advanceTrigger.active() ? "bound" : "none")
         << ", back " << (backTrigger.active() ? "bound" : "none")
         << ", thermalRescue " << (thermalRescueEnabled ? "on" : "off")
+        << ", thermalTransition " << (thermalTransitionEnabled ? "on" : "off")
         << ", audioSmoothing " << audioSmoothingValue
         << ", audioAutoGain " << (audioAutoGainEnabled ? "on" : "off") << ")";
 }

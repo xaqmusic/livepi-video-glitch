@@ -119,6 +119,18 @@ export default function SettingsDialog({
         }
     };
 
+    const setThermalTransition = async (on: boolean) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, thermalTransition: on } : s)); // optimistic
+        try {
+            const res = await api.updateSettings({ thermalTransition: on });
+            setSettings((s) => (s ? { ...s, thermalTransition: res.thermalTransition } : s));
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.getSettings().then(setSettings).catch(() => {});
+        }
+    };
+
     const setAudioAutoGain = async (on: boolean) => {
         setError(null);
         setSettings((s) => (s ? { ...s, audioAutoGain: on } : s)); // optimistic
@@ -228,6 +240,20 @@ export default function SettingsDialog({
                             A global safety cap: pulls high-resolution scenes down as the SoC heats up, so a heavy
                             set degrades gracefully instead of stuttering to black. Per-scene resolution lives in the
                             scene editor.
+                        </div>
+                        <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <input
+                                type="checkbox"
+                                checked={settings?.thermalTransition ?? false}
+                                disabled={!settings || !(settings?.thermalRescue ?? true)}
+                                onChange={(e) => setThermalTransition(e.target.checked)}
+                            />
+                            <span>Use a transition when entering thermal safety</span>
+                        </label>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            When thermal rescue drops the resolution mid-scene, mask it with the scene's transition
+                            effect. Off (default): the scene just restarts quietly at the lower resolution — no random
+                            static/tear. Scene entry always folds the reduced resolution into its own transition either way.
                         </div>
                     </section>
 

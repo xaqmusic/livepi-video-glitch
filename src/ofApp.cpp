@@ -224,6 +224,14 @@ void ofApp::update() {
         sceneManager.injectButtonEvent(sceneButton);
     }
 
+    // Thermal cap FIRST, before any scene load this frame: a scene entering now
+    // sizes its render (and its entry transition) straight to the capped
+    // resolution via SceneRenderer::loadScene, so there is no second transition
+    // to drop resolution afterward. The governor self-throttles its sysfs read.
+    const float now = ofGetElapsedTimef();
+    const float thermalCap = sceneControlMap.thermalRescue() ? thermal.update(now) : 1.0f;
+    sceneRenderer.setThermalScale(thermalCap);
+
     sceneManager.update(frameState);
 
     if (sceneManager.getCurrentIndex() != lastLoadedSceneIndex) {
@@ -253,27 +261,24 @@ void ofApp::update() {
 
     // Refresh the overlay's connection status on a slow cadence -- IPs only
     // change on a network event, and getifaddrs every frame is wasteful.
-    const float now = ofGetElapsedTimef();
     if (now - lastNetRefreshSecs > 2.0f) {
         netSummary = NetInfo::summary();
         lastNetRefreshSecs = now;
     }
 
-    // Effective internal render scale = the tightest of this scene's own setting,
-    // the optional global ceiling, and the thermal cap. Per-scene gives balance;
-    // thermal is a GLOBAL OVERRIDE that only pulls a high scene down (never up).
-    // A scene switch already applies its own scale under the entry transition
-    // (SceneRenderer::loadScene); this catches thermal tier steps mid-scene and
-    // any residual, comparing against the live render width so a resize deferred
-    // during a transition just retries next tick. The governor self-throttles its
-    // sysfs read, so calling update() every frame is cheap.
-    const float thermalCap = sceneControlMap.thermalRescue() ? thermal.update(now) : 1.0f;
+    // Mid-scene thermal step. Scene ENTRY already sized to the cap (above), so
+    // this only fires when the cap MOVES mid-play. Apply a step-DOWN (SoC got
+    // hotter) at once to protect it; a step-UP (cooling) is deferred to the next
+    // scene entry, so recovery never restarts a scene mid-play. The down-step is
+    // masked by a transition only if the operator opted in (gear menu) --
+    // otherwise it resizes silently (the scene just restarts at the lower res),
+    // the one deliberate mid-scene resize, kept from randomly firing static/tear.
     const float sceneScale = std::clamp(sceneManager.getCurrentScene().renderScale, 0.25f, 1.0f);
     const float effective = std::min({sceneScale, configRenderScale, thermalCap});
     const int wantW = std::max(64, static_cast<int>(std::lround(baseW * effective)));
     const int wantH = std::max(64, static_cast<int>(std::lround(baseH * effective)));
-    if (wantW != sceneRenderer.renderWidth()) {
-        sceneRenderer.requestResize(wantW, wantH);
+    if (wantW < sceneRenderer.renderWidth()) {
+        sceneRenderer.requestResize(wantW, wantH, sceneControlMap.thermalTransition());
     }
 }
 

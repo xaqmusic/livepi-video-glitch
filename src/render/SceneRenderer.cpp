@@ -40,7 +40,7 @@ void SceneRenderer::addPostPass(std::unique_ptr<ShaderPass> pass) {
     postChain.addPass(std::move(pass));
 }
 
-void SceneRenderer::requestResize(int w, int h) {
+void SceneRenderer::requestResize(int w, int h, bool useTransition) {
     if (w < 16 || h < 16) return;
     if ((w == width && h == height) || pendingResize) return;
     // Don't stomp a scene switch (or a prior resize) already in flight -- the
@@ -49,7 +49,7 @@ void SceneRenderer::requestResize(int w, int h) {
 
     pendingResizeW = w;
     pendingResizeH = h;
-    if (renderScene.transition.style != TransitionStyle::None) {
+    if (useTransition && renderScene.transition.style != TransitionStyle::None) {
         // Mask the FBO realloc with the scene's own transition: ramp its effect
         // to peak, resize under full cover, ramp back in (render()'s peak block
         // does the actual applyResize, same point a deferred scene swap lands).
@@ -102,13 +102,17 @@ void SceneRenderer::setMaxScale(float s) {
     maxScale = std::clamp(s, 0.25f, 1.0f);
 }
 
+void SceneRenderer::setThermalScale(float s) {
+    thermalScale = std::clamp(s, 0.25f, 1.0f);
+}
+
 void SceneRenderer::sceneRenderDims(float sceneScale, int& outW, int& outH) const {
     if (baseWidth <= 0 || baseHeight <= 0) {
         outW = 0;
         outH = 0;  // base size unknown -> caller leaves the current size alone
         return;
     }
-    const float s = std::min(std::clamp(sceneScale, 0.25f, 1.0f), maxScale);
+    const float s = std::min({std::clamp(sceneScale, 0.25f, 1.0f), maxScale, thermalScale});
     outW = std::max(64, static_cast<int>(std::lround(baseWidth * s)));
     outH = std::max(64, static_cast<int>(std::lround(baseHeight * s)));
 }

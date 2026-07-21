@@ -44,6 +44,9 @@ def _public(stored: dict | None = None) -> dict:
         "sceneAdvance": stored.get("sceneAdvance"),
         "sceneBack": stored.get("sceneBack"),
         "thermalRescue": stored.get("thermalRescue", True),
+        # Whether a mid-scene thermal step-down is masked by the scene's
+        # transition (renderer reads this live). Default off (silent resize).
+        "thermalTransition": stored.get("thermalTransition", False),
         # Live audio-reactivity tuning the renderer hot-reads from this file
         # (SceneControlMap): the overall-level one-pole smoothing coefficient
         # (0 = snappiest, ~0.95 = steadiest) and the adaptive-gain toggle (off =
@@ -68,6 +71,7 @@ class SettingsPatch(BaseModel):
     # an explicit null means "unbind" -- distinguished via model_fields_set.
     showCardOnBoot: bool | None = None
     thermalRescue: bool | None = None
+    thermalTransition: bool | None = None
     audioSmoothing: float | None = Field(default=None, ge=0.0, le=0.98)
     audioAutoGain: bool | None = None
     sceneAdvance: SceneTrigger | None = None
@@ -95,6 +99,8 @@ def update_settings(patch: SettingsPatch):
     if patch.thermalRescue is not None:
         # Read live by the renderer from settings.json (SceneControlMap).
         stored["thermalRescue"] = patch.thermalRescue
+    if patch.thermalTransition is not None:
+        stored["thermalTransition"] = patch.thermalTransition
 
     if patch.audioSmoothing is not None:
         stored["audioSmoothing"] = patch.audioSmoothing

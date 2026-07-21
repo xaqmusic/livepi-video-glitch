@@ -43,6 +43,9 @@ export interface Settings {
     sceneBack?: SceneTrigger | null;
     /** Global thermal-rescue toggle: cap render scale when the SoC overheats. */
     thermalRescue?: boolean;
+    /** Mask a mid-scene thermal resolution drop with the scene's transition
+     *  (else it resizes silently). Default off. */
+    thermalTransition?: boolean;
     /** Overall audio-level one-pole smoothing, 0 (snappiest) .. ~0.95 (steadiest). */
     audioSmoothing?: number;
     /** Adaptive audio gain: on = auto-normalize (good for a mic), off = fixed
