@@ -7,6 +7,8 @@
 
 class Config;
 class ofxMidiIn;
+class ofSoundStream;
+class ofSoundStreamSettings;
 
 // Abstract source of everything the glitch engine reacts to: MIDI clock/CC,
 // button events, and audio level. See docs/architecture.md for why this
@@ -45,3 +47,11 @@ std::unique_ptr<ControlSource> createControlSource(const Config& config);
 // no external input. That silent mis-open is why MIDI Learn saw nothing while
 // the Pisound's own activity LED still blinked.
 bool openMidiInByName(ofxMidiIn& midiIn, const std::string& wanted);
+
+// Choose the audio-capture device for a control source, in priority order:
+// an explicit audio.device_name config override, then the source's own hardware
+// (preferSubstr, e.g. "pisound"), then any connected USB capture device, then
+// any input at all (system default). Sets settings.setInDevice() and logs the
+// full device list + the choice. No match leaves the backend default in place.
+void configureAudioInput(ofSoundStream& stream, ofSoundStreamSettings& settings,
+                         const Config& config, const std::string& preferSubstr);

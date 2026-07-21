@@ -1,13 +1,16 @@
 {
     "_comment": "Copy to app.local.json (gitignored) and edit for this machine. Only override what needs to differ from app.json -- Config::mergeFromFile does a JSON merge_patch on top of the base config, not a full replace.",
 
-    "control_source": "midi",
+    "_comment_control_source": "\"auto\" (the app.json default) probes at startup: Pisound if present, else any connected USB MIDI/audio device, else the mock. Force one with \"pisound\" / \"midi\" / \"mock\" if you need to.",
+    "control_source": "auto",
     "midi": {
+        "_comment": "port_name is a SUBSTRING match; empty lets auto-select prefer a USB controller. knobA/B map assignable CC knobs.",
         "port_name": "",
         "knobA_cc": 21,
         "knobB_cc": 22
     },
     "audio": {
+        "_comment": "device_name is a substring override; empty lets auto-select prefer a USB capture device, then the system default.",
         "device_name": ""
     },
     "window": {

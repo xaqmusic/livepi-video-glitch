@@ -22,14 +22,6 @@ void MidiControlSource::setup(const Config& config) {
 
     clock.start();
 
-    auto devices = soundStream.getDeviceList();
-    ofLogNotice("MidiControlSource") << devices.size() << " audio devices available:";
-    for (const auto& device : devices) {
-        ofLogNotice("MidiControlSource") << "  " << device.deviceID << ": " << device.name
-                                          << " (in=" << device.inputChannels << ")"
-                                          << (device.isDefaultInput ? " [default input]" : "");
-    }
-
     // Low-latency audio input, tunable in app.json (see PisoundControlSource).
     levelSmoothing = std::clamp(config.getFloat("audio.level_smoothing", 0.6f), 0.0f, 0.98f);
     ofSoundStreamSettings settings;
@@ -39,17 +31,9 @@ void MidiControlSource::setup(const Config& config) {
     settings.bufferSize = config.getInt("audio.buffer_size", 128);
     settings.numBuffers = config.getInt("audio.num_buffers", 2);
     settings.setInListener(this);
-
-    std::string audioDeviceName = config.getString("audio.device_name", "");
-    if (!audioDeviceName.empty()) {
-        auto matches = soundStream.getMatchingDevices(audioDeviceName, 1);
-        if (!matches.empty()) {
-            settings.setInDevice(matches.front());
-        } else {
-            ofLogWarning("MidiControlSource")
-                << "No audio input device matching '" << audioDeviceName << "', using the default.";
-        }
-    }
+    // No source-specific hardware to prefer: an explicit override > a connected
+    // USB capture device > the system default.
+    configureAudioInput(soundStream, settings, config, "");
     soundStream.setup(settings);
     bandSplitter.setup(static_cast<float>(settings.sampleRate));
 }

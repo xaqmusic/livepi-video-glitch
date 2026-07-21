@@ -1,5 +1,5 @@
 {
-    "control_source": "mock",
+    "control_source": "auto",
     "mock": {
         "bpm": 120.0
     },

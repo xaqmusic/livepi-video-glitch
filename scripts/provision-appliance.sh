@@ -156,9 +156,13 @@ install -d "$APP_DIR/bin/data/config"
 # the kiosk at the persistent "an owner has logged in once" flag the backend
 # drops on /data, so the on-screen setup card retires after first login instead
 # of re-popping every boot (see auth.py CLAIMED_PATH / ofApp setup()).
+# control_source "auto": probe at boot and pick Pisound if present, else any
+# connected USB MIDI/audio device, else the mock. Keeps a Pi 4 + Pisound working
+# while letting a Pi 5 (or any box where Pisound is off the table for thermal
+# reasons) drive from a plain USB controller/interface with no reconfiguration.
 cat > "$APP_DIR/bin/data/config/app.local.json" <<APPCFG
 {
-    "control_source": "pisound",
+    "control_source": "auto",
     "window": { "fullscreen": true },
     "ui": { "claimed_marker": "$DATA_DIR/.claimed" },
     "controls": { "scene_map": "$DATA_DIR/settings.json" }

@@ -42,16 +42,7 @@ void PisoundControlSource::setup(const Config& config) {
     settings.bufferSize = config.getInt("audio.buffer_size", 128);
     settings.numBuffers = config.getInt("audio.num_buffers", 2);
     settings.setInListener(this);
-    std::string audioDeviceName = config.getString("audio.device_name", "");
-    if (!audioDeviceName.empty()) {
-        auto matches = soundStream.getMatchingDevices(audioDeviceName, 1);
-        if (!matches.empty()) {
-            settings.setInDevice(matches.front());
-        } else {
-            ofLogWarning("PisoundControlSource")
-                << "No audio input device matching '" << audioDeviceName << "', using the default.";
-        }
-    }
+    configureAudioInput(soundStream, settings, config, "pisound");  // prefer the Pisound capture
     soundStream.setup(settings);
     bandSplitter.setup(static_cast<float>(settings.sampleRate));
 
