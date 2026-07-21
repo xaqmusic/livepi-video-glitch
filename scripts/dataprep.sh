@@ -86,9 +86,15 @@ grow_to_fill() {
         return 0
     fi
     local disk partnum
-    disk="/dev/$(lsblk -no pkname "$dev" 2>/dev/null | head -n1)"
-    partnum="$(lsblk -no PARTN "$dev" 2>/dev/null | grep -E '^[0-9]+$' | head -n1)"
-    if [[ ! -b "$disk" || -z "$partnum" ]]; then
+    # NB: `lsblk -no PARTN` right-aligns the column, so it prints " 3" (leading
+    # space). Strip whitespace with tr -- do NOT grep for the number: a grep
+    # no-match under `set -euo pipefail` exits the whole script, which is exactly
+    # the boot-chain stall that shipped (dataprep died here, so /data never grew
+    # or mounted, so firstboot -- and the control AP -- never ran). tr always
+    # exits 0.
+    disk="/dev/$(lsblk -no pkname "$dev" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+    partnum="$(lsblk -no PARTN "$dev" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+    if [[ ! -b "$disk" || ! "$partnum" =~ ^[0-9]+$ ]]; then
         log "WARNING: could not resolve disk/partition number for $dev; leaving it at seed size"
         return 0
     fi
