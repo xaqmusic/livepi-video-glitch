@@ -20,6 +20,32 @@ import { useShowStore } from "../../state/showStore";
 // can never collide with generator names.
 const GEN_PREFIX = "gen:";
 
+// The 64x36 source thumbnail for a layer: a clip's own thumbnail, else a
+// generator's static art from /thumbs/generators/<key>.png (shipped in the web
+// build), falling back to a glyph if that PNG isn't present yet.
+function SourceThumb({ clip, generatorKey }: { clip?: Clip; generatorKey?: string }) {
+    const [failed, setFailed] = useState(false);
+    const box = { width: 64, height: 36, borderRadius: 4 } as const;
+    if (clip?.thumbUrl) {
+        return <img src={clip.thumbUrl} alt="" style={{ ...box, objectFit: "cover" }} />;
+    }
+    if (generatorKey && !failed) {
+        return (
+            <img
+                src={`/thumbs/generators/${generatorKey}.png`}
+                alt=""
+                style={{ ...box, objectFit: "cover" }}
+                onError={() => setFailed(true)}
+            />
+        );
+    }
+    return (
+        <div style={{ ...box, background: "var(--bg-input)", display: "grid", placeItems: "center", fontSize: 11 }} className="dim">
+            {generatorKey ? "✳" : "?"}
+        </div>
+    );
+}
+
 function ParamGroup({ title, hot, children }: { title: string; hot: boolean; children: ReactNode }) {
     return (
         <details className="param-group">
@@ -276,13 +302,7 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
                     <div key={layer.id} className="card" style={{ background: "var(--bg)", display: "flex", flexDirection: "column", gap: 8 }}>
                         <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
                             <div className="row">
-                                {clip?.thumbUrl ? (
-                                    <img src={clip.thumbUrl} alt="" style={{ width: 64, height: 36, objectFit: "cover", borderRadius: 4 }} />
-                                ) : (
-                                    <div style={{ width: 64, height: 36, background: "var(--bg-input)", borderRadius: 4, display: "grid", placeItems: "center", fontSize: 11 }} className="dim">
-                                        {layer.kind === "generator" ? "✳" : "?"}
-                                    </div>
-                                )}
+                                <SourceThumb clip={clip} generatorKey={layer.kind === "generator" ? layer.source : undefined} />
                                 <select value={sourceValue} onChange={(e) => setLayerSource(layer.id, e.target.value)}>
                                     <optgroup label="Clips">
                                         {clips.map((c) => (

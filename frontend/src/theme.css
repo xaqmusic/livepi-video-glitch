@@ -141,6 +141,16 @@ input[type="range"] {
     .page {
         padding: 12px;
     }
+    /* Phones: let horizontal control rows wrap so nothing overflows off-screen
+       -- scene/show chooser rows (info + a button cluster) and the top nav both
+       reflow onto extra lines instead of clipping their controls. */
+    .row {
+        flex-wrap: wrap;
+    }
+    .topbar {
+        flex-wrap: wrap;
+        gap: 8px 12px;
+    }
 }
 
 /* Collapsible per-layer control sections (LayerStack). The hot dot on a

@@ -96,9 +96,69 @@ export default function MappableControl(props: MappableControlProps) {
         sendPreview?.(v);
     };
 
+    // Touch context slider: on a phone the inline range slider is a tiny target,
+    // so press-and-hold the param NAME to pop a fat drag track under the finger,
+    // slide to set the value, lift to dismiss. Gated to touch/pen pointers so
+    // the mouse/desktop path (the inline slider) is untouched. Float params only
+    // -- toggles/enums are already fine to tap.
+    const isSlider = spec.type !== "toggle" && spec.type !== "enum";
+    const [ctxOpen, setCtxOpen] = useState(false);
+    const trackRef = useRef<HTMLDivElement | null>(null);
+
+    const valueFromClientX = (clientX: number): number => {
+        const track = trackRef.current;
+        if (!track) return value;
+        const r = track.getBoundingClientRect();
+        const t = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+        return spec.min + t * (spec.max - spec.min);
+    };
+    const onLabelPointerDown = (e: React.PointerEvent) => {
+        if (!isSlider || e.pointerType === "mouse") return;
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        setCtxOpen(true);
+    };
+    const onLabelPointerMove = (e: React.PointerEvent) => {
+        if (!ctxOpen) return;
+        handleChange(valueFromClientX(e.clientX));
+    };
+    const onLabelPointerUp = (e: React.PointerEvent) => {
+        if (!ctxOpen) return;
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        setCtxOpen(false);
+    };
+    const fillPct = ((value - spec.min) / (spec.max - spec.min)) * 100;
+
     return (
         <div className="row" style={{ gap: 8 }}>
-            <span style={{ minWidth: 150 }}>{label}</span>
+            <div style={{ position: "relative", minWidth: 150 }}>
+                <span
+                    style={isSlider ? { touchAction: "none", userSelect: "none", cursor: "ew-resize" } : undefined}
+                    title={isSlider ? "Hold and drag to adjust (touch)" : undefined}
+                    onPointerDown={onLabelPointerDown}
+                    onPointerMove={onLabelPointerMove}
+                    onPointerUp={onLabelPointerUp}
+                >
+                    {label}
+                </span>
+                {ctxOpen && isSlider && (
+                    <div
+                        className="card"
+                        style={{ position: "absolute", left: 0, top: "110%", zIndex: 30, width: 240, padding: 10 }}
+                    >
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                            <span>{label}</span>
+                            <span className="dim">{value.toFixed(2)}</span>
+                        </div>
+                        <div
+                            ref={trackRef}
+                            style={{ position: "relative", height: 30, borderRadius: 6, background: "var(--bg-input)", overflow: "hidden" }}
+                        >
+                            <div style={{ position: "absolute", inset: 0, width: `${fillPct}%`, background: "var(--accent)", opacity: 0.55 }} />
+                        </div>
+                    </div>
+                )}
+            </div>
             {spec.type === "toggle" ? (
                 <input
                     type="checkbox"
