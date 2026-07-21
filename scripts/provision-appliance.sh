@@ -115,18 +115,20 @@ apt-get install -y --no-install-recommends \
 
 # ---------------------------------------------------------------------------
 if [[ "$PREBUILT" == "1" ]]; then
-    log "app build: SKIPPED (LIVEPI_PREBUILT=1 -- binary + venv already in place)"
+    log "app build: SKIPPED (LIVEPI_PREBUILT=1 -- binary + pylib already in place)"
 else
     log "app build: openFrameworks + renderer (this is the slow step under qemu)"
     OF_ROOT="$OF_ROOT" bash "$APP_DIR/scripts/setup-pi.sh"
     make -C "$APP_DIR" OF_ROOT="$OF_ROOT" -j"$(nproc)"
 fi
-# The backend venv is arch-specific and built here (setup-pi.sh already does it;
-# this covers the prebuilt path and any partial state).
-if [[ ! -x "$APP_DIR/backend/.venv/bin/uvicorn" ]]; then
-    log "backend venv"
-    python3 -m venv "$APP_DIR/backend/.venv"
-    "$APP_DIR/backend/.venv/bin/pip" install -q -r "$APP_DIR/backend/requirements.txt"
+# Backend deps are arch-specific and built here (setup-pi.sh already does it;
+# this covers the prebuilt path and any partial state). A relocatable pip
+# --target dir, not a venv, so the updater can move it under /data/app -- see
+# setup-pi.sh.
+if [[ ! -f "$APP_DIR/backend/pylib/uvicorn/__init__.py" ]]; then
+    log "backend deps -> pylib"
+    python3 -m pip install -q --target "$APP_DIR/backend/pylib" --break-system-packages \
+        -r "$APP_DIR/backend/requirements.txt"
 fi
 # The renderer binary and the built web UI must exist or the box boots to nothing.
 [[ -x "$APP_DIR/bin/livepi-video-glitch" ]] || warn "renderer binary missing at $APP_DIR/bin/livepi-video-glitch"

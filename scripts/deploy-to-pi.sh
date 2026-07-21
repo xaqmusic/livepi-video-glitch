@@ -33,11 +33,11 @@ echo "Building natively on the Pi..."
 ssh "$PI_USER@$PI_HOST" "cd '$PI_APP_DIR' && make OF_ROOT='$PI_OF_ROOT' -j\$(nproc)"
 
 echo "Syncing backend dependencies..."
-# Idempotent and fast when nothing changed; the venv lives only on the Pi
-# (excluded from rsync -- it's arch-specific).
+# Idempotent and fast when nothing changed; the deps live only on the Pi
+# (pylib is arch-specific, excluded from rsync). A relocatable pip --target dir
+# rather than a venv -- see scripts/setup-pi.sh.
 ssh "$PI_USER@$PI_HOST" "cd '$PI_APP_DIR/backend' \
-    && { [ -d .venv ] || python3 -m venv .venv; } \
-    && .venv/bin/pip install -q -r requirements.txt"
+    && python3 -m pip install -q --target pylib --break-system-packages -r requirements.txt"
 
 if [ "${1:-}" = "--restart" ]; then
     echo "Restarting livepi-video-glitch.service..."

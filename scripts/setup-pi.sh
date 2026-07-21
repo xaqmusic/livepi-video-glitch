@@ -291,16 +291,20 @@ else
     git clone --depth 1 https://github.com/danomatika/ofxMidi.git "$ADDON_DIR"
 fi
 
-echo "Installing backend dependencies (python venv + ffmpeg) and mDNS..."
+echo "Installing backend dependencies (relocatable pylib + ffmpeg) and mDNS..."
 # avahi-daemon makes the box answer at <hostname>.local (e.g.
 # livepi-XXXX.local) with no IP hunting -- firstboot.sh sets that unique
 # hostname and enables the daemon. avahi-utils ships avahi-publish for the
 # shared livepi.local alias added in the networking phase.
-sudo apt-get install -y python3-venv ffmpeg avahi-daemon avahi-utils
-if [ ! -d "$REPO_DIR/backend/.venv" ]; then
-    python3 -m venv "$REPO_DIR/backend/.venv"
-fi
-"$REPO_DIR/backend/.venv/bin/pip" install -q -r "$REPO_DIR/backend/requirements.txt"
+sudo apt-get install -y python3-pip ffmpeg avahi-daemon avahi-utils
+# A relocatable dependency directory (pip --target) rather than a venv: it bakes
+# in NO absolute paths, so the in-app updater can ship it inside a bundle and run
+# the backend from any path via PYTHONPATH (a venv's shebangs/pyvenv.cfg can't
+# move). --break-system-packages only silences PEP 668; --target never touches
+# the system environment. The systemd unit runs `python3 -m uvicorn` with
+# PYTHONPATH pointed here.
+python3 -m pip install -q --target "$REPO_DIR/backend/pylib" --break-system-packages \
+    -r "$REPO_DIR/backend/requirements.txt"
 
 echo "Installing Pisound driver/software support..."
 # On a genuinely fresh Raspberry Pi OS flash, unattended-upgrades or the

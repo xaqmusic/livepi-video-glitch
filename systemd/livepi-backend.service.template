@@ -14,6 +14,10 @@ Wants=network-online.target
 [Service]
 User=__USER__
 WorkingDirectory=__APP_DIR__/backend
+# Backend deps live in a relocatable pip --target dir (not a venv), so run the
+# stdlib python with it on PYTHONPATH -- lets the updater move the app under
+# /data/app/<version> and run from any path (see scripts/setup-pi.sh).
+Environment=PYTHONPATH=__APP_DIR__/backend/pylib
 # Two env files, later-wins for duplicate keys (systemd semantics). The
 # in-repo one carries dev defaults; the per-device one on the writable
 # data partition carries the secrets firstboot generated (LIVEPI_PASSWORD,
@@ -23,7 +27,7 @@ EnvironmentFile=-__APP_DIR__/backend/.env
 EnvironmentFile=-__DATA_DIR__/backend/.env
 # --no-access-log: the per-request GET/POST log floods the (volatile) journal
 # with the web UI's telemetry + param-preview traffic; warnings/errors still log.
-ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080 --no-access-log --log-level warning
+ExecStart=/usr/bin/python3 -m uvicorn livepi_backend.main:app --host 0.0.0.0 --port 8080 --no-access-log --log-level warning
 Restart=on-failure
 RestartSec=2
 

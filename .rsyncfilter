@@ -29,9 +29,11 @@
 - obj/
 - bin/livepi-video-glitch
 
-# Backend/frontend local state (venv is arch-specific, node_modules huge;
-# frontend/dist DOES deploy -- it's built on the desktop, never on the Pi)
+# Backend/frontend local state (pylib/venv are arch-specific and built ON the
+# target, node_modules huge; frontend/dist DOES deploy -- built on the desktop,
+# never on the Pi)
 - backend/.venv/
+- backend/pylib/
 - backend/.env
 - __pycache__/
 - frontend/node_modules/
