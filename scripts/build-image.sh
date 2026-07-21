@@ -128,6 +128,16 @@ build_frontend() {
     log "building the web UI on the host (rebuilt every image; LIVEPI_SKIP_FRONTEND=1 to reuse)"
     ( cd "$REPO_DIR/frontend" && npm ci && npm run build ) || die "frontend build failed"
     [[ -f "$REPO_DIR/frontend/dist/index.html" ]] || die "web build did not produce frontend/dist/index.html"
+    # This script runs as root (loop mounts / chroot), so the npm build above
+    # created root-owned frontend/dist + frontend/node_modules inside the
+    # invoking user's working copy -- which then blocks THEIR own later
+    # `npm run build` / `npm ci` (emptyDir can't remove root-owned dist). Hand
+    # both back to whoever launched us via sudo.
+    if [[ -n "${SUDO_USER:-}" ]] && id "$SUDO_USER" >/dev/null 2>&1; then
+        chown -R "$SUDO_USER:$(id -gn "$SUDO_USER")" \
+            "$REPO_DIR/frontend/node_modules" "$REPO_DIR/frontend/dist" 2>/dev/null || true
+        log "restored frontend/{dist,node_modules} ownership to $SUDO_USER"
+    fi
 }
 
 # --- fetch + decompress the base image -------------------------------------
