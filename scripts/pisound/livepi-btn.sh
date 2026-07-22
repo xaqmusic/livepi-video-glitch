@@ -12,7 +12,9 @@
 #
 #   CLICK_1     .../livepi-scene.sh   -- quick press: advance to the next scene
 #   HOLD_3S     .../livepi-debug.sh   -- ~3s hold (3-5s): toggle the debug overlay
-#   HOLD_OTHER  .../livepi-card.sh    -- long hold (>7s): toggle the setup/QR card
+#   HOLD_OTHER  .../livepi-card.sh    -- long hold (>7s): toggle the setup/QR card;
+#                                        a VERY long hold (>=30s) RESETS the login
+#                                        password to the factory code (recovery)
 #
 # (Run directly as `livepi-btn.sh scene|debug|card` it still works, for manual
 # testing.) The pisound.button_fifo path in PisoundControlSource stays available
@@ -37,9 +39,41 @@ esac
 COMMAND_FIFO="${LIVEPI_COMMAND_FIFO:-/tmp/livepi/command.fifo}"
 
 case "$ACTION" in
-    scene) LINE="click"       ;;   # -> SceneManager button Click -> next scene
-    debug) LINE="debug"       ;;   # -> toggle the on-screen debug overlay
-    card)  LINE="card toggle" ;;   # -> toggle the setup/connection (QR) card
+    scene) LINE="click" ;;   # -> SceneManager button Click -> next scene
+    debug) LINE="debug" ;;   # -> toggle the on-screen debug overlay
+    card)
+        # pisound-btn appends (click_count, hold_seconds) to a HOLD action's
+        # script. A VERY long hold (>=30s -- the Pisound blinks its MIDI LED once
+        # per second so the operator can count) is the PASSWORD-RECOVERY gesture;
+        # a normal long hold (7-30s) just toggles the setup/QR card.
+        #
+        # Defensive: check BOTH arg slots for a plausible seconds value in
+        # [30,3600] (so a wrong slot/order never matters), strip any decimal, and
+        # log the raw args -- a normal 7-29s hold can't land in that range, so it
+        # can never accidentally reset. The journal line confirms the exact arg
+        # convention after the first real hold.
+        logger -t livepi-btn "card gesture args=[$*]"
+        reset=0
+        for a in "${1:-}" "${2:-}"; do
+            a="${a%%.*}"                       # drop any fractional seconds
+            case "$a" in
+                ''|*[!0-9]*) : ;;              # not a plain integer -> ignore
+                *) [ "$a" -ge 30 ] && [ "$a" -le 3600 ] && reset=1 ;;
+            esac
+        done
+        if [ "$reset" = 1 ]; then
+            # Recovery: revert the web login to the factory device code by
+            # dropping the user-set override + the claimed marker, then force the
+            # card on so that code is visible. The AP key and SSH password already
+            # ARE the factory code, so this just re-unifies and re-reveals it --
+            # no regeneration, no restart. Runs as root (the daemon does).
+            rm -f /data/auth.json /data/.claimed 2>/dev/null || true
+            logger -t livepi-btn "password reset: reverted web login to the factory code"
+            LINE="card on"
+        else
+            LINE="card toggle"
+        fi
+        ;;
     *) echo "livepi-btn: unknown action '${ACTION}' (want: scene|debug|card)" >&2; exit 2 ;;
 esac
 
