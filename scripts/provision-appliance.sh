@@ -89,11 +89,12 @@ fi
 getent group "$APP_USER" >/dev/null 2>&1 || groupadd "$APP_USER"
 usermod -g "$APP_USER" -s /bin/bash "$APP_USER"
 install -d -o "$APP_USER" -g "$APP_USER" -m 755 "/home/$APP_USER"
-# Dev images ONLY: bake a developer SSH pubkey so key-based SSH survives a
-# reflash -- a shipping image has no authorized_keys and the account is
-# password-locked. The key CONTENT arrives via env from build-image.sh, never a
-# repo file. Double-gated here: refuse on a shipping/locked image.
-if [[ -n "${LIVEPI_DEV_SSH_KEY:-}" && "${LIVEPI_LOCKDOWN:-1}" != "1" ]]; then
+# Bake a developer SSH pubkey (if one was passed) so key-based SSH survives a
+# reflash of a test box -- a fresh image otherwise has no authorized_keys and
+# the account is password-locked. Opt-in via env from build-image.sh (which
+# warns when it's a locked image); the key CONTENT arrives via env, never a repo
+# file. A release build simply doesn't set it.
+if [[ -n "${LIVEPI_DEV_SSH_KEY:-}" ]]; then
     install -d -o "$APP_USER" -g "$APP_USER" -m 700 "/home/$APP_USER/.ssh"
     printf '%s\n' "$LIVEPI_DEV_SSH_KEY" >> "/home/$APP_USER/.ssh/authorized_keys"
     chown "$APP_USER:$APP_USER" "/home/$APP_USER/.ssh/authorized_keys"

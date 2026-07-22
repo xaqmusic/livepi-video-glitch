@@ -36,8 +36,8 @@ APP_USER="${LIVEPI_APP_USER:-pi}"
 DATA_DIR="${LIVEPI_DATA_DIR:-/data}"
 LOCKDOWN="${LIVEPI_LOCKDOWN:-1}"
 # Path to a developer SSH PUBLIC key to bake into ~pi/.ssh/authorized_keys so SSH
-# survives a reflash. Dev images only (refused unless LIVEPI_LOCKDOWN=0); the key
-# content is read here and never written to a repo file.
+# survives a reflash of a TEST box. Opt-in (unset for release builds); warns but
+# proceeds on a locked image. The key content is read here, never a repo file.
 DEV_SSH_KEY="${LIVEPI_DEV_SSH_KEY:-}"
 WIFI_COUNTRY="${LIVEPI_WIFI_COUNTRY:-US}"
 ENLARGE_MB="${LIVEPI_ENLARGE_MB:-4096}"
@@ -235,10 +235,16 @@ provision() {
     # refused unless LIVEPI_LOCKDOWN=0, and the provisioner double-checks.
     local dev_key=""
     if [[ -n "$DEV_SSH_KEY" ]]; then
-        [[ "$LOCKDOWN" != "1" ]] || die "LIVEPI_DEV_SSH_KEY is only allowed on a dev image (set LIVEPI_LOCKDOWN=0)"
         [[ -f "$DEV_SSH_KEY" ]] || die "LIVEPI_DEV_SSH_KEY=$DEV_SSH_KEY: no such file"
         dev_key="$(cat "$DEV_SSH_KEY")"
-        log "dev image: baking SSH key $DEV_SSH_KEY into ~$APP_USER/.ssh/authorized_keys"
+        # Opt-in (unset by default), so a release build never gets a key. It IS
+        # allowed on a locked image -- baking your own key into your own sealed
+        # TEST boxes is fine -- but loudly warn, because such an image must never
+        # be distributed to customers.
+        if [[ "$LOCKDOWN" == "1" ]]; then
+            warn "baking a developer SSH key into a SHIPPING-config (LOCKDOWN=1) image -- fine for YOUR test boxes, but do NOT distribute this .img."
+        fi
+        log "baking SSH key $DEV_SSH_KEY into ~$APP_USER/.ssh/authorized_keys"
     fi
 
     log "running provision-appliance.sh inside the chroot (this is the long part)"
