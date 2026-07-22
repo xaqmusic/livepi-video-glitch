@@ -110,6 +110,17 @@ void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
         lines.push_back("  " + mdns);
         if (!ipUrl.empty()) lines.push_back("  " + ipUrl);
         lines.push_back("");
+        // Re-show the login password (same one from the setup card): the hotspot
+        // card that first displayed it is gone, and the long generated string is
+        // easy to forget. Both cards retire for good after the first login, so
+        // this is only ever on-screen during brand-new-box setup -- with a nudge
+        // to change it so it isn't left readable on a projector.
+        if (!code.empty()) {
+            lines.push_back("Password        " + code);
+            lines.push_back("Change it once you sign in (Settings > Password)");
+            lines.push_back("so it isn't left showing on this screen.");
+        }
+        lines.push_back("");
         lines.push_back(lanIp.empty() ? "Getting an address -- this updates on its own..."
                                       : "Scan the code once you're on the same Wi-Fi.");
         // QR the client-IP URL (most reliably scannable on the subnet); fall
