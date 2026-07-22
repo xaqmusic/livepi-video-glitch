@@ -6,7 +6,13 @@
 
 [Unit]
 Description=LivePi VideoGlitcher (kiosk)
-After=sound.target network.target
+# data.mount (the /data partition): the renderer reads shows/clips AND the
+# "claimed" marker from /data at startup, so it must not start before /data is
+# mounted -- otherwise it greets an already-claimed box with the setup card and
+# the default show until things hot-reload. Order-only (After, not Requires), so
+# a box that somehow has no /data still boots to a usable render. local-fs pulls
+# data.mount into the boot transaction (nofail), so ordering after it is enough.
+After=sound.target network.target data.mount
 
 [Service]
 Type=simple

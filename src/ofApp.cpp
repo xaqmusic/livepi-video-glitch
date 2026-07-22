@@ -112,7 +112,7 @@ void ofApp::setup() {
     // to $DATA_DIR/.claimed on the appliance) -- if it exists at startup, start
     // with the card already retired. Absolute path, so not relative to data/.
     // Re-showable anytime via the button hold, [c], or the gear-menu toggle.
-    const std::string claimedMarker = config.getString("ui.claimed_marker", "");
+    claimedMarker = config.getString("ui.claimed_marker", "");
     if (!claimedMarker.empty() && ofFile::doesFileExist(claimedMarker, false)) {
         showConnectionCard = false;
         cardDismissed = true;
@@ -204,6 +204,17 @@ void ofApp::update() {
 
     // The setup overlay auto-hides the first time someone's clearly connected:
     // any web command, a played note, or the scene button. [c] brings it back.
+    // The kiosk can start before /data finishes mounting, so setup()'s one-time
+    // claimed check may have run before the marker was visible and wrongly shown
+    // the card on an already-claimed box. Re-check while the card is up: retire
+    // it the moment the marker appears (unless the operator explicitly summoned
+    // the card, in which case cardDismissed is set and we leave it alone).
+    if (showConnectionCard && !cardDismissed && !claimedMarker.empty()
+        && ofFile::doesFileExist(claimedMarker, false)) {
+        showConnectionCard = false;
+        cardDismissed = true;
+    }
+
     if (showConnectionCard && !cardDismissed) {
         bool interacted = !commands.empty() || frameState.lastButtonEvent != ButtonEvent::None;
         for (const auto& [note, vel] : frameState.noteValues) {

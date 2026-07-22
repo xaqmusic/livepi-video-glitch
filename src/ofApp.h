@@ -59,6 +59,10 @@ private:
     bool showConnectionCard = true;
     bool cardDismissed = false;
     ConnectionCard::Mode cardMode = ConnectionCard::Mode::Setup;
+    // The "box has been claimed" marker path ($DATA_DIR/.claimed). Re-checked
+    // while the card is up because the kiosk can start before /data mounts, so
+    // the one-time check in setup() may run before the marker is visible.
+    std::string claimedMarker;
 
     // Cached network reachability for the debug overlay, refreshed on a slow
     // cadence (getifaddrs is cheap but pointless to run every frame).
