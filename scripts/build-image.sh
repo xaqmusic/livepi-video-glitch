@@ -19,6 +19,7 @@
 #     LIVEPI_APP_USER=pi                account the services run as
 #     LIVEPI_DATA_DIR=/data             writable data-partition mountpoint
 #     LIVEPI_LOCKDOWN=1                 1 = ship (RO root after 1st boot), 0 = dev
+#     LIVEPI_DEV_SSH_KEY=               path to a pubkey to bake in (dev images ONLY)
 #     LIVEPI_WIFI_COUNTRY=US            regdomain for the control AP
 #     LIVEPI_ENLARGE_MB=4096            headroom added to rootfs for the build
 #     LIVEPI_PREBUILT=0                 1 = inject a prebuilt binary (skip compile)
@@ -34,6 +35,10 @@ APP_DIR="${LIVEPI_APP_DIR:-/opt/livepi}"
 APP_USER="${LIVEPI_APP_USER:-pi}"
 DATA_DIR="${LIVEPI_DATA_DIR:-/data}"
 LOCKDOWN="${LIVEPI_LOCKDOWN:-1}"
+# Path to a developer SSH PUBLIC key to bake into ~pi/.ssh/authorized_keys so SSH
+# survives a reflash. Dev images only (refused unless LIVEPI_LOCKDOWN=0); the key
+# content is read here and never written to a repo file.
+DEV_SSH_KEY="${LIVEPI_DEV_SSH_KEY:-}"
 WIFI_COUNTRY="${LIVEPI_WIFI_COUNTRY:-US}"
 ENLARGE_MB="${LIVEPI_ENLARGE_MB:-4096}"
 # Size of the LIVEPI_DATA partition planted at the END of the shipped image. It
@@ -224,6 +229,18 @@ provision() {
     mkdir -p "$MNT$APP_DIR"
     rsync -a --delete --filter="merge $REPO_DIR/.rsyncfilter" "$REPO_DIR/" "$MNT$APP_DIR/"
 
+    # Dev-image SSH key: read the pubkey CONTENT from the host path (never a repo
+    # file) and hand it to the provisioner as an env value to bake into
+    # ~pi/.ssh/authorized_keys, so SSH survives a reflash. DEV IMAGES ONLY --
+    # refused unless LIVEPI_LOCKDOWN=0, and the provisioner double-checks.
+    local dev_key=""
+    if [[ -n "$DEV_SSH_KEY" ]]; then
+        [[ "$LOCKDOWN" != "1" ]] || die "LIVEPI_DEV_SSH_KEY is only allowed on a dev image (set LIVEPI_LOCKDOWN=0)"
+        [[ -f "$DEV_SSH_KEY" ]] || die "LIVEPI_DEV_SSH_KEY=$DEV_SSH_KEY: no such file"
+        dev_key="$(cat "$DEV_SSH_KEY")"
+        log "dev image: baking SSH key $DEV_SSH_KEY into ~$APP_USER/.ssh/authorized_keys"
+    fi
+
     log "running provision-appliance.sh inside the chroot (this is the long part)"
     chroot "$MNT" /usr/bin/env \
         LC_ALL=C.UTF-8 LANG=C.UTF-8 \
@@ -233,6 +250,7 @@ provision() {
         LIVEPI_LOCKDOWN="$LOCKDOWN" \
         LIVEPI_WIFI_COUNTRY="$WIFI_COUNTRY" \
         LIVEPI_PREBUILT="$PREBUILT" \
+        LIVEPI_DEV_SSH_KEY="$dev_key" \
         /bin/bash "$APP_DIR/scripts/provision-appliance.sh"
 }
 

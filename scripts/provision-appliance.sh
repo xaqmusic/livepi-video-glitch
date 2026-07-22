@@ -89,6 +89,17 @@ fi
 getent group "$APP_USER" >/dev/null 2>&1 || groupadd "$APP_USER"
 usermod -g "$APP_USER" -s /bin/bash "$APP_USER"
 install -d -o "$APP_USER" -g "$APP_USER" -m 755 "/home/$APP_USER"
+# Dev images ONLY: bake a developer SSH pubkey so key-based SSH survives a
+# reflash -- a shipping image has no authorized_keys and the account is
+# password-locked. The key CONTENT arrives via env from build-image.sh, never a
+# repo file. Double-gated here: refuse on a shipping/locked image.
+if [[ -n "${LIVEPI_DEV_SSH_KEY:-}" && "${LIVEPI_LOCKDOWN:-1}" != "1" ]]; then
+    install -d -o "$APP_USER" -g "$APP_USER" -m 700 "/home/$APP_USER/.ssh"
+    printf '%s\n' "$LIVEPI_DEV_SSH_KEY" >> "/home/$APP_USER/.ssh/authorized_keys"
+    chown "$APP_USER:$APP_USER" "/home/$APP_USER/.ssh/authorized_keys"
+    chmod 600 "/home/$APP_USER/.ssh/authorized_keys"
+    log "DEV image: baked a developer SSH key into ~$APP_USER/.ssh/authorized_keys"
+fi
 # Groups the kiosk (video/render/audio, drm), Pisound (i2c/spi/gpio/audio), and
 # input need, plus netdev for NM and sudo for maintenance. Missing groups on a
 # given base are simply skipped.
