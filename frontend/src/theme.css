@@ -94,6 +94,22 @@ input[type="range"] {
     gap: 10px;
 }
 
+/* Parameter control rows (MappableControl): label | slider | value | binds.
+   Widths live here (not inline) so the phone breakpoint below can relax them --
+   an inline min-width can't be overridden by a media query. Desktop layout is
+   unchanged: fixed-width label + value flanking a flexing slider. */
+.mappable-label {
+    position: relative;
+    min-width: 150px;
+}
+.mappable-slider {
+    flex: 1;
+}
+.mappable-value {
+    min-width: 38px;
+    text-align: right;
+}
+
 .dim {
     color: var(--text-dim);
 }
@@ -150,6 +166,18 @@ input[type="range"] {
     .topbar {
         flex-wrap: wrap;
         gap: 8px 12px;
+    }
+    /* Give the slider a whole line to itself: drop the label's reserved width so
+       the label + value + bind buttons share the first row, and force the slider
+       (order: last) onto its own full-width line beneath them -- flex-basis 100%
+       is what makes it break to a new line and span the row. */
+    .mappable-label {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    .mappable-slider {
+        order: 10;
+        flex: 1 1 100%;
     }
 }
 

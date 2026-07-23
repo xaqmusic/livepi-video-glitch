@@ -130,8 +130,8 @@ export default function MappableControl(props: MappableControlProps) {
     const fillPct = ((value - spec.min) / (spec.max - spec.min)) * 100;
 
     return (
-        <div className="row" style={{ gap: 8 }}>
-            <div style={{ position: "relative", minWidth: 150 }}>
+        <div className="row mappable" style={{ gap: 8 }}>
+            <div className="mappable-label">
                 <span
                     style={isSlider ? { touchAction: "none", userSelect: "none", cursor: "ew-resize" } : undefined}
                     title={isSlider ? "Hold and drag to adjust (touch)" : undefined}
@@ -167,12 +167,12 @@ export default function MappableControl(props: MappableControlProps) {
                 />
             ) : spec.type === "enum" && spec.options ? (
                 <select
+                    className="mappable-slider"
                     value={Math.round((value - spec.min) / (spec.max - spec.min) * (spec.options.length - 1))}
                     onChange={(e) => {
                         const index = parseInt(e.target.value, 10);
                         handleChange(spec.min + (index / (spec.options!.length - 1)) * (spec.max - spec.min));
                     }}
-                    style={{ flex: 1 }}
                 >
                     {spec.options.map((opt, i) => (
                         <option key={opt} value={i}>{opt}</option>
@@ -181,15 +181,15 @@ export default function MappableControl(props: MappableControlProps) {
             ) : (
                 <>
                     <input
+                        className="mappable-slider"
                         type="range"
                         min={spec.min}
                         max={spec.max}
                         step={(spec.max - spec.min) / 200}
                         value={value}
                         onChange={(e) => handleChange(parseFloat(e.target.value))}
-                        style={{ flex: 1 }}
                     />
-                    <span className="dim" style={{ minWidth: 38, textAlign: "right" }}>
+                    <span className="dim mappable-value">
                         {value.toFixed(2)}
                     </span>
                 </>
