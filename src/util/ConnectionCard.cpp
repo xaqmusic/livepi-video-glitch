@@ -86,6 +86,14 @@ void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
     std::string qrPayload;   // empty -> no QR
     std::string qrCaption;
 
+    // Once the owner sets a custom web password (auth.json on DATA_DIR), the
+    // printed factory code no longer logs into the UI -- only the AP key and SSH
+    // still use it -- so showing it as "the password" is misleading. Point at the
+    // 30s-button reset instead. The join QR still carries the (unchanged) factory
+    // AP key, so joining the hotspot is unaffected. Checked live (not cached in
+    // gather()) so a UI password change takes effect on the next card show.
+    const bool ownerPasswordSet = std::ifstream(livepi::userDataPath("auth.json")).good();
+
     if (mode == Mode::Lan) {
         // The box just joined a venue Wi-Fi; the setup hotspot has dropped, so
         // the phone that was on it is stranded. Point the user at the box's LAN
@@ -115,7 +123,11 @@ void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
         // easy to forget. Both cards retire for good after the first login, so
         // this is only ever on-screen during brand-new-box setup -- with a nudge
         // to change it so it isn't left readable on a projector.
-        if (!code.empty()) {
+        if (ownerPasswordSet) {
+            lines.push_back("Log in with the password you set.");
+            lines.push_back("Forgot it? Hold the box button 30s to reset");
+            lines.push_back("the login to the printed code.");
+        } else if (!code.empty()) {
             lines.push_back("Password        " + code);
             lines.push_back("Change it once you sign in (Settings > Password)");
             lines.push_back("so it isn't left showing on this screen.");

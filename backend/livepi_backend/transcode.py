@@ -117,20 +117,27 @@ IMAGE_EXTS = (".png", ".jpg", ".jpeg")
 def make_thumbnail(clip_path: Path, clip_id: str) -> str | None:
     config.THUMBS_DIR.mkdir(parents=True, exist_ok=True)
     thumb = config.THUMBS_DIR / f"{clip_id}.jpg"
-    # A still image has no "1s" mark to seek to -- seeking past its single frame
-    # yields an empty thumbnail, so skip -ss for images.
-    seek = [] if clip_path.suffix.lower() in IMAGE_EXTS else ["-ss", "1"]
-    subprocess.run(
-        [
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            *seek, "-i", str(clip_path),
-            "-frames:v", "1", "-vf", "scale=320:-2", str(thumb),
-        ],
-        capture_output=True, timeout=60,
-    )
-    # Judged by the artifact, not the exit code (libx265 teardown SIGILL,
-    # see probe()).
-    return thumb.name if thumb.exists() and thumb.stat().st_size > 0 else None
+
+    def _grab(seek: list[str]) -> bool:
+        subprocess.run(
+            [
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                *seek, "-i", str(clip_path),
+                "-frames:v", "1", "-vf", "scale=320:-2", str(thumb),
+            ],
+            capture_output=True, timeout=60,
+        )
+        # Judged by the artifact, not the exit code (libx265 teardown SIGILL,
+        # see probe()).
+        return thumb.exists() and thumb.stat().st_size > 0
+
+    # A still image has no "1s" mark to seek to, so skip -ss for images. For
+    # video, seek 1s in to skip black leaders -- but a sub-1s clip (or a single-
+    # frame container that probes as video, e.g. an animated .webp) has nothing
+    # past 1s and yields an empty file, so fall back to grabbing the first frame.
+    if clip_path.suffix.lower() in IMAGE_EXTS:
+        return thumb.name if _grab([]) else None
+    return thumb.name if (_grab(["-ss", "1"]) or _grab([])) else None
 
 
 def _transcode(job: Job, video_copy: bool = False, intra: bool = False) -> None:
