@@ -12,6 +12,14 @@
 #   sudo scripts/build-bundle.sh --version 1.2.3            # bundles /data/app/current
 #   # -> ./livepi-app-1.2.3.tar.zst  (upload it in the web UI's Software update)
 #
+# FRONTEND-ONLY fast path: for a UI-only change (no renderer/backend rebuild) the
+# aarch64 binary + pylib are unchanged, so take them from the running app and
+# just swap in a freshly built dist -- no full repo rsync to the Pi:
+#
+#   # on the desktop: npm run build, then rsync just the dist over, e.g.
+#   #   rsync -a frontend/dist/ pi@livepi.local:/tmp/newdist/
+#   sudo scripts/build-bundle.sh --frontend-only /tmp/newdist --version 1.2.3+ui
+#
 # Building from the x86 dev repo produces an x86 bundle -- fine for exercising
 # the pipeline on a desktop, useless on the Pi; the script warns when the binary
 # is not aarch64.
@@ -19,16 +27,28 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-TREE=""; VERSION=""; OUT="$PWD"
+TREE=""; VERSION=""; OUT="$PWD"; DIST_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --tree)    TREE="$2"; shift 2 ;;
-        --version) VERSION="$2"; shift 2 ;;
-        --out)     OUT="$2"; shift 2 ;;
-        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        --tree)          TREE="$2"; shift 2 ;;
+        --version)       VERSION="$2"; shift 2 ;;
+        --out)           OUT="$2"; shift 2 ;;
+        # UI-only rebuild: everything from --tree, but bundle the dist at this
+        # path instead of the tree's own. Value is a dir holding index.html (a
+        # built dist), or a parent that contains dist/.
+        --frontend-only) DIST_OVERRIDE="$2"; shift 2 ;;
+        -h|--help)       sed -n '2,27p' "$0"; exit 0 ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
+
+# Resolve the dist-override to the dir that actually holds index.html.
+if [[ -n "$DIST_OVERRIDE" ]]; then
+    if [[ -f "$DIST_OVERRIDE/index.html" ]]; then :
+    elif [[ -f "$DIST_OVERRIDE/dist/index.html" ]]; then DIST_OVERRIDE="$DIST_OVERRIDE/dist"
+    else echo "--frontend-only $DIST_OVERRIDE: no built dist there (expected index.html)" >&2; exit 1; fi
+    DIST_OVERRIDE="$(cd "$DIST_OVERRIDE" && pwd)"
+fi
 
 # Default source tree: the running app on a Pi, else the factory tree, else the
 # dev repo. All three are the same shape; only the arch differs.
@@ -92,8 +112,13 @@ rsync -a --exclude='.env' --exclude='.venv/' --exclude='__pycache__/' \
 # Web UI (served from frontend/dist, resolved relative to the backend module, so
 # it must ride inside the version tree) + scripts (so the tree is self-contained;
 # the ACTIVE activator is always the factory copy, this is just completeness).
-[[ -d "$TREE/frontend/dist" ]] || { echo "frontend/dist missing in $TREE (npm run build)" >&2; exit 1; }
-cp -a "$TREE/frontend/dist" "$STAGE/frontend/"
+# --frontend-only swaps in a freshly built dist here; everything else above is
+# still the running tree's (unchanged aarch64 binary/backend), so the bundle is
+# a complete, valid app tree that differs from the current one only in the UI.
+DIST_SRC="${DIST_OVERRIDE:-$TREE/frontend/dist}"
+[[ -f "$DIST_SRC/index.html" ]] || { echo "frontend/dist missing at $DIST_SRC (npm run build)" >&2; exit 1; }
+[[ -n "$DIST_OVERRIDE" ]] && log "frontend-only: dist from $DIST_SRC, everything else from $TREE"
+cp -a "$DIST_SRC" "$STAGE/frontend/dist"
 cp -a "$TREE/scripts" "$STAGE/"
 
 # --- manifest at the tree root (app-activate.sh peeks ./manifest.json) ---------
