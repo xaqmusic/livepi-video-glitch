@@ -44,12 +44,15 @@ void TelemetryWriter::update(const ControlState& state, const std::string& scene
             while (watchdogRunning) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
                 long long silentMs = nowMs() - lastHeartbeatMs.load();
-                if (watchdogRunning && silentMs > static_cast<long long>(kWatchdogSecs * 1000)) {
+                // A known long op (a clip preroll) legitimately blocks the main
+                // thread; hold off until its grace window expires so a slow cold
+                // load isn't mistaken for a wedge. A genuinely hung op still
+                // trips once the window passes.
+                bool inLongOp = nowMs() < longOpUntilMs.load();
+                if (watchdogRunning && !inLongOp && silentMs > static_cast<long long>(kWatchdogSecs * 1000)) {
                     // Frozen main thread (the rare v3d wedge) -- die loudly
                     // so systemd restarts the show instead of freezing until
-                    // a human notices. (Scene switches don't trip this:
-                    // their clip loads block update() for ~0.3-3s, well
-                    // under the limit.)
+                    // a human notices.
                     ofLogFatalError("TelemetryWriter")
                         << "No frame completed in " << (silentMs / 1000) << "s -- watchdog abort.";
                     std::abort();
@@ -62,6 +65,14 @@ void TelemetryWriter::update(const ControlState& state, const std::string& scene
     if (now - lastWriteSecs < kWriteIntervalSecs) return;
     lastWriteSecs = now;
     writeStatus(state, sceneId, sceneName);
+}
+
+void TelemetryWriter::beginLongOp(double graceSecs) {
+    longOpUntilMs = nowMs() + static_cast<long long>(graceSecs * 1000);
+}
+
+void TelemetryWriter::endLongOp() {
+    longOpUntilMs = 0;
 }
 
 void TelemetryWriter::writeStatus(const ControlState& state, const std::string& sceneId,

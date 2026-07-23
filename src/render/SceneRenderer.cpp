@@ -53,6 +53,16 @@ void SceneRenderer::addPostPass(std::unique_ptr<ShaderPass> pass) {
     postChain.addPass(std::move(pass));
 }
 
+void SceneRenderer::loadClipGuarded(ClipPlayer& player, const std::string& path) {
+    // ClipPlayer::load prerolls the GStreamer pipeline synchronously on this
+    // (render) thread -- a cold 1080p load on a hot, throttling SoC has been
+    // seen to exceed the 10s frame watchdog and abort the show. Widen the
+    // watchdog's grace across just this call; a real hang still trips after it.
+    if (onLoadBegin) onLoadBegin(kClipLoadGraceSecs);
+    player.load(path);
+    if (onLoadEnd) onLoadEnd();
+}
+
 void SceneRenderer::requestResize(int w, int h, bool useTransition) {
     if (w < 16 || h < 16) return;
     if ((w == width && h == height) || pendingResize) return;
@@ -209,7 +219,7 @@ void SceneRenderer::applyScene(const Scene& scene) {
                 }
             } else if (!layer.resolvedPath.empty()) {
                 runtime->player = std::make_unique<ClipPlayer>();
-                runtime->player->load(layer.resolvedPath);
+                loadClipGuarded(*runtime->player, layer.resolvedPath);
                 if (!runtime->player->isLoaded()) {
                     runtime->retriesLeft = 3;
                     runtime->nextRetrySecs = ofGetElapsedTimef() + 4.0f;
@@ -283,7 +293,7 @@ void SceneRenderer::update(const LiveParams& liveParams) {
             runtime->retriesLeft--;
             ofLogNotice("SceneRenderer") << "Retrying clip load for layer \"" << runtime->layerId << "\" ("
                                          << runtime->retriesLeft << " retries left): " << runtime->loadedPath;
-            runtime->player->load(runtime->loadedPath);
+            loadClipGuarded(*runtime->player, runtime->loadedPath);
             runtime->nextRetrySecs = ofGetElapsedTimef() + 4.0f;
         }
 

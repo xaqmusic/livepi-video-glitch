@@ -27,6 +27,16 @@ public:
     // Call once per frame from the main loop.
     void update(const ControlState& state, const std::string& sceneId, const std::string& sceneName);
 
+    // Bracket a KNOWN, bounded blocking operation on the main thread (a clip
+    // preroll: ofGstVideoPlayer::load() builds+prerolls the pipeline
+    // synchronously, which on a cold cache + hot/throttled SoC can exceed
+    // kWatchdogSecs) so the watchdog waits graceSecs instead of mistaking the
+    // stall for a wedge. beginLongOp is called right BEFORE the blocking call
+    // (the thread can't heartbeat while inside it); endLongOp right after. If
+    // the op itself hangs past graceSecs the watchdog still fires -> recovery.
+    void beginLongOp(double graceSecs);
+    void endLongOp();
+
 private:
     static constexpr double kWriteIntervalSecs = 0.1;
     static constexpr double kWatchdogSecs = 10.0;
@@ -40,4 +50,7 @@ private:
     std::thread watchdog;
     std::atomic<bool> watchdogRunning{false};
     std::atomic<long long> lastHeartbeatMs{0};
+    // While now < this, the watchdog holds off (a known long op is running).
+    // 0 = no long op in flight. Written by the main thread, read by the watchdog.
+    std::atomic<long long> longOpUntilMs{0};
 };

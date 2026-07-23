@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -71,6 +72,13 @@ public:
     size_t getLayerCount() const { return runtimes.size(); }
     std::string describeLayers() const;
 
+    // A clip preroll (ofGstVideoPlayer::load) blocks the render thread, and a
+    // cold 1080p load on a hot SoC can outrun the frame watchdog. These bracket
+    // each such load so the caller (ofApp) can widen the watchdog's grace around
+    // it; unset in dev, where there's no watchdog to appease.
+    std::function<void(double)> onLoadBegin;  // arg: grace seconds
+    std::function<void()> onLoadEnd;
+
 private:
     struct LayerRuntime {
         std::string layerId;
@@ -97,6 +105,11 @@ private:
     };
 
     bool layersReady() const;
+
+    // Prerolls a clip through onLoadBegin/onLoadEnd so a slow cold load can't
+    // trip the frame watchdog. Grace is generous: a genuine hang still recovers.
+    static constexpr float kClipLoadGraceSecs = 30.0f;
+    void loadClipGuarded(ClipPlayer& player, const std::string& path);
 
     // Effect-masked scene transition (docs decision: a crossfade needs two
     // live decode pipelines, which the Pi's budget forbids -- instead the

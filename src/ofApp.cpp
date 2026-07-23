@@ -74,6 +74,11 @@ void ofApp::setup() {
         ofLogNotice("ofApp") << "render.scale ceiling=" << configRenderScale
                              << " (per-scene renderScale caps under it), display " << baseW << "x" << baseH;
     }
+    // A clip preroll blocks the render thread; let it widen the frame watchdog's
+    // grace so a slow cold load (1080p on a hot SoC) isn't read as a wedge and
+    // aborted (see TelemetryWriter::beginLongOp).
+    sceneRenderer.onLoadBegin = [this](double secs) { telemetryWriter.beginLongOp(secs); };
+    sceneRenderer.onLoadEnd = [this]() { telemetryWriter.endLongOp(); };
     // Thermal rescue: cap the internal render scale when the SoC overheats (keeps
     // a heavy scene alive instead of throttling to black). Always set up so the
     // live toggle (settings.json, via sceneControlMap.thermalRescue) can enable
