@@ -34,7 +34,9 @@ The current path is developer-only and not shippable as-is:
 - **Writable root** -- a power-yank mid-write corrupts the SD card. This is the
   single most common way Pi appliances die in the field, and musicians unplug
   things.
-- **Updates mean a re-flash or SSH** -- no in-product update.
+- ~~**Updates mean a re-flash or SSH** -- no in-product update.~~ *Fixed:* the
+  in-app updater ships app bundles over the web UI with atomic swap +
+  auto-rollback (see [Updates](#updates)); no reflash after the first image.
 
 The good news: the app already draws a clean **app-vs-data boundary**
 (`.rsyncfilter`), which is exactly the line a read-only-root appliance needs.
@@ -306,25 +308,53 @@ this whole area as future work.
 
 ## Updates
 
-Reuse the app-vs-data boundary: updates replace the *app*, never touch `/data`.
+Reuse the app-vs-data boundary: updates replace the *app*, never touch `/data`,
+and **never require a reflash**.
 
-- **v1 -- in-app update.** An "Update available" banner in the web UI (the same
-  pattern as the existing `JobsBanner`) pulls a **signed release bundle** from
-  GitHub Releases -- a prebuilt `aarch64` binary + backend + `frontend/dist`,
-  with a checksum/signature the box verifies before applying. It swaps the app,
-  leaves `/data` alone, keeps the previous version, and **auto-rolls-back** if
-  the new one fails a health check on restart. On a read-only root this means the
-  updater remounts `/` read-write only for the swap (or the app lives on a small
-  dedicated writable `/app` partition); base OS/apt changes are rare and stay an
-  occasional re-image.
-- **Later -- A/B root.** For truly un-brickable over-the-air updates, an A/B
-  root-partition scheme with **RAUC** or **SWUpdate** (both FOSS -- aligned with
-  this project): write the new rootfs to the inactive partition, reboot into it,
-  auto-roll-back if it fails to come up. Overkill early, standard at scale, and
-  `/data` stays untouched across the switch.
+- **v1 -- in-app update (BUILT).** The live app tree lives on the writable
+  `/data` partition and is made active by an **atomic symlink**, so an update
+  never modifies the read-only root:
+
+  | path | role |
+  | --- | --- |
+  | `/opt/livepi` | factory app baked in the RO image -- immutable, the permanent rollback anchor |
+  | `/data/app/versions/<v>/` | installed update bundles, each a self-contained app tree |
+  | `/data/app/current` → … | the ACTIVE tree; the renderer + backend units resolve this path |
+  | `/data/app/last-good` → … | the last tree that came up healthy |
+
+  The engine is `scripts/app-activate.sh` (`boot` / `confirm` / `apply` /
+  `rollback` / `status`). **Apply** verifies the bundle, swaps `current`,
+  restarts the two app units, and **health-gates** (backend `/api/health` +
+  the renderer's frame heartbeat) within ~30s -- **auto-rolling-back** if the
+  new version doesn't come up, with no reboot. A power loss mid-apply leaves a
+  `pending` marker; the boot step gives the trial a couple of boots to confirm
+  and rolls it back to `last-good` if it boot-loops. A dangling `current`
+  self-heals to `last-good`, and `last-good` to the factory, so there is always
+  a bootable tree. Only the two app units point at `/data/app/current`; every
+  boot-infra unit (dataprep/firstboot/lockdown/activate/confirm) stays pinned to
+  `/opt/livepi` so the rollback machinery is never itself swappable.
+
+  Delivery, v1: **web-UI upload** (Settings → Software update) of a
+  `livepi-app-<v>.tar.zst` bundle built by `scripts/build-bundle.sh` (run on a
+  Pi -- the binary + `backend/pylib` are `aarch64`). Zero infra, works offline.
+  The backend drives the engine as root through one tight sudoers line; the
+  detached apply survives the backend restart it performs, and the UI polls
+  `/api/update/status` through the blip.
+
+- **Later -- GitHub Releases pull channel.** Same engine, new source: an
+  "Update available" banner that fetches the latest signed bundle from GitHub
+  Releases (public repo, unauthenticated, CDN assets). Offline venues fall back
+  to upload. A detached signature verified against a key baked in the image is
+  the natural next hardening step on top of the current checksum.
+- **Later -- A/B root.** For truly un-brickable OTA of the *base OS*, an A/B
+  root-partition scheme with **RAUC** or **SWUpdate** (both FOSS): write the new
+  rootfs to the inactive partition, reboot into it, auto-roll-back if it fails.
+  Overkill early, standard at scale, and `/data` stays untouched across the swap.
 
 The app changes weekly; the OS rarely. The in-app updater is for the former, a
-re-image or apt for the latter.
+re-image or apt for the latter. **One reflash is still needed to bake the
+updater itself in** (units pointing at `/data/app/current`, the boot activators,
+the sudoers line); after that, app fixes ride the updater.
 
 ## Security posture
 
@@ -392,9 +422,13 @@ CustomPiOS wrapper could still sit on top later, since the logic is reusable.
   (`firstboot.sh`), **networking done** (control AP + autohotspot + web-UI
   provisioning + captive portal, all verified on the Pi 4), and **read-only
   root + the image pipeline built** (`build-image.sh` /
-  `provision-appliance.sh` / `dataprep.sh` / `lockdown.sh`) — pending a
-  first end-to-end flashed-card validation. The remaining v1 piece is the
-  in-app updater.
+  `provision-appliance.sh` / `dataprep.sh` / `lockdown.sh`) and **validated on
+  flashed cards** (grow/mount `/data`, control AP, web provisioning, relocatable
+  backend, password-reset button gesture, dev-key injection). The **in-app
+  updater is built** (`app-activate.sh` + web-UI upload, above); it needs one
+  more flash to bake its infrastructure in, after which app fixes ride it. That
+  closes v1. Still open: the GitHub Releases pull channel (v1.x) and bundle
+  signing.
 - **v2** -- Improv BLE provisioning (Android-first), A/B-root OTA, USB clip
   auto-import, the pre-flashed hardware SKU, and the Pi 5 optimizations (native
   reverse, hardware HEVC decode).
