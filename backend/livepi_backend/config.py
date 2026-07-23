@@ -38,6 +38,16 @@ PORT = int(os.environ.get("LIVEPI_PORT", "8080"))
 # Frontend build output served as static files (Phase C).
 FRONTEND_DIST = _REPO_ROOT / "frontend" / "dist"
 
+# In-app updater (appliance only). The live app tree lives on /data and is made
+# active by an atomic symlink; see scripts/app-activate.sh. APP_ROOT holds
+# versions/current/last-good/incoming/state; ACTIVATOR is the FACTORY copy of the
+# engine the backend drives as root via a tight sudoers line; FACTORY_DIR is the
+# immutable baked-in app (the permanent rollback anchor). On a dev box none of
+# these exist, and the update router degrades to available:false.
+APP_ROOT = Path(os.environ.get("LIVEPI_APP_ROOT", "/data/app"))
+ACTIVATOR = Path(os.environ.get("LIVEPI_ACTIVATOR", "/opt/livepi/scripts/app-activate.sh"))
+FACTORY_DIR = Path(os.environ.get("LIVEPI_FACTORY_DIR", "/opt/livepi"))
+
 # ffmpeg gets throttled hard on the Pi so a transcode never fights the
 # renderer for cores (measured: renderer needs ~2 cores worth at 30fps on
 # heavy scenes).

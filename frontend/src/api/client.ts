@@ -1,7 +1,7 @@
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 
-import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Settings, Show, UploadJob, WifiNetwork } from "./types";
+import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Settings, Show, UpdateStatus, UploadJob, WifiNetwork } from "./types";
 
 export class ApiError extends Error {
     status: number;
@@ -101,6 +101,19 @@ export const api = {
     getSettings: () => request<Settings>("/api/settings"),
     updateSettings: (patch: Partial<Settings>) =>
         request<{ ok: boolean } & Settings>("/api/settings", { method: "POST", body: JSON.stringify(patch) }),
+
+    // In-app updater. uploadUpdate POSTs a .tar.zst bundle; the box then swaps +
+    // restarts + health-gates itself, so the UI polls updateStatus (which will
+    // briefly fail while the backend restarts) to watch lastApply reach a
+    // terminal status. rollbackUpdate reverts to the last-good version.
+    updateStatus: () => request<UpdateStatus>("/api/update/status"),
+    uploadUpdate: (file: File) => {
+        const form = new FormData();
+        form.append("file", file);
+        return request<{ accepted: boolean; message: string }>("/api/update/upload", { method: "POST", body: form });
+    },
+    rollbackUpdate: () =>
+        request<{ accepted: boolean; message: string }>("/api/update/rollback", { method: "POST" }),
 };
 
 // Quantize a normalized trim position to the boomerang key. MUST match the

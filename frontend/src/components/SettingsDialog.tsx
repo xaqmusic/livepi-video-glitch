@@ -9,6 +9,7 @@ import { api, ApiError } from "../api/client";
 import type { SceneTrigger, Settings } from "../api/types";
 import { useTelemetry, useTelemetryStore } from "../state/telemetryStore";
 import PasswordDialog from "./PasswordDialog";
+import SoftwareUpdate from "./SoftwareUpdate";
 
 // One "bind a control to a scene action" row. Same Learn mechanism as
 // MappableControl: arm, then bind the first CC/note that arrives NEWER than the
@@ -291,6 +292,8 @@ export default function SettingsDialog({
                             the Pisound's own input gain knob (best for a line source patched in).
                         </div>
                     </section>
+
+                    <SoftwareUpdate />
 
                     {error && <div className="warn">{error}</div>}
                     <div className="row" style={{ justifyContent: "flex-end" }}>

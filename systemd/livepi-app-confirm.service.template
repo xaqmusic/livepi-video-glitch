@@ -1,0 +1,25 @@
+# Template for /etc/systemd/system/livepi-app-confirm.service -- rendered by
+# scripts/provision-appliance.sh. Runs the updater's `confirm` step AFTER the
+# app comes up: if a trial version (one applied but not yet health-confirmed --
+# e.g. power was lost mid-apply) is now running healthy, it's promoted to
+# last-good and the pending marker is cleared so the boot guard stops counting.
+# A no-op on a normal boot with nothing pending.
+#
+# ExecStart is the FACTORY copy (/opt/livepi) -- same rollback-anchor reasoning
+# as livepi-app-activate.service.
+
+[Unit]
+Description=LivePi app confirmation (promote a healthy trial version)
+# After the app units so a health check reflects the version actually running.
+After=livepi-backend.service livepi-video-glitch.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Root: writes symlinks under /data/app.
+Environment=LIVEPI_FACTORY_DIR=__FACTORY_DIR__
+Environment=LIVEPI_DATA_DIR=__DATA_DIR__
+ExecStart=__FACTORY_DIR__/scripts/app-activate.sh confirm
+
+[Install]
+WantedBy=multi-user.target

@@ -28,6 +28,14 @@ set -euo pipefail
 APP_DIR="${LIVEPI_APP_DIR:-/opt/livepi}"
 APP_USER="${LIVEPI_APP_USER:-pi}"
 DATA_DIR="${LIVEPI_DATA_DIR:-/data}"
+# The RENDERER + BACKEND units point here, NOT at $APP_DIR, so the in-app
+# updater can swap the live app tree by flipping one symlink on the writable
+# /data partition (scripts/app-activate.sh). On first boot the activator seeds
+# this -> $APP_DIR (the factory app baked in the read-only image), so a box that
+# has never updated runs the factory tree; every update just re-points it. Boot
+# infrastructure (dataprep/firstboot/lockdown/activate) stays pinned to $APP_DIR
+# -- it is the immutable rollback anchor and must not be swappable.
+RUNTIME_APP_DIR="${LIVEPI_RUNTIME_APP_DIR:-$DATA_DIR/app/current}"
 OF_ROOT="${LIVEPI_OF_ROOT:-$(dirname "$APP_DIR")/openFrameworks}"
 LOCKDOWN="${LIVEPI_LOCKDOWN:-1}"
 WIFI_COUNTRY="${LIVEPI_WIFI_COUNTRY:-US}"
@@ -147,6 +155,36 @@ fi
 [[ -f "$APP_DIR/frontend/dist/index.html" ]] || warn "frontend/dist missing -- build it on the host (npm run build) before provisioning; the web UI will not serve"
 
 # ---------------------------------------------------------------------------
+log "in-app updater: factory manifest + sudoers"
+# ---------------------------------------------------------------------------
+# Stamp the factory tree with the version identity the updater compares against
+# and the web UI shows. /opt/livepi carries no .git (deploy excludes it), so the
+# version comes from the host git checkout via build-image.sh; fall back to a
+# dated 'factory' tag when built standalone.
+APP_VERSION="${LIVEPI_APP_VERSION:-factory-$(date -u +%Y%m%d)}"
+APP_GIT_HASH="${LIVEPI_APP_GIT_HASH:-unknown}"
+log "app version: $APP_VERSION ($APP_GIT_HASH)"
+cat > "$APP_DIR/manifest.json" <<MANIFEST
+{
+  "version": "$APP_VERSION",
+  "gitHash": "$APP_GIT_HASH",
+  "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "channel": "factory"
+}
+MANIFEST
+
+# Let the backend's app user drive the activation engine as root -- swap the
+# /data/app/current symlink + restart the two app units. Exact-command match, no
+# wildcards: `apply` reads a FIXED uploaded-bundle path (/data/app/incoming/
+# pending.tar.zst) so no argument is passed. Not a theft boundary -- the box's
+# owner has physical control anyway -- just the privilege hop the web UI needs.
+install -D -m 440 /dev/stdin /etc/sudoers.d/livepi-update <<SUDOERS
+# Managed by LivePi (scripts/provision-appliance.sh).
+$APP_USER ALL=(root) NOPASSWD: $APP_DIR/scripts/app-activate.sh apply, $APP_DIR/scripts/app-activate.sh rollback
+SUDOERS
+visudo -cf /etc/sudoers.d/livepi-update >/dev/null || { warn "sudoers syntax check failed -- removing"; rm -f /etc/sudoers.d/livepi-update; }
+
+# ---------------------------------------------------------------------------
 log "X11 kiosk config (Xwrapper)"
 # ---------------------------------------------------------------------------
 # Pi OS Lite's default allowed_users=console refuses to let the systemd kiosk
@@ -254,10 +292,19 @@ render_unit livepi-firstboot.service.template  /etc/systemd/system/livepi-firstb
     __APP_DIR__="$APP_DIR" __APP_USER__="$APP_USER" __DATA_DIR__="$DATA_DIR"
 render_unit livepi-lockdown.service.template   /etc/systemd/system/livepi-lockdown.service \
     __APP_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR" __LOCKDOWN__="$LOCKDOWN"
+# The two APP units resolve their tree through $RUNTIME_APP_DIR (/data/app/current)
+# so an update swaps them; the four infra units above stay on $APP_DIR (factory).
 render_unit livepi-backend.service.template    /etc/systemd/system/livepi-backend.service \
-    __APP_DIR__="$APP_DIR" __USER__="$APP_USER" __DATA_DIR__="$DATA_DIR"
+    __APP_DIR__="$RUNTIME_APP_DIR" __USER__="$APP_USER" __DATA_DIR__="$DATA_DIR"
 render_unit livepi-video-glitch.service.template /etc/systemd/system/livepi-video-glitch.service \
-    __APP_DIR__="$APP_DIR" __PI_USER__="$APP_USER" __DATA_DIR__="$DATA_DIR"
+    __APP_DIR__="$RUNTIME_APP_DIR" __PI_USER__="$APP_USER" __DATA_DIR__="$DATA_DIR"
+# In-app updater boot units: activate (heal/roll-back before the app) + confirm
+# (promote a healthy trial version after the app). Both run the FACTORY copy of
+# app-activate.sh -- the rollback machinery must live on the immutable image.
+render_unit livepi-app-activate.service.template /etc/systemd/system/livepi-app-activate.service \
+    __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR" __APP_USER__="$APP_USER"
+render_unit livepi-app-confirm.service.template  /etc/systemd/system/livepi-app-confirm.service \
+    __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR"
 
 # Captive portal: the service unit is static; copy it + its rule files.
 install -D -m 644 "$APP_DIR/systemd/livepi-captive.service" /etc/systemd/system/livepi-captive.service
@@ -280,6 +327,8 @@ systemctl enable \
     livepi-dataprep.service \
     livepi-firstboot.service \
     livepi-lockdown.service \
+    livepi-app-activate.service \
+    livepi-app-confirm.service \
     livepi-backend.service \
     livepi-video-glitch.service \
     livepi-captive.service

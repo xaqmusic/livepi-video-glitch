@@ -257,6 +257,8 @@ provision() {
         LIVEPI_WIFI_COUNTRY="$WIFI_COUNTRY" \
         LIVEPI_PREBUILT="$PREBUILT" \
         LIVEPI_DEV_SSH_KEY="$dev_key" \
+        LIVEPI_APP_VERSION="$VERSION" \
+        LIVEPI_APP_GIT_HASH="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
         /bin/bash "$APP_DIR/scripts/provision-appliance.sh"
 }
 

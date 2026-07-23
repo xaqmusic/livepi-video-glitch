@@ -168,3 +168,21 @@ export interface JobSummary {
     progress: number;
     error: string | null;
 }
+
+// In-app updater (appliance only). `available` is false on a dev box with no
+// /data/app partition, in which case the UI hides the panel entirely.
+export interface UpdateManifest {
+    version: string | null;
+    gitHash?: string | null;
+    builtAt?: string | null;
+    channel?: string | null;
+}
+
+export interface UpdateStatus {
+    available: boolean;
+    current?: UpdateManifest | null;
+    lastGood?: UpdateManifest | null;
+    factory?: UpdateManifest | null;
+    pending?: string | null;
+    lastApply?: { status: string; message: string; version?: string } | null;
+}
