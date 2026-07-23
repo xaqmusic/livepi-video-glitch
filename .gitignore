@@ -42,3 +42,6 @@ frontend/dist/
 bin/data/shows/*
 !bin/data/shows/default.json
 !bin/data/shows/active.json
+
+# Update bundles emitted by scripts/deploy-update.sh (build artifacts)
+bundles/

@@ -103,6 +103,24 @@ shopt -u nullglob
 cp -a "$TREE/bin/data/config"  "$STAGE/bin/data/"
 cp -a "$TREE/bin/data/shaders" "$STAGE/bin/data/"
 
+# The appliance render config (fullscreen + auto control source + /data paths)
+# is written by provision-appliance.sh, so a tree built OUTSIDE provisioning --
+# the qemu build chroot -- has no app.local.json, and the updated app would come
+# up WINDOWED with the mock control source. Synthesize the same file provision
+# writes when the tree didn't carry one; a Pi-built bundle (--tree
+# /data/app/current) already has the real one and keeps it.
+if [[ ! -f "$STAGE/bin/data/config/app.local.json" ]]; then
+    warn "tree has no app.local.json -- writing the appliance default (fullscreen/auto)"
+    cat > "$STAGE/bin/data/config/app.local.json" <<'APPCFG'
+{
+    "control_source": "auto",
+    "window": { "fullscreen": true },
+    "ui": { "claimed_marker": "/data/.claimed" },
+    "controls": { "scene_map": "/data/settings.json" }
+}
+APPCFG
+fi
+
 # Backend: source + the RELOCATABLE aarch64 pylib. Drop per-box/dev state (the
 # real secrets live on /data/backend/.env; pylib/pycache are rebuilt/derived).
 rsync -a --exclude='.env' --exclude='.venv/' --exclude='__pycache__/' \
