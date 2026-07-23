@@ -92,12 +92,17 @@ void SceneRenderer::applyResize() {
     width = pendingResizeW;
     height = pendingResizeH;
 
-    // Post passes are stateless (no internal frame-sized FBOs -- verified), so
-    // re-allocating the ping-pong FBOs and keeping the passes is safe. The
-    // layer runtimes (their chains + stateful buffers like trails/stutter)
-    // rebuild fresh at the new size via applyScene below.
+    // Resize the pipeline FBOs IN PLACE -- do NOT rebuild the layer runtimes.
+    // Rebuilding (the old applyScene call here) re-prerolled every clip: a
+    // blocking GStreamer load on the render thread, fired on EVERY thermal step,
+    // exactly when the SoC is hottest and slowest (and a needless one -- a
+    // resolution change doesn't change the video). The players keep decoding at
+    // native res; only the chain FBOs they draw into change size. Post passes
+    // are stateless and layer passes drop their render-sized caches via onResize
+    // (ShaderChain::resize), so no pass state goes stale. Clips never respin, so
+    // the resize is a seamless in-place reallocation instead of a freeze-frame.
     compositor.setup(width, height);
-    postChain.setup(width, height);
+    postChain.resize(width, height);
     ofFboSettings settings;
     settings.width = width;
     settings.height = height;
@@ -111,8 +116,7 @@ void SceneRenderer::applyResize() {
     ofClear(0, 0, 0, 255);
     blackFbo.end();
 
-    Scene current = renderScene;  // copy: applyScene does renderScene = scene
-    applyScene(current);
+    for (auto& runtime : runtimes) runtime->chain.resize(width, height);
     ofLogNotice("SceneRenderer") << "internal render resized to " << width << "x" << height;
 }
 

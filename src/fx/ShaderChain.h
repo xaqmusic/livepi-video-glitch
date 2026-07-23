@@ -16,6 +16,12 @@ class ofBaseDraws;
 class ShaderChain {
 public:
     void setup(int width, int height);
+    // Re-allocate the ping-pong FBOs to a new render size WITHOUT rebuilding the
+    // passes (their shaders are size-independent) -- lets the thermal governor
+    // resize a live chain in place, so the layer's clip keeps playing instead of
+    // being torn down and re-prerolled. Passes drop render-sized caches via
+    // onResize(). setup() is still the one-time build; this is the resize path.
+    void resize(int width, int height);
     void addPass(std::unique_ptr<ShaderPass> pass);
 
     // Draws input through every pass in order; the result is retrievable

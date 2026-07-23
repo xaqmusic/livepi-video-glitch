@@ -31,6 +31,10 @@ public:
     void setup() override;
     void apply(ofFbo& src, ofFbo& dst, const ControlState& controlState, const LiveParams& liveParams) override;
     const std::string& getName() const override { return name; }
+    // On a render resize the ring holds frames at the old size; drop them so
+    // slots re-allocate at the new size (a resize discards stutter history --
+    // fine, it's a momentary effect).
+    void onResize() override;
 
 private:
     // Copy the live frame into the next ring slot (lazy-allocated). Only ever

@@ -30,9 +30,26 @@ void StutterBufferPass::setup() {
     ShaderLoader::load(shader, "shaders/passthrough.vert", "shaders/stutter_hold.frag");
 }
 
+void StutterBufferPass::onResize() {
+    // A resolution change happened: any captured loop references old-size slots.
+    // Reset the capture/playback state so the next engaged frame does a clean
+    // rising-edge re-capture at the new size (recordFrame reallocates the slots
+    // it touches). Idle already resets these each frame, so this only matters
+    // if stutter is engaged across the resize -- a momentary re-grab, not a hang.
+    capturing = false;
+    engaged = false;
+    loopSlots.clear();
+    playIndex = 0;
+    writeIndex = 0;
+}
+
 void StutterBufferPass::recordFrame(ofFbo& src, double now) {
     Slot& slot = ring[writeIndex];
-    if (!slot.fbo.isAllocated()) {
+    // Reallocate on a size change too, not just first use: the thermal governor
+    // can resize the layer between records, and a slot at the old size would
+    // clip the copy in and scale wrong on playback.
+    if (!slot.fbo.isAllocated() || slot.fbo.getWidth() != src.getWidth()
+        || slot.fbo.getHeight() != src.getHeight()) {
         slot.fbo.allocate(src.getWidth(), src.getHeight(), GL_RGBA);
     }
     // Verbatim copy, blending OFF: transparent generator layers (note lasers,

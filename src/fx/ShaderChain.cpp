@@ -14,6 +14,17 @@ void ShaderChain::setup(int width, int height) {
     for (auto& pass : passes) pass->setup();
 }
 
+void ShaderChain::resize(int width, int height) {
+    ofFboSettings settings;
+    settings.width = width;
+    settings.height = height;
+    settings.internalformat = GL_RGBA;
+    fboA.allocate(settings);   // realloc clears them; the next process() repaints
+    fboB.allocate(settings);
+    outputIsA = true;
+    for (auto& pass : passes) pass->onResize();  // drop render-sized caches
+}
+
 void ShaderChain::addPass(std::unique_ptr<ShaderPass> pass) {
     // Passes register in whichever order the caller finds natural relative
     // to setup() -- a pass added to an already-set-up chain gets its

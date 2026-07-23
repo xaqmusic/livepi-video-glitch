@@ -34,6 +34,12 @@ public:
         return true;
     }
 
+    // Called when the chain's render resolution changes (thermal governor).
+    // A pass that caches render-sized buffers (e.g. StutterBufferPass's ring)
+    // must drop them here so they re-allocate at the new size; stateless passes
+    // and those that already re-check size each apply (TrailsPass) ignore it.
+    virtual void onResize() {}
+
     // A pass instantiated inside a LAYER's chain reads that layer's params
     // instead of scene-scope post-effect params -- SceneRenderer sets this
     // when it builds layer runtimes; scene-level post passes leave it empty.
