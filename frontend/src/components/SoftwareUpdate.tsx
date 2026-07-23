@@ -130,6 +130,16 @@ export default function SoftwareUpdate() {
                 A version that doesn't start up healthy is rolled back automatically, so an update can't
                 brick the box. Build a bundle with <code>scripts/build-bundle.sh</code> on the Pi.
             </div>
+            {status?.deviceCode && (
+                <div className="dim" style={{ fontSize: 12, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                    Box terminal / SSH login &amp; Wi-Fi hotspot key:{" "}
+                    <code style={{ userSelect: "all" }}>{status.deviceCode}</code>
+                    <br />
+                    This is the original device code — unchanged when you set your web password. Use it for{" "}
+                    <code>ssh</code>/<code>sudo</code> on the Pi and to join the box's hotspot; your web login
+                    is the separate password you set here.
+                </div>
+            )}
         </section>
     );
 }

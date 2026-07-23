@@ -71,6 +71,12 @@ def update_status():
         "factory": _manifest(factory if factory.exists() else None),
         "pending": pending,
         "lastApply": last_apply,
+        # The original per-device code (LIVEPI_PASSWORD). Changing the web
+        # password only rewrote auth.json -- this stays the box's unix/SSH/sudo
+        # login AND the Wi-Fi hotspot key, so the owner needs it back to admin
+        # the Pi. Safe to return here: the endpoint is session-gated, unlike the
+        # on-screen connection card (public projector) where we hide it.
+        "deviceCode": config.PASSWORD,
     }
 
 

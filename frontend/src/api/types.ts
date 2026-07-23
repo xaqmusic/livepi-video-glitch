@@ -185,4 +185,7 @@ export interface UpdateStatus {
     factory?: UpdateManifest | null;
     pending?: string | null;
     lastApply?: { status: string; message: string; version?: string } | null;
+    /** The box's original device code -- its unix/SSH/sudo login and hotspot
+     *  key. Unchanged by a web-password change; surfaced here for the owner. */
+    deviceCode?: string | null;
 }
