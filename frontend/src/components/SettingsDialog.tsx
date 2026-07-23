@@ -178,7 +178,7 @@ export default function SettingsDialog({
     return (
         <>
             <div className="dialog-backdrop" onClick={onClose}>
-                <div className="card dialog" onClick={(e) => e.stopPropagation()} style={{ minWidth: 360 }}>
+                <div className="card dialog" onClick={(e) => e.stopPropagation()}>
                     <h3 style={{ margin: 0 }}>Settings</h3>
 
                     <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>

@@ -221,13 +221,26 @@ details.param-group > .param-group-body {
     background: rgba(0, 0, 0, 0.55);
     display: grid;
     place-items: center;
+    /* Keep the dialog off the screen edges so there's always a tappable backdrop
+       margin (tap-to-close) even when the dialog is at its tallest. */
+    padding: 1rem;
     z-index: 100;
 }
 .dialog {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 280px;
+    /* min(360, 100%): the desktop width, but never wider than a narrow phone. */
+    min-width: min(360px, 100%);
+    max-width: 100%;
+    /* A tall dialog (Settings on a phone) must SCROLL rather than spill past the
+       top/bottom of the screen, which strands the Close button off-screen with
+       no way to dismiss. dvh tracks the mobile browser's shrinking viewport;
+       vh is the fallback for browsers without dvh. */
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /* Background-activity strip under the topbar (transcodes etc.) */
