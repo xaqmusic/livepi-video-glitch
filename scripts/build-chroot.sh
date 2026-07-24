@@ -51,9 +51,12 @@ SYNC_EXCLUDES=(
 # --- chroot mount/prep (transient per invocation) --------------------------
 MOUNTED=0
 _umount_all() {
+    # /dev is a recursive bind (rbind); unmount it recursively. All best-effort
+    # (|| true) so a not-mounted target never trips set -e / the ERR trap.
+    umount -R "$ROOTFS/dev" 2>/dev/null || umount -Rl "$ROOTFS/dev" 2>/dev/null || true
     local m
-    for m in run sys proc dev/pts dev; do
-        mountpoint -q "$ROOTFS/$m" && { umount "$ROOTFS/$m" 2>/dev/null || umount -l "$ROOTFS/$m" 2>/dev/null; }
+    for m in run sys proc; do
+        umount "$ROOTFS/$m" 2>/dev/null || umount -l "$ROOTFS/$m" 2>/dev/null || true
     done
 }
 unprep() {
@@ -64,16 +67,19 @@ unprep() {
 }
 trap '[[ "$MOUNTED" == 1 ]] && unprep' EXIT
 # Loud failures: set -e otherwise exits silently, which looks like a hang.
-trap 'rc=$?; printf "\033[1;31m[build-chroot] command failed (exit %s) near line %s\033[0m\n" "$rc" "${BASH_LINENO[0]:-?}" >&2' ERR
+trap 'rc=$?; printf "\033[1;31m[build-chroot] FAILED (exit %s): %s\033[0m\n" "$rc" "$BASH_COMMAND" >&2' ERR
 
 prep() {
     [[ -d "$ROOTFS" ]] || die "no build chroot at $ROOTFS -- run: sudo $0 bootstrap"
     _umount_all   # clear anything a killed run left behind
     # An unbooted rootfs can be missing these mount-point dirs; a mount onto a
     # non-existent target fails (and, pre-errtrace, exited silently).
-    mkdir -p "$ROOTFS/dev/pts" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/run"
-    mount --bind /dev     "$ROOTFS/dev"
-    mount --bind /dev/pts "$ROOTFS/dev/pts"
+    mkdir -p "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/run"
+    # Recursive bind for /dev so /dev/pts + /dev/shm come along in one step (a
+    # separate --bind /dev/pts onto the just-bound /dev is what was failing with
+    # exit 32). --make-rslave so unmounting our copy never propagates to host /dev.
+    mount --rbind /dev "$ROOTFS/dev"
+    mount --make-rslave "$ROOTFS/dev"
     mount -t proc  proc   "$ROOTFS/proc"
     mount -t sysfs sysfs  "$ROOTFS/sys"
     mount -t tmpfs tmpfs  "$ROOTFS/run"
