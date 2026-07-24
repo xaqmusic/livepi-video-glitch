@@ -172,6 +172,13 @@ APTCFG
     log "refreshing apt package lists in the chroot"
     runch apt-get update || warn "apt-get update failed in the chroot (network/DNS?) -- setup-pi may still work from cache"
 
+    # Pi OS Lite ships no git (setup-pi.sh clones addons with it) and maybe no
+    # curl/unzip (oF fetches its libs). provision-appliance.sh installs git +
+    # ca-certificates for the image build; do the same here before setup-pi runs.
+    log "installing build prerequisites (git, ca-certificates, curl, unzip)"
+    runch apt-get install -y --no-install-recommends git ca-certificates curl unzip \
+        || die "failed to install build prerequisites in the chroot"
+
     # setup-pi.sh installs oF + every build dep. Same script build-image's
     # provision runs (a validated path) -- here just the compile subset.
     log "installing the openFrameworks toolchain (LONG -- downloads + builds oF under emulation)"
