@@ -61,6 +61,8 @@ unprep() {
     MOUNTED=0
 }
 trap '[[ "$MOUNTED" == 1 ]] && unprep' EXIT
+# Loud failures: set -e otherwise exits silently, which looks like a hang.
+trap 'rc=$?; printf "\033[1;31m[build-chroot] command failed (exit %s) near line %s\033[0m\n" "$rc" "${BASH_LINENO[0]:-?}" >&2' ERR
 
 prep() {
     [[ -d "$ROOTFS" ]] || die "no build chroot at $ROOTFS -- run: sudo $0 bootstrap"
@@ -102,26 +104,44 @@ preflight() {
 # --- bootstrap: extract the arm64 rootfs + install the oF toolchain --------
 cmd_bootstrap() {
     preflight
-    [[ ! -d "$ROOTFS" ]] || die "chroot already exists at $ROOTFS -- 'sudo $0 clean' first to rebuild it."
     mkdir -p "$CACHE" "$ROOTFS"
+    local img="$CACHE/base.img" mnt="$BUILD_ROOT/basemnt"
 
-    local xz="$CACHE/base.img.xz" img="$CACHE/base.img"
-    if [[ ! -f "$xz" ]]; then
-        log "downloading base Pi OS image (cached at $xz)"
-        curl -fL --retry 3 -o "$xz.part" "$BASE_IMG_URL"; mv "$xz.part" "$xz"
+    # Resumable: if the rootfs is already extracted (a prior run got this far),
+    # skip the download + extract and pick up at the toolchain install.
+    if [[ -f "$ROOTFS/etc/os-release" && -x "$ROOTFS/bin/bash" ]]; then
+        log "reusing the already-extracted rootfs at $ROOTFS (skipping download + extract)"
     else
-        log "using cached base image $xz"
+        local xz="$CACHE/base.img.xz"
+        if [[ ! -f "$xz" ]]; then
+            log "downloading base Pi OS image (cached at $xz)"
+            curl -fL --retry 3 -o "$xz.part" "$BASE_IMG_URL"; mv "$xz.part" "$xz"
+        else
+            log "using cached base image $xz"
+        fi
+        # Clear any loop/mount a previous failed run leaked on this base image.
+        mountpoint -q "$mnt" && umount "$mnt" 2>/dev/null || true
+        local stale; stale="$(losetup -j "$img" 2>/dev/null | cut -d: -f1)"
+        [[ -n "$stale" ]] && losetup -d "$stale" 2>/dev/null || true
+
+        log "decompressing the base image"
+        xz -dc "$xz" > "$img"
+        local loop; loop="$(losetup -f --show -P "$img")"
+        udevadm settle 2>/dev/null || sleep 1
+        [[ -b "${loop}p2" ]] || { losetup -d "$loop"; die "unexpected base image layout (no ${loop}p2)"; }
+        mkdir -p "$mnt"; mount "${loop}p2" "$mnt"
+        log "copying the rootfs into $ROOTFS (~2GB, a few minutes)"
+        # -a only, NOT -HAX: a build chroot needs the files, not ACLs/xattrs, and
+        # -X/-A trip non-fatal errors (rsync code 23) on a system rootfs that
+        # would abort the whole script under set -e. Tolerate the benign codes.
+        rsync -a --numeric-ids --info=progress2 "$mnt/" "$ROOTFS/" || {
+            local rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] \
+                || die "rsync failed (code $rc) copying the rootfs"
+            warn "rsync reported code $rc (a few attrs/files skipped) -- fine for a build chroot"
+        }
+        umount "$mnt"; losetup -d "$loop"; rmdir "$mnt" 2>/dev/null || true
+        rm -f "$img"
     fi
-    log "decompressing + extracting the arm64 rootfs into $ROOTFS (a few minutes)"
-    xz -dc "$xz" > "$img"
-    local loop; loop="$(losetup -f --show -P "$img")"
-    udevadm settle 2>/dev/null || sleep 1
-    [[ -b "${loop}p2" ]] || { losetup -d "$loop"; die "unexpected base image layout (no ${loop}p2)"; }
-    local mnt="$BUILD_ROOT/basemnt"; mkdir -p "$mnt"
-    mount "${loop}p2" "$mnt"
-    rsync -aHAX --numeric-ids "$mnt/" "$ROOTFS/"
-    umount "$mnt"; losetup -d "$loop"; rmdir "$mnt" 2>/dev/null || true
-    rm -f "$img"
     mkdir -p "$ROOTFS/boot/firmware" "$ROOTFS$CHROOT_REPO" "$ROOTFS/build"
 
     prep
