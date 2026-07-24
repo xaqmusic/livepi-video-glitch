@@ -23,7 +23,9 @@
 # web UI and can push+apply the result. Knobs:
 #   LIVEPI_BUILD_ROOT   persistent chroot dir  (default /var/tmp/livepi-build-arm64)
 #   LIVEPI_BASE_IMG_URL Pi OS base image       (default: Pi's _latest arm64 Lite)
-set -euo pipefail
+# -E (errtrace): make the ERR trap below fire for failures INSIDE functions too
+# -- without it a failing command in prep()/cmd_*() exits silently under set -e.
+set -Eeuo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_ROOT="${LIVEPI_BUILD_ROOT:-/var/tmp/livepi-build-arm64}"
@@ -67,6 +69,9 @@ trap 'rc=$?; printf "\033[1;31m[build-chroot] command failed (exit %s) near line
 prep() {
     [[ -d "$ROOTFS" ]] || die "no build chroot at $ROOTFS -- run: sudo $0 bootstrap"
     _umount_all   # clear anything a killed run left behind
+    # An unbooted rootfs can be missing these mount-point dirs; a mount onto a
+    # non-existent target fails (and, pre-errtrace, exited silently).
+    mkdir -p "$ROOTFS/dev/pts" "$ROOTFS/proc" "$ROOTFS/sys" "$ROOTFS/run"
     mount --bind /dev     "$ROOTFS/dev"
     mount --bind /dev/pts "$ROOTFS/dev/pts"
     mount -t proc  proc   "$ROOTFS/proc"
