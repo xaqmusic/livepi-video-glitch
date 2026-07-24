@@ -149,6 +149,16 @@ cat > "$STAGE/manifest.json" <<MANIFEST
 }
 MANIFEST
 
+# app-activate extracts this tar (as root) straight into /data/app/versions/<v>,
+# and the two services run as the UNPRIVILEGED app user (pi) which needs only
+# READ access to the tree. But `mktemp -d` gives $STAGE mode 700, and a chroot
+# build runs this script as root -- so without normalization the version dir
+# lands 700 root:root, pi can't traverse it, BOTH services fail to start, the
+# health-gate times out, and the update auto-rolls-back. Make the whole tree
+# world-readable (dirs +rx via X, files +r, executables keep +x) so the bundle
+# activates no matter who built it (chroot/root or on-Pi/pi).
+chmod -R a+rX "$STAGE"
+
 # --- pack + checksum ----------------------------------------------------------
 mkdir -p "$OUT"
 bundle="$OUT/livepi-app-$VERSION.tar.zst"
