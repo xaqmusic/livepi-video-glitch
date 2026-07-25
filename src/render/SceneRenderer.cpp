@@ -220,6 +220,11 @@ void SceneRenderer::applyScene(const Scene& scene) {
                 if (!runtime->image.load(livepi::userDataPath(layer.resolvedPath))) {
                     ofLogWarning("SceneRenderer") << "Scene \"" << scene.name << "\" layer \"" << layer.id
                                                   << "\": could not load image " << layer.resolvedPath;
+                } else if (runtime->image.getPixels().getNumChannels() == 4) {
+                    // Cut-out PNG: carry its alpha through the chain so the
+                    // compositor blends it over the layers below instead of
+                    // showing a black box where the image is transparent.
+                    runtime->chain.setPreserveSourceAlpha(true);
                 }
             } else if (!layer.resolvedPath.empty()) {
                 runtime->player = std::make_unique<ClipPlayer>();

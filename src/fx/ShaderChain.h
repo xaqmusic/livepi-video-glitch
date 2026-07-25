@@ -24,6 +24,17 @@ public:
     void resize(int width, int height);
     void addPass(std::unique_ptr<ShaderPass> pass);
 
+    // Seed the chain with the source's OWN alpha instead of an opaque black
+    // frame. Off by default: video and JPEG sources are fully opaque, and an
+    // opaque seed keeps the area outside the dest rect (pillarbox bars) black,
+    // which is what those layers have always looked like. On for sources that
+    // actually carry alpha (an RGBA PNG): transparent pixels stay transparent
+    // all the way to the compositor, which honours layer alpha in every blend
+    // mode -- so a cut-out PNG shows the layers beneath it instead of a black
+    // box. Every layer pass propagates the alpha it samples, so this holds
+    // through the effect chain too.
+    void setPreserveSourceAlpha(bool preserve) { preserveSourceAlpha = preserve; }
+
     // Draws input through every pass in order; the result is retrievable
     // via getOutputFbo() afterward. Taking an ofBaseDraws (not an ofTexture)
     // lets the video player draw itself into the first FBO, which is what
@@ -33,9 +44,10 @@ public:
     // Same, but seeds the input at an explicit rectangle instead of
     // stretched over the whole FBO -- how layer transforms (contain-fit
     // aspect, scale, x/y position) enter the pipeline. Everything outside
-    // the rect is black. rotationDeg spins the source about the rect center
-    // (0 = none); it is applied here rather than by the caller because the
-    // FBO's begin() resets the modelview.
+    // the rect is black -- transparent under setPreserveSourceAlpha, so it
+    // does not occlude the layers below. rotationDeg spins the source about
+    // the rect center (0 = none); it is applied here rather than by the caller
+    // because the FBO's begin() resets the modelview.
     void process(const ofBaseDraws& input, const ofRectangle& destRect, const ControlState& controlState,
                  const LiveParams& liveParams, float rotationDeg = 0.0f);
     ofFbo& getOutputFbo();
@@ -45,4 +57,5 @@ private:
     ofFbo fboA, fboB;
     bool outputIsA = true;
     bool isSetup = false;
+    bool preserveSourceAlpha = false;
 };
