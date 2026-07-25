@@ -44,6 +44,15 @@ more work than designing for it from pass #4 on.
 Four categories. Within each, effects are listed in the order I'd build
 them (cheapest + most distinct from what exists first).
 
+Separate from these shader passes, each layer also carries a **geometric
+transform** applied when its source is drawn (not a pass): contain-fit
+aspect + `scale`, `x`/`y` position, horizontal/vertical flip, and
+**rotation** (continuous degrees, about the layer center). Like every other
+parameter these are live-mappable (`transform.*` layer params) -- set
+rotation to 90° to right a sideways clip, or map it to a knob / audio band
+to spin. Implemented in `SceneRenderer` + `ShaderChain::process`, not in a
+shader, so it applies equally to clips and still images.
+
 ### Coordinate-warp passes
 
 Resample the source texture through a distorted lookup instead of drawing

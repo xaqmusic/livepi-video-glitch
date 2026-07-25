@@ -93,9 +93,13 @@ Scene
  ├─ layers: [Layer]              // ordered bottom-to-top, any count
  ├─ mappings: [Mapping]          // CC or audio-band triggers -- see
                                   // "Modulation mapping & learn" below
- └─ postEffects: { param map }   // applied to the final composited frame
-                                  // (h-sync tear, chromatic aberration,
-                                  // stutter, barrel/fisheye, ...)
+ ├─ postEffects: { param map }   // applied to the final composited frame
+ │                                // (h-sync tear, chromatic aberration,
+ │                                // stutter, barrel/fisheye, ...)
+ ├─ transition: {style,duration} // entry transition: fade/tear/shatter/static
+ ├─ renderScale: 0.25..1.0       // internal render resolution (fps vs sharpness,
+ │                                // capped further by the thermal governor)
+ └─ autoAdvance / autoAdvanceSeconds  // optional timed advance to the next scene
 
 Layer
  ├─ id                           // stable, assigned once, never reused
@@ -103,8 +107,9 @@ Layer
  ├─ source: clipId  OR  "plasma" | "starfield" | "fire" | ...
  ├─ blendMode: "normal" | "add" | "screen" | "multiply"
  ├─ opacity: 0..1
- ├─ layerEffects: { param map }  // warps scoped to just this layer
- │                                // (rotozoom, kaleidoscope, tunnel, ...)
+ ├─ layerEffects: { param map }  // per-layer transform + warps, e.g.
+ │                                // transform.scale/x/y/flip/rotation,
+ │                                // rotozoom, kaleidoscope, tunnel, ...
  └─ params: { }                  // generator-specific, if kind == generator
 
 Clip

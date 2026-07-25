@@ -52,10 +52,17 @@ this screen.
 
 **3. Scene editor** -- the core screen, and the one worth the most care:
 
+- **Scene header** -- entry transition (fade / tear / shatter / static +
+  duration), internal render resolution (fps-vs-sharpness, capped further by
+  the thermal governor), and **auto-advance**: an optional `MM:SS` dwell
+  after which the scene transitions to the next on its own, turning the
+  setlist into a timed, self-running show. Off by default; scenes with it
+  off wait for a manual advance.
 - **Layer stack**, top of list = foreground (matches "foreground and
   background" directly). Each layer row: thumbnail (clip) or icon
   (generator), a kind toggle, blend mode + opacity, and an expandable
-  section for that layer's own effects (rotozoom, kaleidoscope, etc.).
+  section for that layer's own transform (scale / position / flip /
+  **rotation**) and effects (rotozoom, kaleidoscope, etc.).
 - **Post-effects section** -- the scene-wide CRT-decay chain plus anything
   meant to hit the whole composited frame.
 - **Every parameter control is the same component** (`MappableControl`,
