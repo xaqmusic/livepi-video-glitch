@@ -40,13 +40,29 @@ void ShaderChain::process(const ofBaseDraws& input, const ControlState& controlS
 }
 
 void ShaderChain::process(const ofBaseDraws& input, const ofRectangle& destRect, const ControlState& controlState,
-                          const LiveParams& liveParams) {
+                          const LiveParams& liveParams, float rotationDeg) {
     // Seed fboA with the raw input frame so the first pass has something to
     // read regardless of how many passes are configured (including zero).
     fboA.begin();
     ofClear(0, 0, 0, 255);
     ofSetColor(255);  // the video shaders multiply by globalColor
-    input.draw(destRect.x, destRect.y, destRect.width, destRect.height);
+    // Layer rotation spins the source about the dest-rect center. Applied
+    // HERE, inside fboA.begin(): the FBO resets the modelview, so a matrix
+    // pushed by the caller before process() would be discarded. The rect
+    // center is invariant under the flip trick (negative width/height from the
+    // opposite edge), so rotation composes correctly with flips.
+    if (rotationDeg != 0.0f) {
+        float rcx = destRect.x + destRect.width * 0.5f;
+        float rcy = destRect.y + destRect.height * 0.5f;
+        ofPushMatrix();
+        ofTranslate(rcx, rcy);
+        ofRotateDeg(rotationDeg, 0.0f, 0.0f, 1.0f);
+        ofTranslate(-rcx, -rcy);
+        input.draw(destRect.x, destRect.y, destRect.width, destRect.height);
+        ofPopMatrix();
+    } else {
+        input.draw(destRect.x, destRect.y, destRect.width, destRect.height);
+    }
     fboA.end();
     outputIsA = true;
 

@@ -489,7 +489,8 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
                     dest.height = -dest.height;
                 }
             }
-            runtime->chain.process(*source, dest, controlState, liveParams);
+            float rotation = liveParams.getLayerParam(layer->id, "transform.rotation", 0.0f);
+            runtime->chain.process(*source, dest, controlState, liveParams, rotation);
         } else {
             // Generator (its paint pass overwrites the black seed) or
             // unresolved clip (chain has no paint pass: stays black).

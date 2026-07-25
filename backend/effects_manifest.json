@@ -151,6 +151,14 @@
             "default": 0.0,
             "group": "Transform"
         },
+        "transform.rotation": {
+            "label": "Rotation",
+            "type": "float",
+            "min": -180.0,
+            "max": 180.0,
+            "default": 0.0,
+            "group": "Transform"
+        },
         "stutter.engage": {
             "label": "Stutter",
             "type": "toggle",

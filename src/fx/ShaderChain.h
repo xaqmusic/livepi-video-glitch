@@ -33,9 +33,11 @@ public:
     // Same, but seeds the input at an explicit rectangle instead of
     // stretched over the whole FBO -- how layer transforms (contain-fit
     // aspect, scale, x/y position) enter the pipeline. Everything outside
-    // the rect is black.
+    // the rect is black. rotationDeg spins the source about the rect center
+    // (0 = none); it is applied here rather than by the caller because the
+    // FBO's begin() resets the modelview.
     void process(const ofBaseDraws& input, const ofRectangle& destRect, const ControlState& controlState,
-                 const LiveParams& liveParams);
+                 const LiveParams& liveParams, float rotationDeg = 0.0f);
     ofFbo& getOutputFbo();
 
 private:
