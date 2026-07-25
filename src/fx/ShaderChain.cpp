@@ -44,7 +44,13 @@ void ShaderChain::process(const ofBaseDraws& input, const ofRectangle& destRect,
     // Seed fboA with the raw input frame so the first pass has something to
     // read regardless of how many passes are configured (including zero).
     fboA.begin();
-    ofClear(0, 0, 0, 255);
+    // An alpha-carrying source (RGBA PNG) is written VERBATIM, blending off:
+    // an alpha blend against the opaque black clear would fold its transparent
+    // pixels down to opaque black (a = a*a + 1-a, which is 1 at a = 0) and the
+    // compositor would draw a black box over the layers beneath. Same idiom the
+    // transparent generator passes use. Opaque sources keep the opaque seed.
+    ofClear(0, 0, 0, preserveSourceAlpha ? 0 : 255);
+    if (preserveSourceAlpha) ofEnableBlendMode(OF_BLENDMODE_DISABLED);
     ofSetColor(255);  // the video shaders multiply by globalColor
     // Layer rotation spins the source about the dest-rect center. Applied
     // HERE, inside fboA.begin(): the FBO resets the modelview, so a matrix
@@ -63,6 +69,7 @@ void ShaderChain::process(const ofBaseDraws& input, const ofRectangle& destRect,
     } else {
         input.draw(destRect.x, destRect.y, destRect.width, destRect.height);
     }
+    if (preserveSourceAlpha) ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     fboA.end();
     outputIsA = true;
 

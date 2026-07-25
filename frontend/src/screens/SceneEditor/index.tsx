@@ -122,7 +122,7 @@ export default function SceneEditor() {
                                 min={0}
                                 max={59}
                                 step={1}
-                                style={{ width: 52 }}
+                                style={{ width: 64 }}
                                 title="Auto-advance: minutes"
                                 value={Math.floor((scene.autoAdvanceSeconds ?? 0) / 60)}
                                 onChange={(e) => {
@@ -139,7 +139,7 @@ export default function SceneEditor() {
                                 min={0}
                                 max={59}
                                 step={1}
-                                style={{ width: 52 }}
+                                style={{ width: 64 }}
                                 title="Auto-advance: seconds"
                                 value={(scene.autoAdvanceSeconds ?? 0) % 60}
                                 onChange={(e) => {
