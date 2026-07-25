@@ -128,7 +128,7 @@ export default function SoftwareUpdate() {
             )}
             <div className="dim" style={{ fontSize: 12 }}>
                 A version that doesn't start up healthy is rolled back automatically, so an update can't
-                brick the box. Build a bundle with <code>scripts/build-bundle.sh</code> on the Pi.
+                brick the box.
             </div>
             {status?.deviceCode && (
                 <div className="dim" style={{ fontSize: 12, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
