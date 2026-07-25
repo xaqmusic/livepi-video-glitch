@@ -55,6 +55,10 @@ class Scene(BaseModel):
     # sharpness for frame rate on heavy scenes. The renderer caps it further
     # when the SoC overheats.
     renderScale: float = Field(default=1.0, ge=0.25, le=1.0)
+    # Timed auto-advance: after this many seconds the scene fires the same
+    # advance the button/MIDI use, moving to the next scene. Off by default.
+    autoAdvance: bool = False
+    autoAdvanceSeconds: float = Field(default=0.0, ge=0.0, le=3600.0)
 
 
 class Show(BaseModel):

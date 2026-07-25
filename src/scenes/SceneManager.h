@@ -43,4 +43,12 @@ private:
 
     std::vector<Scene> scenes;
     size_t currentIndex = 0;
+
+    // Timed auto-advance bookkeeping. sceneEnteredAt is the ofGetElapsedTimef()
+    // stamp when the current scene became active; dwellTracking/dwellTrackedIndex
+    // let update() notice ANY scene change (button/MIDI/goto/reload/timer) in one
+    // place and restart the dwell clock, so no mutation site must remember to.
+    size_t dwellTrackedIndex = 0;
+    bool dwellTracking = false;
+    float sceneEnteredAt = 0.0f;
 };

@@ -1,6 +1,7 @@
 #include "SceneManager.h"
 
 #include "ofLog.h"
+#include "ofUtils.h"  // ofGetElapsedTimef
 
 namespace {
 
@@ -51,6 +52,28 @@ void SceneManager::retainSceneById(std::vector<Scene> newScenes) {
 void SceneManager::update(const ControlState& controlState) {
     if (controlState.lastButtonEvent != ButtonEvent::None) {
         applyButtonEvent(controlState.lastButtonEvent);
+    }
+
+    const float now = ofGetElapsedTimef();
+    // Restart the dwell clock whenever the active scene changes -- from the
+    // button/MIDI event above, a goto-by-id, a show hot-reload, or the
+    // auto-advance below. Detecting the index change in ONE place means no
+    // mutation site has to remember to reset the timer.
+    if (!dwellTracking || currentIndex != dwellTrackedIndex) {
+        dwellTracking = true;
+        dwellTrackedIndex = currentIndex;
+        sceneEnteredAt = now;
+    }
+
+    // Timed auto-advance: when the active scene opts in, fire the same Click
+    // the button/MIDI use once its dwell elapses, then restart the clock.
+    // Needs >1 scene (Click wraps, so a lone scene would loop its transition).
+    const Scene& current = scenes[currentIndex];
+    if (current.autoAdvance && current.autoAdvanceSeconds > 0.0f && scenes.size() > 1
+        && (now - sceneEnteredAt) >= current.autoAdvanceSeconds) {
+        applyButtonEvent(ButtonEvent::Click);
+        dwellTrackedIndex = currentIndex;
+        sceneEnteredAt = now;
     }
 }
 

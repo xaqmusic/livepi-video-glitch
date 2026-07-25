@@ -99,6 +99,59 @@ export default function SceneEditor() {
                         <option value="0.66">66%</option>
                         <option value="0.5">50%</option>
                     </select>
+                    <span className="dim" style={{ fontSize: 12 }}>auto-advance</span>
+                    <input
+                        type="checkbox"
+                        title="Automatically transition to the next scene after the set time (uses this scene's transition)"
+                        checked={scene.autoAdvance ?? false}
+                        onChange={(e) => {
+                            const on = e.target.checked;
+                            useShowStore.getState().edit((draft) => {
+                                const s = draft.scenes.find((x) => x.id === scene.id);
+                                if (s) {
+                                    s.autoAdvance = on;
+                                    if (on && !s.autoAdvanceSeconds) s.autoAdvanceSeconds = 30;
+                                }
+                            });
+                        }}
+                    />
+                    {(scene.autoAdvance ?? false) && (
+                        <>
+                            <input
+                                type="number"
+                                min={0}
+                                max={59}
+                                step={1}
+                                style={{ width: 52 }}
+                                title="Auto-advance: minutes"
+                                value={Math.floor((scene.autoAdvanceSeconds ?? 0) / 60)}
+                                onChange={(e) => {
+                                    const min = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
+                                    useShowStore.getState().edit((draft) => {
+                                        const s = draft.scenes.find((x) => x.id === scene.id);
+                                        if (s) s.autoAdvanceSeconds = min * 60 + ((s.autoAdvanceSeconds ?? 0) % 60);
+                                    });
+                                }}
+                            />
+                            <span className="dim" style={{ fontSize: 12 }}>:</span>
+                            <input
+                                type="number"
+                                min={0}
+                                max={59}
+                                step={1}
+                                style={{ width: 52 }}
+                                title="Auto-advance: seconds"
+                                value={(scene.autoAdvanceSeconds ?? 0) % 60}
+                                onChange={(e) => {
+                                    const sec = Math.min(59, Math.max(0, Math.floor(parseFloat(e.target.value) || 0)));
+                                    useShowStore.getState().edit((draft) => {
+                                        const s = draft.scenes.find((x) => x.id === scene.id);
+                                        if (s) s.autoAdvanceSeconds = Math.floor((s.autoAdvanceSeconds ?? 0) / 60) * 60 + sec;
+                                    });
+                                }}
+                            />
+                        </>
+                    )}
                     <SaveStatus />
                     <button
                         title="Jump the renderer to this scene"

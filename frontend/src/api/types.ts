@@ -86,6 +86,10 @@ export interface Scene {
     transition?: { style: "none" | "fade" | "tear" | "shatter" | "static"; duration: number } | null;
     /** Internal render resolution, 0.25..1.0 of the display (fps vs sharpness). */
     renderScale?: number;
+    /** Timed auto-advance: when true, the scene automatically advances to the
+     *  next scene after autoAdvanceSeconds. */
+    autoAdvance?: boolean;
+    autoAdvanceSeconds?: number;
 }
 
 export interface Show {

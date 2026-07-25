@@ -115,6 +115,12 @@ struct Scene {
     // caps it globally when the SoC overheats (min, never raises it).
     float renderScale = 1.0f;
 
+    // Timed auto-advance: when enabled, SceneManager fires the same Click the
+    // button/MIDI use to move to the next scene once autoAdvanceSeconds of dwell
+    // elapse. Off by default; 0 seconds means never.
+    bool autoAdvance = false;
+    float autoAdvanceSeconds = 0.0f;
+
     // Transitional (removed with the layered SceneRenderer in Phase A.2):
     // the first clip layer's resolved path, so the current single-clip
     // render path keeps working between the loader landing and the

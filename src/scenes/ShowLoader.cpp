@@ -267,6 +267,12 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
         // Per-scene internal render scale (fps-vs-sharpness), default full.
         scene.renderScale = std::clamp(sceneNode.value("renderScale", 1.0f), 0.25f, 1.0f);
 
+        // Timed auto-advance: dwell seconds before the scene fires the same
+        // Click the button uses to advance to the next scene (SceneManager).
+        // Off by default; clamp to a sane ceiling (1 hour).
+        scene.autoAdvance = sceneNode.value("autoAdvance", false);
+        scene.autoAdvanceSeconds = std::clamp(sceneNode.value("autoAdvanceSeconds", 0.0f), 0.0f, 3600.0f);
+
         // Transitional single-clip bridge until the layered SceneRenderer
         // lands (Phase A.2): the first resolvable clip layer is what the
         // current render path plays.
