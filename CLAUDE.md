@@ -40,6 +40,16 @@ bundles without hiccups**.
 - **Build the image from the commit BEFORE a feature** if a bundle is meant to
   *add* that feature (throwaway `git worktree`), or the update test proves nothing.
 - **Host key changes after a reflash** → `ssh-keygen -R <host>`.
+- **A Pi 5 image must build with `LIVEPI_PISOUND=0`.** No HAT (the Active
+  Cooler takes that space) -> generic USB MIDI/audio. `auto` deliberately only
+  skips on a positively-identified Pi 5, so the qemu chroot -- which sees no
+  device tree -- resolves to *install*. Getting it wrong bakes a `dtoverlay`
+  for absent hardware into the image. `build-chroot.sh` already passes 0.
+- **Pi 4 vs Pi 5 is a RUNTIME tier, never a compile-time one** -- one arm64
+  bundle runs on both (no `-mcpu`, GLES 2 fixed at build time). Branch off
+  `livepi::platformInfo()` / `hardware.detect()`, and keep the tier
+  **advisory**: it must not change what a show means, or a Pi-5-authored show
+  stops playing on a Pi 4.
 - Adding a per-layer effect/transform param is **one line** in
   `backend/effects_manifest.json` (manifest-driven UI + validation + mapping);
   the renderer reads it generically. Scene-level fields (transition, renderScale,

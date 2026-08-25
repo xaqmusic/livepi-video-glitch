@@ -147,6 +147,23 @@ export interface EffectsManifest {
         comfortableMaxHeight: number;
         absoluteMaxHeight: number;
     };
+    /**
+     * The box the backend detected at runtime. Advisory: the layerBudget above
+     * stays the Pi 4's measured one on every tier, so a show authored on a
+     * Pi 5 still plays on a Pi 4. Here so per-model values have somewhere to
+     * live, and so the UI can name the hardware.
+     */
+    hardware: HardwareInfo;
+}
+
+/** Mirrors backend/livepi_backend/hardware.py and src/util/Platform.h. */
+export interface HardwareInfo {
+    /** "desktop" | "pi3" | "pi4" | "pi5" | "pi" (a Pi with no tier of its own). */
+    tier: string;
+    /** Raw /proc/device-tree/model, e.g. "Raspberry Pi 5 Model B Rev 1.0". */
+    model: string;
+    /** True when LIVEPI_HARDWARE_TIER forced the tier instead of detection. */
+    forced: boolean;
 }
 
 export interface Telemetry {
@@ -156,6 +173,9 @@ export interface Telemetry {
     currentSceneId: string;
     currentSceneName: string;
     ts: number;
+    /** What the RENDERER detected. Absent from a status file written by an
+     *  older bundle, so treat it as optional. */
+    hardware?: Pick<HardwareInfo, "tier" | "model">;
 }
 
 export interface UploadJob {

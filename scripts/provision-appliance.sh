@@ -23,6 +23,8 @@
 #   LIVEPI_WIFI_COUNTRY=US            regdomain so the control AP can broadcast
 #   LIVEPI_KEEP_OF=0                  1 keeps the oF build tree on the image
 #   LIVEPI_PREBUILT=0                 1 = binary+venv already present, skip build
+#   LIVEPI_PISOUND=auto               passed through to setup-pi.sh (auto|1|0);
+#                                     0 builds a generic-USB-MIDI box (Pi 5)
 set -euo pipefail
 
 APP_DIR="${LIVEPI_APP_DIR:-/opt/livepi}"
@@ -224,6 +226,16 @@ APPCFG
 # ---------------------------------------------------------------------------
 log "Pisound button: LivePi gesture map"
 # ---------------------------------------------------------------------------
+# Conditional on the Pisound stack actually being present. setup-pi.sh owns the
+# "is this a Pisound box?" decision (LIVEPI_PISOUND, defaulting to an
+# auto-probe); this block just reacts to what it installed, so the policy lives
+# in exactly one place. A Pi 5 box has no HAT -- it drives from a generic USB
+# MIDI/audio interface -- and therefore no physical button: scene switching
+# comes from the gear menu's MIDI note/CC binding instead, and the debug
+# overlay / setup card stay reachable from the web UI.
+if [[ ! -d /usr/local/pisound ]]; then
+    log "  no Pisound stack installed -- skipping the button map (USB MIDI box)"
+else
 # setup-pi.sh installed pisound-btn (the GPIO button daemon) with Blokas' stock
 # map, which is actively hostile to a video appliance: CLICK starts PureData,
 # HOLD_3S toggles a WiFi hotspot, and HOLD_5S SHUTS THE PI DOWN -- a 5-7s press
@@ -272,6 +284,7 @@ PBCONF
 # The daemon is enabled by the Blokas install; assert it so a future base change
 # can't silently ship a dead button.
 systemctl enable pisound-btn.service 2>/dev/null || warn "could not enable pisound-btn.service (is pisound installed?)"
+fi  # /usr/local/pisound present
 
 # ---------------------------------------------------------------------------
 log "systemd units"

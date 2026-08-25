@@ -23,6 +23,11 @@
 #     LIVEPI_WIFI_COUNTRY=US            regdomain for the control AP
 #     LIVEPI_ENLARGE_MB=4096            headroom added to rootfs for the build
 #     LIVEPI_PREBUILT=0                 1 = inject a prebuilt binary (skip compile)
+#     LIVEPI_PISOUND=auto               auto|1|0 -- install the Pisound stack.
+#                                       In the chroot "auto" resolves to 1 (no
+#                                       device tree to probe), so a Pi 5 image
+#                                       must pass 0 explicitly: no HAT, generic
+#                                       USB MIDI/audio, no button map.
 #     LIVEPI_WORK_DIR=/var/tmp/livepi-image      scratch + base-image cache
 #     LIVEPI_OUTPUT_DIR=$LIVEPI_WORK_DIR         where the .img.xz lands
 #     LIVEPI_VERSION=$(git describe)             image version tag
@@ -48,6 +53,7 @@ ENLARGE_MB="${LIVEPI_ENLARGE_MB:-4096}"
 # needs (docs/distribution.md "Filesystem & partitions").
 DATA_SEED_MB="${LIVEPI_DATA_SEED_MB:-128}"
 PREBUILT="${LIVEPI_PREBUILT:-0}"
+PISOUND="${LIVEPI_PISOUND:-auto}"
 WORK_DIR="${LIVEPI_WORK_DIR:-/var/tmp/livepi-image}"
 OUTPUT_DIR="${LIVEPI_OUTPUT_DIR:-$WORK_DIR}"
 VERSION="${LIVEPI_VERSION:-$(git -C "$REPO_DIR" describe --tags --always --dirty 2>/dev/null || echo dev)}"
@@ -256,6 +262,7 @@ provision() {
         LIVEPI_LOCKDOWN="$LOCKDOWN" \
         LIVEPI_WIFI_COUNTRY="$WIFI_COUNTRY" \
         LIVEPI_PREBUILT="$PREBUILT" \
+        LIVEPI_PISOUND="$PISOUND" \
         LIVEPI_DEV_SSH_KEY="$dev_key" \
         LIVEPI_APP_VERSION="$VERSION" \
         LIVEPI_APP_GIT_HASH="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" \

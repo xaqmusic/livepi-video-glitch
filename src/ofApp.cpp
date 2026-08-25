@@ -12,6 +12,7 @@
 #include "fx/FilterPasses.h"
 #include "fx/HSyncTearPass.h"
 #include "util/NetInfo.h"
+#include "util/Platform.h"
 
 namespace {
 // systemd stops the kiosk with SIGTERM (to the whole cgroup). Dying
@@ -33,6 +34,12 @@ void ofApp::setup() {
     // in docs/architecture.md for why the actual negotiated context/version
     // is worth confirming on every new piece of hardware this runs on.
     ofLogNotice("ofApp") << "GL renderer: " << glGetString(GL_RENDERER) << ", version: " << glGetString(GL_VERSION);
+    // One bundle runs on every Pi, so which box this is can only be known at
+    // runtime -- log it next to the GL strings, since together they're the
+    // first thing to check on new hardware (a Pi 5 must report V3D 7.1 here).
+    const auto& hw = livepi::platformInfo();
+    ofLogNotice("ofApp") << "hardware: " << hw.tierName << " (" << hw.model << ")"
+                         << (hw.forced ? " [FORCED via LIVEPI_HARDWARE_TIER]" : "");
 
     config.loadFromFile("config/app.json");
     config.mergeFromFile("config/app.local.json");
@@ -368,6 +375,7 @@ void ofApp::draw() {
            << (sceneControlMap.thermalRescue() && thermal.scale() < 0.999f ? "  [THERMAL-CAPPED]" : "")
            << "\n"
            << "net: " << netSummary << "   [web :8080]\n"
+           << "hw: " << livepi::platformInfo().tierName << "  gl: " << glGetString(GL_RENDERER) << "\n"
            << "[d] toggle this overlay";
         ofSetColor(255);
         ofDrawBitmapStringHighlight(ss.str(), 20, 20);

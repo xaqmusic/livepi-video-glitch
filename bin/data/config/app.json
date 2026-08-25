@@ -13,7 +13,8 @@
         "num_buffers": 2,
         "sample_rate": 48000,
         "level_smoothing": 0.6,
-        "device_name": ""
+        "device_name": "",
+        "input_channels": 1
     },
     "pisound": {
         "button_fifo": "/tmp/livepi-button.fifo"

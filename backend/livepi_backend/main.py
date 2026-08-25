@@ -7,7 +7,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import auth, captive, clips, commands, config, effects, network, settings, shows, storage, telemetry, update
+from . import (
+    auth,
+    captive,
+    clips,
+    commands,
+    config,
+    effects,
+    hardware,
+    network,
+    settings,
+    shows,
+    storage,
+    telemetry,
+    update,
+)
 
 
 def _default_show() -> dict:
@@ -78,7 +92,7 @@ app.include_router(captive.router)
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "dataDir": str(config.DATA_DIR)}
+    return {"ok": True, "dataDir": str(config.DATA_DIR), "hardware": hardware.detect()}
 
 
 # index.html must NEVER be cached: it names the hashed bundle, and a

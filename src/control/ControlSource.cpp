@@ -10,6 +10,7 @@
 #include "MockControlSource.h"
 #include "PisoundControlSource.h"
 #include "ofLog.h"
+#include "ofSoundBuffer.h"
 #include "ofSoundStream.h"
 #include "ofxMidi.h"
 #include "util/Config.h"
@@ -140,4 +141,95 @@ bool openMidiInByName(ofxMidiIn& midiIn, const std::string& wanted) {
     ofLogNotice("ControlSource") << "Opened MIDI input port " << chosen << ": '"
                                  << midiIn.getInPortName(chosen) << "' (wanted '" << wanted << "').";
     return true;
+}
+
+namespace {
+
+// Append `value` only if it isn't already a candidate -- the ladders below
+// are built from overlapping sources (what was requested, what the device
+// advertises, the usual defaults) and retrying an identical combination just
+// prints the same driver error twice.
+void addCandidate(std::vector<size_t>& list, size_t value) {
+    if (value == 0) return;
+    if (std::find(list.begin(), list.end(), value) == list.end()) list.push_back(value);
+}
+
+}  // namespace
+
+int openAudioInput(ofSoundStream& stream, ofSoundStreamSettings& settings,
+                   const Config& config, const std::string& preferSubstr) {
+    configureAudioInput(stream, settings, config, preferSubstr);
+
+    const size_t wantChannels = settings.numInputChannels > 0 ? settings.numInputChannels : 1;
+    const size_t wantBuffer = settings.bufferSize > 0 ? settings.bufferSize : 256;
+
+    // Channels: what was asked for, then what the chosen device actually
+    // advertises (capped at 2 -- anything beyond a stereo pair just gets
+    // averaged away in the downmix, so opening 8 inputs on an interface would
+    // be pure overhead), then the other of 1/2.
+    std::vector<size_t> channelLadder{wantChannels};
+    if (const ofSoundDevice* dev = settings.getInDevice()) {
+        if (dev->inputChannels > 0)
+            addCandidate(channelLadder, std::min<size_t>(static_cast<size_t>(dev->inputChannels), 2));
+    }
+    addCandidate(channelLadder, 2);
+    addCandidate(channelLadder, 1);
+
+    // Buffer sizes: the configured one first (128 keeps the band envelopes
+    // tight, which is the point on hardware that can take it), then the sizes
+    // a USB interface is likely to insist on.
+    std::vector<size_t> bufferLadder{wantBuffer};
+    for (size_t b : {static_cast<size_t>(256), static_cast<size_t>(512), static_cast<size_t>(1024)})
+        addCandidate(bufferLadder, b);
+
+    for (size_t channels : channelLadder) {
+        for (size_t bufferSize : bufferLadder) {
+            settings.numInputChannels = channels;
+            settings.bufferSize = bufferSize;
+            ofLogVerbose("ControlSource") << "audio input: trying " << channels << "ch @ " << bufferSize
+                                          << " frames";
+            if (stream.setup(settings)) {
+                ofLogNotice("ControlSource")
+                    << "audio input open: " << channels << "ch @ " << bufferSize << " frames, "
+                    << settings.sampleRate << " Hz"
+                    << (channels == wantChannels && bufferSize == wantBuffer
+                            ? ""
+                            : "  (fell back from the configured "
+                                  + std::to_string(wantChannels) + "ch @ "
+                                  + std::to_string(wantBuffer) + ")");
+                return static_cast<int>(channels);
+            }
+            // A refused setup can still leave the backend half-initialized;
+            // close before the next attempt so failures don't accumulate.
+            stream.close();
+        }
+    }
+
+    // Loud, and specific about the consequence: the app keeps running and
+    // looks fine, so without this line a dead audio input reads as "the
+    // audio-reactive mappings don't work" with no clue where to look.
+    ofLogError("ControlSource")
+        << "could not open ANY audio input (tried " << channelLadder.size() << " channel count(s) x "
+        << bufferLadder.size() << " buffer size(s)) -- audio level and the low/mid/high bands will "
+        << "stay at 0, so every audio-reactive mapping is inert. Check `arecord -l`, and set "
+        << "audio.device_name / audio.buffer_size in app.local.json if the device is picky.";
+    return 0;
+}
+
+void downmixToMono(const ofSoundBuffer& buffer, std::vector<float>& out) {
+    const size_t channels = std::max<size_t>(1, buffer.getNumChannels());
+    // Trust the raw sample count over getNumFrames(): a short read would
+    // otherwise walk off the end of the interleaved block.
+    const size_t frames = std::min(buffer.getNumFrames(), buffer.getBuffer().size() / channels);
+    out.resize(frames);
+    if (channels == 1) {
+        std::copy(buffer.getBuffer().begin(), buffer.getBuffer().begin() + frames, out.begin());
+        return;
+    }
+    const float scale = 1.0f / static_cast<float>(channels);
+    for (size_t i = 0; i < frames; ++i) {
+        float sum = 0.0f;
+        for (size_t c = 0; c < channels; ++c) sum += buffer.getSample(i, c);
+        out[i] = sum * scale;
+    }
 }

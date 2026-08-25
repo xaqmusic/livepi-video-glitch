@@ -5,12 +5,30 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Hardware / platform
 
-- **Pi 5 not brought up.** The image is designed to runtime-adapt to Pi 4/5, but
-  Pi 5 has been deferred (no hardware on hand). Pi 5 has **no hardware H.264
-  decoder** (HEVC only), so `ClipPlayer` (tuned for `v4l2h264dec`) needs a
-  software-decode (`avdec_h264`) branch; GL on Mesa **V3D** must be verified and
-  the per-scene layer budget re-measured. See `docs/distribution.md`
-  "Hardware support: Pi 4 and Pi 5".
+- **Pi 5 not brought up on hardware.** Groundwork has landed -- a runtime
+  hardware tier (`src/util/Platform.h` + `backend/livepi_backend/hardware.py`,
+  advisory only), Pisound-optional provisioning (`LIVEPI_PISOUND`), and audio
+  input that survives a generic USB interface. What remains needs a real Pi 5
+  on the bench: which decode element GStreamer autoplugs and whether playback
+  holds 1.000x real-time, that the GL context comes up on Mesa **V3D 7.1**, and
+  a re-measured layer/decode budget (the tradeoff inverts -- the Pi 4 offloads
+  decode to VideoCore, the Pi 5 spends A76 cores on software H.264). The code
+  re-read says `ClipPlayer` most likely needs **no change** for software
+  decode; see `docs/distribution.md` "Hardware support: Pi 4 and Pi 5".
+- **`setup-pi.sh` patch 6 only handles padded I420, not padded NV12.** The
+  plane-offset copy is keyed on `OF_PIXELS_I420`; a padded NV12 buffer falls
+  through to `setFromAlignedPixels(..., stride[0])`, which places the chroma
+  plane by tight packing and gets it wrong. Invisible today (both the Pi 4's
+  `v4l2h264dec` and the desktop path land on I420/unpadded NV12), but it is
+  what the Pi 5's hardware HEVC decoder would hand back -- so generalizing the
+  patch to N planes is the prerequisite for decoding HEVC natively on a Pi 5
+  instead of transcoding to H.264 at ingest.
+- **No physical button on a Pisound-less box.** The Pisound button's three
+  gestures (next scene / debug overlay / setup card) have no source on a Pi 5.
+  Scene switching survives via the gear menu's MIDI note/CC binding; the
+  overlay and card are web-UI-only there. The Pi 5's PMIC power button emits
+  `KEY_POWER` and could be reclaimed (`HandlePowerKey=ignore` + an evdev
+  reader) -- designed, not built.
 
 ## Updates & distribution
 

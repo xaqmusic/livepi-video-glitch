@@ -1,13 +1,50 @@
 #!/usr/bin/env bash
 # Run this ON THE RASPBERRY PI (Raspberry Pi OS Lite, 64-bit, Trixie --
-# see docs/deploy.md for why). Installs openFrameworks (linuxaarch64),
-# Pisound's driver/software support, and the ofxMidi addon. Safe to re-run.
+# see docs/deploy.md for why). Installs openFrameworks (linuxaarch64), the
+# ofxMidi addon, and -- where the box is actually built around one --
+# Pisound's driver/software support. Safe to re-run.
+#
+#   LIVEPI_PISOUND=auto|1|0   install Blokas' Pisound stack (default auto)
+#
+# Pisound is NOT universal any more: a Pi 5 box runs the Active Cooler in the
+# space the HAT would occupy, so it drives from a generic USB MIDI/audio
+# interface instead (the renderer's control_source=auto already handles
+# either). Installing the stack anyway is not harmless -- Blokas' installer
+# adds an apt repo, a DKMS kernel module and a `dtoverlay=pisound` that binds
+# an I2S codec which isn't there.
 set -euo pipefail
 
 OF_VERSION="0.12.1"
 OF_PLATFORM="linuxaarch64"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OF_ROOT="${OF_ROOT:-$REPO_DIR/../openFrameworks}"
+
+# Is this box a Pisound box? The single source of truth for that question --
+# provision-appliance.sh reacts to what this script installed rather than
+# re-deriving it, so the decision is made exactly once.
+#
+# "auto" is deliberately ASYMMETRIC: it only ever skips on a positively
+# identified Pi 5, and installs in every other case. The tempting rule -- "no
+# HAT in the EEPROM, so no Pisound" -- would silently regress the working Pi 4
+# boxes, because the probe can't tell "no HAT" from "can't read the HAT": a
+# qemu chroot during an image build sees no device tree at all, and the v1.1
+# HAT's EEPROM is exactly what the v1.2 revision went back and fixed. Skipping
+# on a false negative breaks a shipping box; installing on a false positive
+# costs an apt run. A Pi 4 that genuinely has no HAT passes LIVEPI_PISOUND=0.
+PISOUND="${LIVEPI_PISOUND:-auto}"
+if [ "$PISOUND" = "auto" ]; then
+    hat_product="$(tr -d '\0' 2>/dev/null < /proc/device-tree/hat/product || true)"
+    pi_model="$(tr -d '\0' 2>/dev/null < /proc/device-tree/model || true)"
+    PISOUND=1
+    case "$hat_product" in
+        *[Pp]isound*) ;;  # HAT is right there -- install, whatever the model says
+        *) case "$pi_model" in
+               *"Raspberry Pi 5"*|*"Compute Module 5"*) PISOUND=0 ;;
+           esac ;;
+    esac
+    echo "Pisound: auto -> $([ "$PISOUND" = 1 ] && echo install || echo skip)" \
+         "(hat='${hat_product:-none}', model='${pi_model:-unknown}')"
+fi
 
 if [ -d "$OF_ROOT" ]; then
     echo "openFrameworks already present at $OF_ROOT, skipping download."
@@ -306,21 +343,38 @@ sudo apt-get install -y python3-pip ffmpeg avahi-daemon avahi-utils
 python3 -m pip install -q --target "$REPO_DIR/backend/pylib" --break-system-packages \
     -r "$REPO_DIR/backend/requirements.txt"
 
-echo "Installing Pisound driver/software support..."
-# On a genuinely fresh Raspberry Pi OS flash, unattended-upgrades or the
-# apt run above can still be holding the dpkg lock for a few seconds after
-# it returns -- confirmed empirically via a from-scratch reinstall test,
-# where the Pisound installer's own `apt-get install` intermittently hit
-# "Could not get lock /var/lib/dpkg/lock-frontend". Wait for it to clear
-# rather than let that apt-get fail partway through.
-for i in $(seq 1 30); do
-    sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
-    sleep 1
-done
-curl https://blokas.io/pisound/install.sh | sh
+if [ "$PISOUND" = "1" ]; then
+    echo "Installing Pisound driver/software support..."
+    case "$(tr -d '\0' 2>/dev/null < /proc/device-tree/model || true)" in
+        *"Raspberry Pi 5"*)
+            echo "  WARNING: this is a Pi 5. Blokas' installer will add a dtoverlay for the"
+            echo "  HAT; the Pi 5 design targets a generic USB MIDI/audio interface instead"
+            echo "  (Active Cooler clearance). Re-run with LIVEPI_PISOUND=0 if that was a slip."
+            ;;
+    esac
+    # On a genuinely fresh Raspberry Pi OS flash, unattended-upgrades or the
+    # apt run above can still be holding the dpkg lock for a few seconds after
+    # it returns -- confirmed empirically via a from-scratch reinstall test,
+    # where the Pisound installer's own `apt-get install` intermittently hit
+    # "Could not get lock /var/lib/dpkg/lock-frontend". Wait for it to clear
+    # rather than let that apt-get fail partway through.
+    for i in $(seq 1 30); do
+        sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
+        sleep 1
+    done
+    curl https://blokas.io/pisound/install.sh | sh
+else
+    echo "Pisound: SKIPPED (LIVEPI_PISOUND=$PISOUND)."
+    echo "  Control comes from a generic USB MIDI/audio interface -- the renderer's"
+    echo "  control_source=auto picks one up with no further configuration."
+fi
 
 echo ""
 echo "Next steps:"
-echo "  sudo pisound-config     -- confirm MIDI/audio are recognized, wire up the button (docs/pisound-hardware-notes.md)"
+if [ "$PISOUND" = "1" ]; then
+    echo "  sudo pisound-config     -- confirm MIDI/audio are recognized, wire up the button (docs/pisound-hardware-notes.md)"
+else
+    echo "  aconnect -i / arecord -l  -- confirm the USB MIDI + audio interface are recognized"
+fi
 echo "  make OF_ROOT=\"$OF_ROOT\"  -- build"
 echo "See docs/deploy.md for the autostart/kiosk systemd setup."

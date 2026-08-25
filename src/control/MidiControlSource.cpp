@@ -25,7 +25,11 @@ void MidiControlSource::setup(const Config& config) {
     // Low-latency audio input, tunable in app.json (see PisoundControlSource).
     levelSmoothing = std::clamp(config.getFloat("audio.level_smoothing", 0.6f), 0.0f, 0.98f);
     ofSoundStreamSettings settings;
-    settings.numInputChannels = 1;
+    // Mono by default; audio.input_channels=2 captures a stereo pair and folds
+    // it down (downmixToMono), which is what you want when the signal is on
+    // the interface's second input or spread across both. openAudioInput
+    // falls back across counts anyway if the device refuses this one.
+    settings.numInputChannels = std::max(1, config.getInt("audio.input_channels", 1));
     settings.numOutputChannels = 0;
     settings.sampleRate = config.getInt("audio.sample_rate", 48000);
     settings.bufferSize = config.getInt("audio.buffer_size", 128);
@@ -33,8 +37,11 @@ void MidiControlSource::setup(const Config& config) {
     settings.setInListener(this);
     // No source-specific hardware to prefer: an explicit override > a connected
     // USB capture device > the system default.
-    configureAudioInput(soundStream, settings, config, "");
-    soundStream.setup(settings);
+    openInputChannels = openAudioInput(soundStream, settings, config, "");
+    // settings.bufferSize is what openAudioInput SETTLED on, not what was
+    // requested -- reserve against that so the audio thread's mono fold never
+    // allocates in the callback.
+    monoScratch.reserve(settings.bufferSize);
     bandSplitter.setup(static_cast<float>(settings.sampleRate));
 }
 
@@ -69,16 +76,17 @@ void MidiControlSource::update() {
 }
 
 void MidiControlSource::audioIn(ofSoundBuffer& buffer) {
-    float sumSquares = 0.0f;
-    for (size_t i = 0; i < buffer.getNumFrames(); ++i) {
-        float sample = buffer.getSample(i, 0);
-        sumSquares += sample * sample;
-    }
-    float rms = std::sqrt(sumSquares / std::max<size_t>(1, buffer.getNumFrames()));
+    // Whatever channel count actually opened, fold it to mono first: both the
+    // RMS below and AudioBandSplitter want a contiguous mono block, and a
+    // generic USB interface may well have opened as stereo (see
+    // openAudioInput). This is a no-op copy in the mono case.
+    downmixToMono(buffer, monoScratch);
 
-    // numInputChannels == 1, so the interleaved buffer is already a
-    // contiguous mono sample array -- no de-interleaving needed.
-    bandSplitter.process(buffer.getBuffer().data(), buffer.getNumFrames());
+    float sumSquares = 0.0f;
+    for (float sample : monoScratch) sumSquares += sample * sample;
+    float rms = std::sqrt(sumSquares / std::max<size_t>(1, monoScratch.size()));
+
+    bandSplitter.process(monoScratch.data(), monoScratch.size());
 
     std::lock_guard<std::mutex> lock(audioLevelMutex);
     currentAudioLevel = rms;

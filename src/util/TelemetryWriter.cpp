@@ -9,6 +9,7 @@
 #include "ofJson.h"
 #include "ofLog.h"
 #include "ofUtils.h"
+#include "util/Platform.h"
 
 namespace {
 
@@ -92,6 +93,15 @@ void TelemetryWriter::writeStatus(const ControlState& state, const std::string& 
     status["currentSceneId"] = sceneId;
     status["currentSceneName"] = sceneName;
     status["ts"] = ofGetElapsedTimef();
+    // Which box the renderer actually came up on. Constant for the process,
+    // but published every write so the web UI gets it from the first frame it
+    // sees rather than needing a separate handshake -- and so a support
+    // screenshot of Live mode carries the hardware tier with it.
+    const auto& hw = livepi::platformInfo();
+    status["hardware"] = {
+        {"tier", hw.tierName},
+        {"model", hw.model},
+    };
 
     FILE* f = fopen(tmpPath.c_str(), "w");
     if (!f) return;  // tmpfs missing/mispermissioned -- telemetry is best-effort

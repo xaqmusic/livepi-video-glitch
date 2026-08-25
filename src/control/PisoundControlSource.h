@@ -4,6 +4,7 @@
 
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "AudioBandSplitter.h"
 #include "BeatClock.h"
@@ -57,6 +58,14 @@ private:
     int buttonFifoFd = -1;
 
     ofSoundStream soundStream;
+    // What openAudioInput actually managed to open (0 = nothing; audio-reactive
+    // params stay at 0). Not always audio.buffer_size / 1 channel: a generic USB
+    // interface may only accept stereo, or a larger buffer.
+    int openInputChannels = 0;
+    // Audio-thread scratch for the mono fold of an N-channel capture buffer.
+    // Owned by the audio thread alone (audioIn is its only toucher), so no
+    // lock -- and reserved up front so the callback never allocates.
+    std::vector<float> monoScratch;
     float levelSmoothing = 0.6f;  // one-pole coeff for the overall level (audio.level_smoothing)
     float currentAudioLevel = 0.0f;
     AudioBandSplitter bandSplitter;

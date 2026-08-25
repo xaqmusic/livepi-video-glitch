@@ -79,13 +79,65 @@ no sense to ship a product that ignores it. Aim for **one image** (both are
 the Pi model and the decoders actually present, rather than two separate images
 to maintain.
 
+### The tier is advisory (the rule everything else follows)
+
+One arm64 bundle serves both boxes: `config.make` sets no `-mcpu`/`-mtune`
+(generic aarch64) and GLES 2 is fixed at build time (`main.cpp` +
+`setup-pi.sh`'s `TARGET_OPENGLES` patch), so a Pi 4 and a Pi 5 run the
+byte-identical binary. Nothing that differs between them can be decided by
+the preprocessor -- it all branches off a runtime tier.
+
+That tier is **advisory**. It picks how hard to push and what to warn about;
+it must **never change what a show MEANS**, so a show authored on a Pi 5 still
+plays on a Pi 4. Concretely: the `layerBudget` in `effects_manifest.json` stays
+the Pi-4-measured one on every tier, and the editor's heaviness warning is the
+same warning everywhere. Revisit only with a deliberate compat story (a show
+declaring a required tier, with Pi 4 degradation) -- not by quietly raising a
+limit on the faster box.
+
+Detection lives in two mirrored places that must stay in step -- `src/util/Platform.h`
+(renderer) and `backend/livepi_backend/hardware.py` (backend). Both read
+`/proc/device-tree/model`, both emit the same slugs (`desktop` / `pi3` / `pi4` /
+`pi5` / `pi`), and both honor `LIVEPI_HARDWARE_TIER` as an override so a tier
+can be exercised off the hardware. The backend detects independently rather
+than reading the renderer's `status.json`, so the tier is still reportable
+while the renderer is down. It surfaces on `/api/health`, in `/api/effects`
+alongside `layerBudget`, in `status.json`, and on the renderer's debug overlay.
+
 Distribution-level Pi 5 notes:
 
+- **No Pisound on the Pi 5.** The Active Cooler occupies the space the HAT
+  would take, and cooling wins -- a Pi 5 box drives from a **generic USB MIDI /
+  audio interface** instead. The renderer needs no configuration for this
+  (`control_source=auto` already probes Pisound -> any real MIDI/capture device
+  -> mock), but provisioning does: `LIVEPI_PISOUND=auto|1|0` (`setup-pi.sh`,
+  threaded through `provision-appliance.sh` and `build-image.sh`) gates Blokas'
+  installer, and `provision-appliance.sh` skips the button map when the stack
+  isn't there. `auto` is deliberately asymmetric -- it only skips on a
+  positively identified Pi 5, because the probe can't tell "no HAT" from
+  "can't read the HAT" (a qemu chroot sees no device tree; the v1.1 HAT's
+  EEPROM is what the v1.2 revision fixed), and a false negative would silently
+  regress a shipping Pi 4 box. **A Pi 5 image must pass `LIVEPI_PISOUND=0`.**
+- **No physical button on a Pi 5 box.** The Pisound button's three gestures
+  (next scene / debug overlay / setup card) have no HAT to come from. Scene
+  switching survives via the gear menu's MIDI note/CC binding
+  (`SceneControlMap`); the overlay and card stay reachable from the web UI.
+  The Pi 5's own PMIC power button emits `KEY_POWER` and could be reclaimed as
+  a replacement (`HandlePowerKey=ignore` + an evdev reader) -- **not built.**
 - **Pisound v1.2** for the Pi 5 (Active-Cooler clearance, I2S-master/EEPROM
   fixes) -- see `docs/pisound-hardware-notes.md`. v1.1 is the Pi 4 baseline.
+  Relevant only if someone deliberately builds a HAT-based Pi 5 box anyway.
 - **Power and cooling** -- the Pi 5 wants a **5V/5A USB-C PD** supply and
   **active cooling**; the pre-flashed-box channel should offer a Pi 5 variant
   with both.
+- **Generic audio interfaces are less accommodating than Pisound.** Pisound was
+  one device that accepted whatever was asked of it; a generic USB interface may
+  be capture-stereo-only or refuse a 128-frame buffer. `openAudioInput`
+  (`src/control/ControlSource.cpp`) now retries across channel counts and buffer
+  sizes and folds whatever opens down to mono (`downmixToMono`), logging loudly
+  if nothing opens at all -- previously a refused open left every audio-reactive
+  mapping silently at zero. `audio.input_channels` (default 1) captures a
+  stereo pair where the signal is on the second input.
 
 The renderer needs real work before the Pi 5 is *verified*, and that work is
 graphics/decode-engine territory. **These are TODOs for Pi 5 bring-up, not
@@ -97,13 +149,31 @@ solved here:**
   for the V4L2 mmap that vanishes on unmap, and the I420 stride/offset handling
   for the 1080->1088 macroblock padding. On the Pi 5, GStreamer will fall back to
   a **software H.264 decoder** (`avdec_h264`; the Cortex-A76 at 2.4 GHz decodes
-  1080p easily). **TODO:** verify and branch the decode path by model -- the
-  negotiated pixel format, whether copy-pixels is still needed, and the fact that
-  the Pi-4-only stride/padding workarounds don't apply to a software decoder.
+  1080p easily). **Re-read of the code since:** nothing in `ClipPlayer` is
+  *conditional* on hardware decode, so this most likely needs no renderer change
+  at all. `OF_PIXELS_NATIVE` negotiates whatever the decoder emits and
+  `avdec_h264` emits I420 -- the same format `v4l2h264dec` gives -- so oF's
+  I420->RGB GPU shader path is untouched; `setCopyPixels(true)` becomes a wasted
+  ~3MB/frame memcpy on malloc-backed buffers, which the Pi 5's bandwidth
+  absorbs; and patch 6's plane copy reads the offsets/strides GStreamer actually
+  reports, so it is correct for a software decoder too. **TODO is now to VERIFY
+  on hardware** (which element autoplugs, playback at 1.000x real-time), not to
+  redesign in advance.
+- **The padded-NV12 gap (blocks hardware HEVC on the Pi 5).** `setup-pi.sh`
+  patch 6's plane-offset copy is keyed on `OF_PIXELS_I420` only. A padded
+  **NV12** buffer falls through to `setFromAlignedPixels(..., stride[0])`
+  (`ofGstUtils.cpp`), which places the chroma plane by tight packing and gets it
+  wrong -- and NV12 is exactly what the Pi 5's `v4l2slh265dec` hands back.
+  Generalizing that patch to N planes is a prerequisite for the "keep HEVC"
+  upside below.
 - **GL/GLES on the Pi 5's Mesa V3D driver.** The kiosk is GLES2 via `startx`
   (GLFW has no KMS/DRM path -- see `docs/architecture.md`), and the six oF GLES
   source patches in `setup-pi.sh` should port unchanged. **TODO:** verify the GL
   context comes up on V3D and adjust the kiosk/unit if it differs.
+  Deliberately **staying on GLES 2** on the Pi 5 even though V3D 7.1 offers
+  more: a runtime-branched `ShaderLoader` plus a second shader dialect would
+  fork the one thing that makes a single bundle possible. Pi 5 headroom gets
+  spent on more/larger passes, not a newer dialect.
 - **Re-measure the layer/decode budget.** The tradeoff inverts: the Pi 4
   offloads decode to VideoCore, the Pi 5 spends A76 cores on software decode --
   even though the Pi 5 is faster overall. `docs/architecture.md`'s decode-budget

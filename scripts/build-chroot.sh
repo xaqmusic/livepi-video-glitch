@@ -181,8 +181,14 @@ APTCFG
 
     # setup-pi.sh installs oF + every build dep. Same script build-image's
     # provision runs (a validated path) -- here just the compile subset.
+    #
+    # LIVEPI_PISOUND=0: this chroot only ever COMPILES. There is no HAT to
+    # drive, and Blokas' installer would add an apt repo and a DKMS kernel
+    # module against the host's running kernel -- minutes of emulated apt for
+    # something the bundle never ships. Nothing the renderer links against
+    # comes from it (MIDI is ofxMidi/ALSA), so the binary is identical.
     log "installing the openFrameworks toolchain (LONG -- downloads + builds oF under emulation)"
-    runch env OF_ROOT="$CHROOT_OF" DEBIAN_FRONTEND=noninteractive \
+    runch env OF_ROOT="$CHROOT_OF" DEBIAN_FRONTEND=noninteractive LIVEPI_PISOUND=0 \
         bash "$CHROOT_REPO/scripts/setup-pi.sh" || die "setup-pi.sh failed in the chroot"
     log "initial renderer compile (warms the persistent obj/ -- also long the first time)"
     runch make -C "$CHROOT_REPO" OF_ROOT="$CHROOT_OF" -j"$(nproc)" || die "initial make failed"
