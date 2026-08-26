@@ -139,9 +139,10 @@ Distribution-level Pi 5 notes:
   mapping silently at zero. `audio.input_channels` (default 1) captures a
   stereo pair where the signal is on the second input.
 
-The renderer needs real work before the Pi 5 is *verified*, and that work is
-graphics/decode-engine territory. **These are TODOs for Pi 5 bring-up, not
-solved here:**
+**Pi 5 bring-up ran on real hardware 2026-08-26** (Pi 5 Model B Rev 1.1, 2GB).
+The items below were the open TODOs; most are now VERIFIED and marked as such,
+with the measurements in `docs/architecture.md` ("The same budget on the Pi 5").
+What remains open is called out in `docs/tech-debt.md`.
 
 - **No hardware H.264 decoder on the Pi 5.** The Pi 5 dropped the VideoCore
   H.264 decode block entirely -- it has hardware **HEVC** decode only. The whole
@@ -156,9 +157,12 @@ solved here:**
   I420->RGB GPU shader path is untouched; `setCopyPixels(true)` becomes a wasted
   ~3MB/frame memcpy on malloc-backed buffers, which the Pi 5's bandwidth
   absorbs; and patch 6's plane copy reads the offsets/strides GStreamer actually
-  reports, so it is correct for a software decoder too. **TODO is now to VERIFY
-  on hardware** (which element autoplugs, playback at 1.000x real-time), not to
-  redesign in advance.
+  reports, so it is correct for a software decoder too. **VERIFIED on hardware:**
+  there is no `v4l2h264dec` on the Pi 5 at all, `avdec_h264` autoplugs, it
+  negotiates I420, and `ClipPlayer` needed **zero changes**. Clock-synced
+  playback measured **0.99x** (20.11s for a 20.0s clip) with 6.2x free-run
+  headroom on one stream and 2.95x each on two concurrent 1080p streams. The
+  code re-read was right.
 - **The padded-NV12 gap (blocks hardware HEVC on the Pi 5).** `setup-pi.sh`
   patch 6's plane-offset copy is keyed on `OF_PIXELS_I420` only. A padded
   **NV12** buffer falls through to `setFromAlignedPixels(..., stride[0])`
@@ -168,16 +172,32 @@ solved here:**
   upside below.
 - **GL/GLES on the Pi 5's Mesa V3D driver.** The kiosk is GLES2 via `startx`
   (GLFW has no KMS/DRM path -- see `docs/architecture.md`), and the six oF GLES
-  source patches in `setup-pi.sh` should port unchanged. **TODO:** verify the GL
-  context comes up on V3D and adjust the kiosk/unit if it differs.
+  source patches in `setup-pi.sh` should port unchanged. **VERIFIED:** the
+  context comes up as `V3D 7.1.10.2 / OpenGL ES 3.1 / Mesa 26.2.0` and the GLES 2
+  targeting runs on it unchanged -- no shader or context work needed. The kiosk
+  DID need adjusting, as suspected: X wouldn't start at all until an explicit
+  KMS `OutputClass` was added (see the Pi 5 X11 item in `docs/tech-debt.md`).
   Deliberately **staying on GLES 2** on the Pi 5 even though V3D 7.1 offers
   more: a runtime-branched `ShaderLoader` plus a second shader dialect would
   fork the one thing that makes a single bundle possible. Pi 5 headroom gets
   spent on more/larger passes, not a newer dialect.
-- **Re-measure the layer/decode budget.** The tradeoff inverts: the Pi 4
-  offloads decode to VideoCore, the Pi 5 spends A76 cores on software decode --
-  even though the Pi 5 is faster overall. `docs/architecture.md`'s decode-budget
-  tables are Pi-4-measured and shouldn't be assumed on the Pi 5.
+- **Re-measure the layer/decode budget. DONE** -- and the tradeoff inverted as
+  predicted, in our favour. **2 x 1080p now holds the 30fps floor**, where the
+  Pi 4 collapsed to 12fps and the docs called it "out"; 3 x 1080p fails. All
+  two-layer configs are vsync-pinned at 33.3ms with GPU time to spare, so
+  software decode is not the limiter. Measured on a **1920x720** panel though,
+  which is ~50% cheaper in fill than 1080p -- treat the numbers as indicative,
+  not publishable. Full tables in `docs/architecture.md`. Per the advisory-tier
+  rule above, `layerBudget` stays at the Pi 4's values on every tier.
+- **Generic MIDI + audio interfaces. VERIFIED on hardware.** With no Pisound
+  present, `control_source=auto` resolved to `midi`, opened a CH345 USB MIDI
+  adapter through `openMidiInByName`'s third rule (first non-`Midi Through`
+  port -- "pisound" and "usb" both missed), and opened a USB PnP / PCM2902
+  capture device at 1ch @ 128 frames / 48kHz. Notes reached mappings and an
+  audio-band mapping drove an effect, both confirmed on the box. NOTE: that
+  device accepted the requested mono/128 on the first try, so `openAudioInput`'s
+  fallback ladder and `downmixToMono` are still **unexercised** -- insurance,
+  not proven code.
 
 **Pi 5 upsides to capture once it's supported:**
 

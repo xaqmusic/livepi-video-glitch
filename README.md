@@ -15,9 +15,12 @@ into a full videosynth. `docs/architecture.md` is the current design of record.
 **Shipping appliance.** Runs on Pi 4 hardware end to end: sealed read-only-root
 golden image, per-device secrets, control-network AP + captive portal, and an
 **in-app updater** (upload a bundle in the web UI — health-gated with automatic
-rollback, never a reflash). Pi 5 support is designed but not yet brought up (see
-`docs/tech-debt.md`). To cut a release image or an update bundle, see
-**`docs/releasing.md`**.
+rollback, never a reflash). **Pi 5 is now brought up and verified on hardware**
+too — software H.264 decode (`avdec_h264`, 0.99× real-time), GL on V3D 7.1, and
+generic USB MIDI/audio in place of the Pisound HAT, which the Active Cooler
+displaces. Two 1080p layers hold the 30fps floor there, where the Pi 4 could not
+run them at all. Remaining caveats are in `docs/tech-debt.md`. To cut a release
+image or an update bundle, see **`docs/releasing.md`**.
 
 ## Features
 

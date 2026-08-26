@@ -334,6 +334,67 @@ decoder, so a higher-resolution target there means switching the import
 pipeline to HEVC and re-running the playback-rate measurement (clip-pos
 advance vs. wall clock, per above) before trusting it.
 
+### The same budget on the Pi 5 (measured 2026-08-26)
+
+Hardware: **Pi 5 Model B Rev 1.1, 2GB**, Pi OS Lite arm64 Trixie, Mesa
+26.2.0 / **V3D 7.1.10.2**, GLES 2 context (`OpenGL ES 3.1` reported).
+
+**There is no `v4l2h264dec` on this box at all** -- `gst-inspect-1.0
+video4linux2` lists only `v4l2src`/`v4l2sink`/`v4l2radio`, because the Pi 5
+has no H.264 V4L2 decoder node. GStreamer autoplugs **`avdec_h264`** (libav,
+which ships as a dependency of oF's own install_dependencies.sh), it
+negotiates **I420** -- the same format `v4l2h264dec` produced -- and
+`ClipPlayer` needed **zero changes**. `OF_PIXELS_NATIVE` did its job and
+patch 6's plane copy is correct for a software decoder because it reads the
+offsets/strides GStreamer reports rather than assuming v4l2 padding.
+`v4l2slh265dec` IS present, so the hardware HEVC path exists (and with it the
+padded-NV12 gap in `docs/tech-debt.md`).
+
+Bare decode into a `fakesink`, 20s synthetic clips encoded to import-clip.sh's
+settings -- the direct analogue of the Pi 4's "10s clip in 10.001s":
+
+| Config | Result |
+|---|---|
+| 1 x 1080p30, free-run | 6.21x real-time |
+| 1 x 720p30, free-run | 13.58x real-time |
+| 1 x 1080p30, clock-synced | 20.11s for a 20.0s clip -- **0.99x** |
+| 2 x 1080p30 concurrent, free-run | 2.95x real-time each |
+
+**Software decode is not the bottleneck.** The Pi 4's binding constraint --
+one shared v4l2 block, with 2x1080p collapsing to 12fps -- is simply gone;
+two concurrent 1080p streams still decode at ~3x real time, near-linear
+across the A76 cores.
+
+Under the REAL layered pipeline (per-layer chains + compositor + post chain),
+fullscreen, escalating scenes:
+
+| Config, full pipeline | Result |
+|---|---|
+| 1 x 1080p | 42.2fps, 15.7ms |
+| 2 x 720p | 35.3fps, 33.2ms |
+| 1080p + 720p | 30.4fps, 33.3ms |
+| **2 x 1080p** | **28.4fps, 33.1ms -- meets the 30fps floor** |
+| 3 x 1080p | 17.3fps, 56.3ms -- **fails the floor** |
+
+Read the FRAME TIME column, not the fps column: all three two-layer configs
+sit at 33.1-33.3ms, which is exactly vsync/2. They are **vsync-pinned with GPU
+time to spare**, not struggling, and the fps differences between them are
+smoothing artifacts. 3x1080p at 56ms is genuinely overloaded.
+
+**Two caveats that stop this being a new published budget.** (1) The test
+panel's preferred mode is **1920x720**, not 1920x1080 -- 1.38 Mpix vs 2.07, so
+these numbers are roughly 50% optimistic in fill cost against a 1080p display.
+(2) The Pi 4 figures above were taken on different hardware at an unstated
+resolution, so the 2x720 row reading *lower* than the Pi 4's 50-52fps is
+almost certainly vsync quantization plus the panel difference, not a
+regression. Per the advisory-tier decision (`docs/distribution.md`),
+`effects_manifest.json`'s `layerBudget` deliberately stays at the Pi 4's
+measured values on every tier regardless.
+
+Scene-switch load latency on the Pi 5: service start -> GL context 684ms ->
+first clip decoded 807ms. 1080p prerolls are fast enough that two loaded
+134ms apart -- far quicker than the Pi 4's 370ms-3.2s range.
+
 ## Input abstraction
 
 `ControlState` (`src/control/ControlState.h`) is a plain per-frame snapshot:

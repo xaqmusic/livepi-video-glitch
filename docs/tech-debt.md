@@ -14,16 +14,20 @@ is**, and a pointer. Ordered roughly by impact within each section.
   no-op on the Pi 4 (Xorg already autoconfigures modesetting there), but that
   has not been re-verified on Pi 4 hardware. **Sanity-boot a Pi 4 kiosk before
   shipping the next Pi 4 image.**
-- **Pi 5 not brought up on hardware.** Groundwork has landed -- a runtime
-  hardware tier (`src/util/Platform.h` + `backend/livepi_backend/hardware.py`,
-  advisory only), Pisound-optional provisioning (`LIVEPI_PISOUND`), and audio
-  input that survives a generic USB interface. What remains needs a real Pi 5
-  on the bench: which decode element GStreamer autoplugs and whether playback
-  holds 1.000x real-time, that the GL context comes up on Mesa **V3D 7.1**, and
-  a re-measured layer/decode budget (the tradeoff inverts -- the Pi 4 offloads
-  decode to VideoCore, the Pi 5 spends A76 cores on software H.264). The code
-  re-read says `ClipPlayer` most likely needs **no change** for software
-  decode; see `docs/distribution.md` "Hardware support: Pi 4 and Pi 5".
+- **Pi 5 bring-up: DONE on hardware 2026-08-26** (Pi 5 Model B Rev 1.1, 2GB).
+  Verified: GL comes up as V3D 7.1.10.2 / GLES 3.1 / Mesa 26.2.0 with the GLES 2
+  targeting unchanged; `avdec_h264` autoplugs and negotiates I420 with **zero**
+  `ClipPlayer` changes, at 0.99x clock-synced; 2 x 1080p layers hold the 30fps
+  floor (3 x fails); the hardware tier reads `pi5` from both the renderer and
+  the backend; and generic USB MIDI + audio drive mappings with no Pisound
+  present. Measurements in `docs/architecture.md`. **Residual caveats, not
+  blockers:**
+  - The layer budget was measured on a **1920x720** panel (~50% cheaper in fill
+    than 1080p) on the **2GB** variant -- indicative, not publishable. Re-measure
+    on a 1080p panel before quoting numbers to anyone.
+  - `openAudioInput`'s fallback ladder and `downmixToMono` are **unexercised**:
+    the test interface accepted mono @ 128 frames first try. A capture-stereo-only
+    device would prove them.
 - **`setup-pi.sh` patch 6 only handles padded I420, not padded NV12.** The
   plane-offset copy is keyed on `OF_PIXELS_I420`; a padded NV12 buffer falls
   through to `setFromAlignedPixels(..., stride[0])`, which places the chroma
