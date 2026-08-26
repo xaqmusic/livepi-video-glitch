@@ -163,6 +163,21 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
 
 ## Renderer & features
 
+- **The renderer has no access to the param domains in `effects_manifest.json`.**
+  The manifest is the single source of truth for every param's `min`/`max`, but
+  it lives backend-side and the renderer never reads it -- so any renderer-side
+  code needing a param's valid range has to either invent one or do without.
+  That gap already caused one real bug: `MappingResolver::resolve()`'s audio-band
+  contribution clamped to a hardcoded `0..1`, which was correct when every param
+  was 0..1 and silently wrong once signed params arrived. An audio-mapped
+  `transform.x`/`.y` had its negative baseline stamped back to 0 every frame, so
+  the layer refused to translate left or up while positive values worked
+  perfectly -- it read as a UI bug and was nothing of the sort. Fixed by guarding
+  against the baseline and the mapping's own endpoints instead of an invented
+  domain. The durable fix is to make the manifest readable by the renderer
+  (ShowLoader could load it alongside the show) so domains are asserted from one
+  place, per CLAUDE.md's "adding a param is one line in the manifest" promise.
+
 - **Rotation contain-fit is not recomputed for non-90° angles.** A rotated layer
   keeps the *unrotated* contain-fit rectangle, so at non-axis angles it can crop
   at the corners or show gaps at the edges — use the layer `scale` param to fill.

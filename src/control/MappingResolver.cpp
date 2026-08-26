@@ -1,5 +1,7 @@
 #include "MappingResolver.h"
 
+#include <algorithm>
+
 #include "ofMath.h"
 
 namespace {
@@ -125,11 +127,29 @@ LiveParams MappingResolver::resolve(const Scene& scene, const ControlState& cont
             TargetKey key{target.layerId, target.param};
             auto stored = absoluteStore.find(key);
             float base = stored != absoluteStore.end() ? stored->second : staticBaseline(scene, target);
-            // min/max size the CONTRIBUTION (how much of the band touches
-            // the param); the result clamps to the param's 0..1 domain, NOT
-            // [min,max] -- clamping to the mapping range would cap a param
-            // below its own baseline whenever baseline > max.
-            float value = ofClamp(base + band * (target.max - target.min), 0.0f, 1.0f);
+            // min/max size the CONTRIBUTION (how much of the band touches the
+            // param), NOT the result's range -- clamping to [min,max] would cap
+            // a param below its own baseline whenever baseline > max.
+            //
+            // The guard deliberately spans the baseline and the mapping's own
+            // endpoints rather than a hardcoded 0..1. That literal 0..1 was
+            // written when every param WAS 0..1, and it silently broke every
+            // signed param added since: an audio-mapped transform.x/y (-1..1)
+            // had its negative baseline stamped back to 0 every frame, so the
+            // layer simply refused to translate left or up (positive values
+            // worked, which is what made it look like a UI bug). It also capped
+            // transform.scale at 1.0 against a spec max of 3.0, and would flatten
+            // transform.rotation (-180..180) and both rotozoom params.
+            //
+            // Since band is 0..1, the result is already bounded by construction
+            // to [base, base + (max-min)], so this can never fight the operator's
+            // own setting. The renderer has no access to effects_manifest.json
+            // (the real domain authority, backend-side), so it must not invent
+            // one -- see docs/tech-debt.md.
+            float reach = base + (target.max - target.min);
+            float lo = std::min(base, reach);
+            float hi = std::max(base, reach);
+            float value = ofClamp(base + band * (target.max - target.min), lo, hi);
             if (target.layerId.empty()) {
                 live.sceneOverlay[target.param] = value;
             } else {
