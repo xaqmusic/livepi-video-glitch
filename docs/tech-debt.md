@@ -5,6 +5,15 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Hardware / platform
 
+- **Pi 5 X11 kiosk needs an explicit KMS OutputClass; UNVERIFIED on Pi 4.**
+  `provision-appliance.sh` now writes `/etc/X11/xorg.conf.d/99-livepi-kms.conf`
+  unconditionally (matched on the `vc4` DRIVER name, not a `/dev/dri/cardN`
+  number, since card numbering isn't stable across Pi generations). Verified
+  necessary and sufficient on the Pi 5 -- without it Xorg grabs fbdev as the
+  primary screen and dies before the renderer gets a context. It *should* be a
+  no-op on the Pi 4 (Xorg already autoconfigures modesetting there), but that
+  has not been re-verified on Pi 4 hardware. **Sanity-boot a Pi 4 kiosk before
+  shipping the next Pi 4 image.**
 - **Pi 5 not brought up on hardware.** Groundwork has landed -- a runtime
   hardware tier (`src/util/Platform.h` + `backend/livepi_backend/hardware.py`,
   advisory only), Pisound-optional provisioning (`LIVEPI_PISOUND`), and audio

@@ -198,6 +198,38 @@ allowed_users=anybody
 needs_root_rights=yes
 XWRAP
 
+# Pin X to the vc4 KMS display controller.
+#
+# Verified necessary on a Pi 5: it exposes TWO DRM cards -- v3d (the render
+# engine, no connectors) and vc4-drm (the display controller, where HDMI
+# lives). With no PCI bus to probe, Xorg falls back to its old probe method,
+# claims /dev/fb0 with the fbdev driver as the PRIMARY screen, and demotes the
+# real KMS device to a secondary GPU ("modeset(G0)") -- then dies before our
+# binary ever gets a context:
+#     (EE) Cannot run in framebuffer mode. Please specify busIDs
+#          for all framebuffer devices
+# fbdev arrives unavoidably as a dependency of xserver-xorg, so it can't just
+# be left uninstalled.
+#
+# Deliberately an OutputClass matched on the DRIVER NAME rather than a Device
+# section naming /dev/dri/cardN: the card numbering is not stable across Pi
+# generations (a hardcoded card1 that works on the Pi 5 could name the render
+# node on another box), whereas the vc4 driver is the display driver on both.
+# With this, Xorg reports "modeset(0)" -- primary -- and picks the card itself.
+#
+# CAVEAT: verified on Pi 5 hardware; on the Pi 4 this should be a no-op (Xorg
+# already autoconfigures modesetting for the KMS device there) but that has NOT
+# been re-verified since. Sanity-boot a Pi 4 kiosk before shipping a Pi 4 image.
+install -D -m 644 /dev/stdin /etc/X11/xorg.conf.d/99-livepi-kms.conf <<'XKMS'
+# Managed by LivePi (scripts/provision-appliance.sh).
+Section "OutputClass"
+    Identifier  "LivePi vc4 KMS"
+    MatchDriver "vc4"
+    Driver      "modesetting"
+    Option      "PrimaryGPU" "true"
+EndSection
+XKMS
+
 # Appliance render config. The shipped bin/data/config/app.json defaults are
 # DEV-oriented -- a 1280x720 WINDOWED render and the `mock` control source --
 # which on a real box means a 1280x720 image in the corner of the panel (black
