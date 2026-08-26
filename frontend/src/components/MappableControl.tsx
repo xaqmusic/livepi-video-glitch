@@ -24,11 +24,13 @@ export interface MappableControlProps {
     spec: ParamSpec;
     value: number;
     onChange: (value: number) => void;
-    /** Current CC/note mapping targeting this param, if any. */
-    midiMapping?: { trigger: Mapping["trigger"] } | null;
+    /** Current CC/note mapping targeting this param, if any.
+     *  `amount` scales how far the knob moves the param and rides ADDITIVELY on
+     *  the slider value; negative inverts (knob up drives the value down). */
+    midiMapping?: { trigger: Mapping["trigger"]; amount: number } | null;
     /** Current audioBand mapping targeting this param, if any. */
     audioMapping?: { band: AudioBand; amount: number } | null;
-    onBindMidi: (trigger: Mapping["trigger"]) => void;
+    onBindMidi: (trigger: Mapping["trigger"], amount: number) => void;
     onUnbindMidi: () => void;
     onBindAudio: (band: AudioBand, amount: number) => void;
     onUnbindAudio: () => void;
@@ -43,14 +45,42 @@ export default function MappableControl(props: MappableControlProps) {
     const [midiMenuOpen, setMidiMenuOpen] = useState(false);
     const [audioMenuOpen, setAudioMenuOpen] = useState(false);
     const armedAt = useRef(0);
+    // Click-away close. Previously a popover only closed by clicking the button
+    // that opened it, so it lingered while you worked elsewhere and two could
+    // sit open at once. The listener is only attached while something is open,
+    // and a click INSIDE this control is ignored so the button's own onClick
+    // keeps its toggle behaviour.
+    const rootRef = useRef<HTMLDivElement | null>(null);
     useTelemetry();  // keep the shared WS alive while any control is mounted
     const connected = useTelemetryStore((s) => s.connected);
+
+    useEffect(() => {
+        if (!midiMenuOpen && !audioMenuOpen) return;
+        const closeAll = () => { setMidiMenuOpen(false); setAudioMenuOpen(false); };
+        const onDown = (e: Event) => {
+            if (rootRef.current?.contains(e.target as Node)) return;
+            closeAll();
+        };
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeAll(); };
+        // mousedown, not click: closing on the PRESS means a drag that starts
+        // outside can't land inside a popover that is about to vanish.
+        document.addEventListener("mousedown", onDown);
+        document.addEventListener("touchstart", onDown);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDown);
+            document.removeEventListener("touchstart", onDown);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [midiMenuOpen, audioMenuOpen]);
 
     // onBindMidi is an inline closure from the parent -- new identity every
     // render. Kept in a ref so the armed subscription below NEVER depends
     // on render-cycle identities.
     const onBindMidiRef = useRef(onBindMidi);
     onBindMidiRef.current = onBindMidi;
+    const midiAmountRef = useRef(1);
+    midiAmountRef.current = midiMapping?.amount ?? 1;
 
     // Learn binds via an IMPERATIVE store subscription, not a render-cycle
     // effect. The old form -- useEffect([armed, telemetry, onBindMidi])
@@ -69,7 +99,9 @@ export default function MappableControl(props: MappableControlProps) {
             if (done || !lc || lc.kind === "none" || lc.ts <= armedAt.current) return;
             done = true;
             setArmed(false);
-            onBindMidiRef.current({ type: lc.kind, number: lc.number });
+            // Re-learn keeps whatever amount was already dialled in; a fresh
+            // bind starts at 1.0, i.e. exactly the pre-amount full-span sweep.
+            onBindMidiRef.current({ type: lc.kind, number: lc.number }, midiAmountRef.current);
         };
         maybeBind(useTelemetryStore.getState().latest);
         const unsub = useTelemetryStore.subscribe((s) => maybeBind(s.latest));
@@ -130,7 +162,7 @@ export default function MappableControl(props: MappableControlProps) {
     const fillPct = ((value - spec.min) / (spec.max - spec.min)) * 100;
 
     return (
-        <div className="row mappable" style={{ gap: 8 }}>
+        <div className="row mappable" style={{ gap: 8 }} ref={rootRef}>
             <div className="mappable-label">
                 <span
                     style={isSlider ? { touchAction: "none", userSelect: "none", cursor: "ew-resize" } : undefined}
@@ -212,8 +244,29 @@ export default function MappableControl(props: MappableControlProps) {
                 {midiMenuOpen && (
                     <div
                         className="card"
-                        style={{ position: "absolute", right: 0, top: "110%", zIndex: 20, width: 170, display: "flex", flexDirection: "column", gap: 6 }}
+                        style={{ position: "absolute", right: 0, top: "110%", zIndex: 20, width: 230, display: "flex", flexDirection: "column", gap: 6 }}
                     >
+                        <div className="row" style={{ gap: 8 }}>
+                            <span className="dim" style={{ fontSize: 12, minWidth: 52 }}>amount</span>
+                            <input
+                                type="range"
+                                min={-2}
+                                max={2}
+                                step={0.05}
+                                value={midiMapping?.amount ?? 1}
+                                onChange={(e) =>
+                                    midiMapping && onBindMidi(midiMapping.trigger, parseFloat(e.target.value))
+                                }
+                                style={{ flex: 1 }}
+                            />
+                            <span className="dim" style={{ fontSize: 12 }}>
+                                {(midiMapping?.amount ?? 1).toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            Rides on top of the slider. NEGATIVE inverts: knob up drives the value
+                            down from where you set it.
+                        </div>
                         <button onClick={arm}>Re-learn…</button>
                         <button className="danger" onClick={() => { onUnbindMidi(); setMidiMenuOpen(false); }}>
                             Remove binding
@@ -262,7 +315,7 @@ export default function MappableControl(props: MappableControlProps) {
                                     <span className="dim" style={{ fontSize: 12, minWidth: 52 }}>amount</span>
                                     <input
                                         type="range"
-                                        min={0.05}
+                                        min={-1}
                                         max={1}
                                         step={0.05}
                                         value={audioMapping.amount}
@@ -279,6 +332,7 @@ export default function MappableControl(props: MappableControlProps) {
                         {!audioMapping && (
                             <div className="dim" style={{ fontSize: 12 }}>
                                 Pick a band -- its level rides on top of the knob/baseline value.
+                                A NEGATIVE amount inverts it: the louder the band, the lower the value.
                             </div>
                         )}
                     </div>

@@ -46,12 +46,25 @@ function SourceThumb({ clip, generatorKey }: { clip?: Clip; generatorKey?: strin
     );
 }
 
-function ParamGroup({ title, hot, children }: { title: string; hot: boolean; children: ReactNode }) {
+function ParamGroup({ title, hot, onReset, children }: { title: string; hot: boolean; onReset?: () => void; children: ReactNode }) {
     return (
         <details className="param-group">
             <summary>
                 {title}
                 {hot && <span className="hot-dot" title="active" />}
+                {onReset && (
+                    <button
+                        className="icon group-reset"
+                        title={`Reset every ${title} param to its default (no effect). MIDI and audio bindings are kept.`}
+                        // A <summary> toggles on click and treats Enter/Space as
+                        // activation, so BOTH have to be stopped or resetting the
+                        // group would also collapse it.
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReset(); }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                    >
+                        reset
+                    </button>
+                )}
             </summary>
             <div className="param-group-body">{children}</div>
         </details>
@@ -193,8 +206,18 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
     const targetsLayerParam = (m: Scene["mappings"][number], layerId: string, param: string) =>
         m.targets.some((t) => t.layerId === layerId && t.param === param);
 
-    const midiMappingFor = (layerId: string, param: string) =>
-        scene.mappings.find((m) => MIDI_TYPES.includes(m.trigger.type) && targetsLayerParam(m, layerId, param)) ?? null;
+    // The binding's amount is carried in the target SPAN, not a separate field:
+    // amount = (max - min) / spec span. An older binding written as
+    // [spec.min, spec.max] therefore reads back as exactly 1.0, so nothing
+    // needs migrating.
+    const midiMappingFor = (layerId: string, param: string) => {
+        const m = scene.mappings.find((x) => MIDI_TYPES.includes(x.trigger.type) && targetsLayerParam(x, layerId, param));
+        if (!m) return null;
+        const target = m.targets.find((t) => t.layerId === layerId && t.param === param)!;
+        const spec = manifest.layerEffects[param];
+        const span = spec ? spec.max - spec.min : 1;
+        return { trigger: m.trigger, amount: span ? (target.max - target.min) / span : 1 };
+    };
 
     const audioMappingFor = (layerId: string, param: string) => {
         const m = scene.mappings.find((x) => x.trigger.type === "audioBand" && targetsLayerParam(x, layerId, param));
@@ -213,12 +236,21 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
             .filter((m) => m.targets.length > 0);
     };
 
-    const bindLayerMidi = (layerId: string, param: string, trigger: Scene["mappings"][number]["trigger"], spec?: ParamSpec) => {
+    const bindLayerMidi = (
+        layerId: string,
+        param: string,
+        trigger: Scene["mappings"][number]["trigger"],
+        spec?: ParamSpec,
+        amount = 1,
+    ) => {
         edit((draft) => {
             const s = draft.scenes.find((x) => x.id === scene.id);
             if (!s) return;
             removeLayerBindings(s, layerId, param, MIDI_TYPES);
-            s.mappings.push({ trigger, targets: [{ layerId, param, min: spec?.min ?? 0, max: spec?.max ?? 1 }] });
+            // Same shape as an audio binding: min 0, max = the contribution the
+            // knob adds at full travel. amount 1 reproduces the old full-span sweep.
+            const span = (spec?.max ?? 1) - (spec?.min ?? 0);
+            s.mappings.push({ trigger, targets: [{ layerId, param, min: 0, max: amount * span }] });
         });
     };
 
@@ -253,13 +285,31 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
             onChange={(v) => editLayer(layer.id, (l) => { l[store][key] = v; })}
             midiMapping={midiMappingFor(layer.id, key)}
             audioMapping={audioMappingFor(layer.id, key)}
-            onBindMidi={(trigger) => bindLayerMidi(layer.id, key, trigger, spec)}
+            onBindMidi={(trigger, amount) => bindLayerMidi(layer.id, key, trigger, spec, amount)}
             onUnbindMidi={() => unbindLayerParam(layer.id, key, MIDI_TYPES)}
             onBindAudio={(band, amount) => bindLayerAudio(layer.id, key, band, amount)}
             onUnbindAudio={() => unbindLayerParam(layer.id, key, ["audioBand"])}
             sendPreview={makePreviewSender(scene.id, `layer.${layer.id}.${key}`)}
         />
     );
+
+    // Reset every param in one group back to its manifest default -- which IS
+    // the no-effect state for all of them (amounts default to 0; neutral params
+    // like transform.scale and color.brightness default to their identity
+    // value). Deliberately does NOT touch mappings: a group full of sliders is
+    // hard to walk back by hand, but a MIDI/audio binding took effort to set up
+    // and losing it to a "reset" would be a nasty surprise.
+    //
+    // Each param is also pushed to the renderer so the change is instant rather
+    // than waiting on the debounced auto-save.
+    const resetGroup = (layerId: string, entries: [string, ParamSpec][], store: "layerEffects" | "params") => {
+        editLayer(layerId, (l) => {
+            for (const [key, spec] of entries) l[store][key] = spec.default;
+        });
+        for (const [key, spec] of entries) {
+            makePreviewSender(scene.id, `layer.${layerId}.${key}`)(spec.default);
+        }
+    };
 
     const paramHot = (layer: Scene["layers"][number], key: string, spec: ParamSpec, store: "layerEffects" | "params") =>
         (layer[store][key] ?? spec.default) !== spec.default ||
@@ -381,6 +431,7 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
                             <ParamGroup
                                 title={generator.label}
                                 hot={Object.entries(generator.params).some(([k, s]) => paramHot(layer, k, s, "params"))}
+                                onReset={() => resetGroup(layer.id, Object.entries(generator.params), "params")}
                             >
                                 {Object.entries(generator.params).map(([key, spec]) => renderControl(layer, key, spec, "params"))}
                             </ParamGroup>
@@ -395,6 +446,7 @@ export default function LayerStack({ scene, manifest, clips, onClipsChanged }: {
                                     key={g.title}
                                     title={g.title}
                                     hot={g.entries.some(([k, s]) => paramHot(layer, k, s, "layerEffects"))}
+                                    onReset={() => resetGroup(layer.id, g.entries, "layerEffects")}
                                 >
                                     {g.entries.map(([key, spec], i) => {
                                         // Thin divider whenever the effect family

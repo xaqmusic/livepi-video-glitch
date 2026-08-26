@@ -38,76 +38,50 @@ float staticBaseline(const Scene& scene, const MappingTarget& target) {
 }  // namespace
 
 void MappingResolver::onSceneEnter(const Scene& scene, const std::map<int, float>& ccValues) {
+    (void)scene;  // contributions are recomputed per frame; nothing scene-shaped to seed
     absoluteStore.clear();
-    pendingManualCc.clear();
     prevCcValues = ccValues;
-
     prevNoteValues.clear();
-    pendingManualNote.clear();
 
-    // Seed CC-mapped targets from wherever each knob is currently latched --
-    // but only for CCs that have actually been seen; untouched knobs leave
-    // the scene's static baselines in effect. Notes deliberately DON'T
-    // seed: a note released before the scene switch shouldn't pin its
-    // targets at 0 over the scene's own baseline.
-    for (const auto& mapping : scene.mappings) {
-        if (mapping.trigger.type != TriggerType::CC) continue;
-        auto it = ccValues.find(mapping.trigger.number);
-        if (it == ccValues.end()) continue;
-        applyTriggerValue(scene, TriggerType::CC, mapping.trigger.number, it->second);
-    }
+    // Adopt the knobs' CURRENT physical positions so entering a scene picks up
+    // the hardware where it actually sits rather than snapping to zero. Notes
+    // deliberately don't latch: a note released before the switch shouldn't
+    // hold its targets down in the new scene.
+    ccLatched = ccValues;
+    noteLatched.clear();
+
+    domains.load();  // idempotent; first scene entry pays for it
 }
 
 void MappingResolver::setManualCc(int ccNumber, float value01) {
-    pendingManualCc[ccNumber] = ofClamp(value01, 0.0f, 1.0f);
+    ccLatched[ccNumber] = ofClamp(value01, 0.0f, 1.0f);
 }
 
 void MappingResolver::setManualNote(int noteNumber, float value01) {
-    pendingManualNote[noteNumber] = ofClamp(value01, 0.0f, 1.0f);
+    noteLatched[noteNumber] = ofClamp(value01, 0.0f, 1.0f);
 }
 
 void MappingResolver::setManualParam(const std::string& layerId, const std::string& param, float value) {
     absoluteStore[{layerId, param}] = value;
 }
 
-void MappingResolver::applyTriggerValue(const Scene& scene, TriggerType type, int number, float value01) {
-    for (const auto& mapping : scene.mappings) {
-        if (mapping.trigger.type != type || mapping.trigger.number != number) continue;
-        for (const auto& target : mapping.targets) {
-            absoluteStore[{target.layerId, target.param}] = ofLerp(target.min, target.max, value01);
-        }
-    }
-}
-
 LiveParams MappingResolver::resolve(const Scene& scene, const ControlState& controlState) {
-    // 1. Absolute updates: real CC edges (value changed since last frame,
-    //    or a CC seen for the first time) and manual injections.
+    // 1. Latch input levels. A CC/note only updates on a real edge (changed
+    //    since last frame, or seen for the first time), so a browser injection
+    //    isn't immediately stomped back by an unchanging physical knob.
     for (const auto& [cc, value] : controlState.ccValues) {
         auto prev = prevCcValues.find(cc);
-        if (prev == prevCcValues.end() || prev->second != value) {
-            applyTriggerValue(scene, TriggerType::CC, cc, value);
-        }
+        if (prev == prevCcValues.end() || prev->second != value) ccLatched[cc] = value;
     }
     prevCcValues = controlState.ccValues;
 
     for (const auto& [note, value] : controlState.noteValues) {
         auto prev = prevNoteValues.find(note);
-        if (prev == prevNoteValues.end() || prev->second != value) {
-            applyTriggerValue(scene, TriggerType::Note, note, value);
-        }
+        if (prev == prevNoteValues.end() || prev->second != value) noteLatched[note] = value;
     }
     prevNoteValues = controlState.noteValues;
 
-    for (const auto& [cc, value] : pendingManualCc) {
-        applyTriggerValue(scene, TriggerType::CC, cc, value);
-    }
-    pendingManualCc.clear();
-    for (const auto& [note, value] : pendingManualNote) {
-        applyTriggerValue(scene, TriggerType::Note, note, value);
-    }
-    pendingManualNote.clear();
-
-    // 2. Base view = the absolute store.
+    // 2. Base view = the operator's own manual param pins.
     LiveParams live;
     live.scene = &scene;
     for (const auto& [key, value] : absoluteStore) {
@@ -118,43 +92,66 @@ LiveParams MappingResolver::resolve(const Scene& scene, const ControlState& cont
         }
     }
 
-    // 3. Audio-band contributions, additive-then-clamped, recomputed fresh
-    //    every frame on top of the current base.
+    // 3. Sum every mapping's contribution per target, then apply once. Summing
+    //    first matters when a param carries BOTH a knob and an audio band:
+    //    they stack additively instead of the later one overwriting the earlier.
+    std::map<TargetKey, float> contributions;
     for (const auto& mapping : scene.mappings) {
-        if (mapping.trigger.type != TriggerType::AudioBand) continue;
-        float band = bandLevel(controlState, mapping.trigger.band);
-        for (const auto& target : mapping.targets) {
-            TargetKey key{target.layerId, target.param};
-            auto stored = absoluteStore.find(key);
-            float base = stored != absoluteStore.end() ? stored->second : staticBaseline(scene, target);
-            // min/max size the CONTRIBUTION (how much of the band touches the
-            // param), NOT the result's range -- clamping to [min,max] would cap
-            // a param below its own baseline whenever baseline > max.
-            //
-            // The guard deliberately spans the baseline and the mapping's own
-            // endpoints rather than a hardcoded 0..1. That literal 0..1 was
-            // written when every param WAS 0..1, and it silently broke every
-            // signed param added since: an audio-mapped transform.x/y (-1..1)
-            // had its negative baseline stamped back to 0 every frame, so the
-            // layer simply refused to translate left or up (positive values
-            // worked, which is what made it look like a UI bug). It also capped
-            // transform.scale at 1.0 against a spec max of 3.0, and would flatten
-            // transform.rotation (-180..180) and both rotozoom params.
-            //
-            // Since band is 0..1, the result is already bounded by construction
-            // to [base, base + (max-min)], so this can never fight the operator's
-            // own setting. The renderer has no access to effects_manifest.json
-            // (the real domain authority, backend-side), so it must not invent
-            // one -- see docs/tech-debt.md.
-            float reach = base + (target.max - target.min);
-            float lo = std::min(base, reach);
-            float hi = std::max(base, reach);
-            float value = ofClamp(base + band * (target.max - target.min), lo, hi);
-            if (target.layerId.empty()) {
-                live.sceneOverlay[target.param] = value;
-            } else {
-                live.layerOverlay[target.layerId][target.param] = value;
+        float level = 0.0f;
+        switch (mapping.trigger.type) {
+            case TriggerType::CC: {
+                auto it = ccLatched.find(mapping.trigger.number);
+                if (it == ccLatched.end()) continue;  // knob never touched -- no contribution
+                level = it->second;
+                break;
             }
+            case TriggerType::Note: {
+                auto it = noteLatched.find(mapping.trigger.number);
+                if (it == noteLatched.end()) continue;
+                level = it->second;
+                break;
+            }
+            case TriggerType::AudioBand:
+                level = bandLevel(controlState, mapping.trigger.band);
+                break;
+            default:
+                continue;
+        }
+        // min/max size the CONTRIBUTION, not the result: the span IS the
+        // binding's "amount" (a negative span inverts the response, which is
+        // how turning a knob up drives a param DOWN from the slider setting).
+        for (const auto& target : mapping.targets) {
+            contributions[{target.layerId, target.param}] += level * (target.max - target.min);
+        }
+    }
+
+    // 4. baseline + contribution, clamped to the param's REAL domain.
+    for (const auto& [key, contribution] : contributions) {
+        const bool layerScope = !key.first.empty();
+        MappingTarget probe;
+        probe.layerId = key.first;
+        probe.param = key.second;
+        probe.min = 0.0f;
+        auto stored = absoluteStore.find(key);
+        float base = stored != absoluteStore.end() ? stored->second : staticBaseline(scene, probe);
+
+        float value = base + contribution;
+        float lo = 0.0f, hi = 1.0f;
+        if (domains.get(layerScope, key.second, lo, hi)) {
+            value = ofClamp(value, lo, hi);
+        } else {
+            // Domain unknown (manifest missing, or a param it doesn't describe):
+            // guard only against the baseline and the contribution's own reach,
+            // never an invented 0..1 -- that assumption is exactly what used to
+            // pin signed params to zero.
+            float reach = base + contribution;
+            value = ofClamp(value, std::min(base, reach), std::max(base, reach));
+        }
+
+        if (layerScope) {
+            live.layerOverlay[key.first][key.second] = value;
+        } else {
+            live.sceneOverlay[key.second] = value;
         }
     }
 

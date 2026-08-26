@@ -163,7 +163,12 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
 
 ## Renderer & features
 
-- **The renderer has no access to the param domains in `effects_manifest.json`.**
+- **RESOLVED: the renderer now reads `effects_manifest.json`** via
+  `src/util/ParamDomains.*`, so mapping contributions clamp to each param's real
+  declared range instead of an invented one. Kept below for the history, since
+  the failure mode it describes is instructive.
+
+  ~~**The renderer has no access to the param domains in `effects_manifest.json`.**~~
   The manifest is the single source of truth for every param's `min`/`max`, but
   it lives backend-side and the renderer never reads it -- so any renderer-side
   code needing a param's valid range has to either invent one or do without.

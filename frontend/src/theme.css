@@ -205,6 +205,20 @@ details.param-group > .param-group-body {
     gap: 8px;
     padding: 8px 10px;
 }
+/* Group reset: pushed to the right of the group title, and deliberately quiet
+   until hovered -- it is a destructive-ish action sitting in a header you click
+   constantly to expand/collapse, so it should not invite a stray press. */
+.group-reset {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 2px 7px;
+    opacity: 0.5;
+}
+.group-reset:hover {
+    opacity: 1;
+    border-color: var(--warn);
+    color: var(--warn);
+}
 .hot-dot {
     width: 7px;
     height: 7px;
