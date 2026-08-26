@@ -32,12 +32,99 @@ is**, and a pointer. Ordered roughly by impact within each section.
   what the Pi 5's hardware HEVC decoder would hand back -- so generalizing the
   patch to N planes is the prerequisite for decoding HEVC natively on a Pi 5
   instead of transcoding to H.264 at ingest.
-- **No physical button on a Pisound-less box.** The Pisound button's three
-  gestures (next scene / debug overlay / setup card) have no source on a Pi 5.
-  Scene switching survives via the gear menu's MIDI note/CC binding; the
-  overlay and card are web-UI-only there. The Pi 5's PMIC power button emits
-  `KEY_POWER` and could be reclaimed (`HandlePowerKey=ignore` + an evdev
-  reader) -- designed, not built.
+- **No physical button on a Pisound-less box** -- designed against real Pi 5
+  hardware, not built. The Pisound button's three gestures (next scene / debug
+  overlay / setup card) have no source on a Pi 5. Scene switching survives via
+  the gear menu's MIDI note/CC binding; the overlay and card are web-UI-only.
+
+  Verified on a Pi 5 Rev 1.1, so the design rests on facts rather than guesses:
+  - The power button is a plain `gpio-keys` **evdev** device (`EV=3`, so it
+    reports key down *and* up -- hold duration is just press->release). Bind it
+    by the stable path `/dev/input/by-path/platform-pwr_button-event`, NOT
+    `event0`; numbering shifts.
+  - `logind` owns it today (`HandlePowerKey=poweroff`, the default). Reclaiming
+    it needs `HandlePowerKey=ignore` in a `logind.conf.d` drop-in.
+  - The **`PWR` LED is free** (trigger `[none]`) and supports the kernel
+    `timer` trigger, so the Pisound's blink-while-held feedback is
+    `delay_on`/`delay_off` writes -- no userspace blink loop. Use `PWR`, not
+    `ACT`: `ACT` is on the `mmc0` trigger and taking it costs SD-activity
+    diagnostics. `max_brightness=1` on both, so blink yes, fade no.
+  - A daemon should **shell out to `scripts/pisound/livepi-btn.sh`** rather than
+    reimplement the map -- that script already derives its action from its own
+    invocation name and owns the >=30s password-recovery gesture. One gesture
+    contract, two input sources.
+
+  **The open risk that decides the design:** the Pi 5's PMIC does a *hardware*
+  forced power-off on a sustained hold, below Linux entirely, and the threshold
+  is unmeasured (deliberately not tested over SSH -- it would kill the box). If
+  it fires at ~5s then `HOLD_3S` (debug) survives but the >7s card gesture and
+  the >=30s password reset are **physically impossible**. Time it with a
+  stopwatch before building anything hold-based. If confirmed, remap the long
+  holds to **click counts** on the Pi 5 (double = debug, triple = card) --
+  immune to the PMIC, same FIFO verbs, and `pisound.conf` already proves the
+  map is data rather than code.
+
+  Reclaiming the button also removes clean shutdown from it. That matters less
+  on a read-only-root box (pulling power is safe by design -- the point of the
+  overlay), but the web UI should grow a shutdown control regardless.
+
+## Boot & first impression
+
+Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
+
+- **The kiosk is gated on `network.target` for no reason -- biggest single win
+  on time-to-first-pixel.** `systemd/livepi-video-glitch.service.template` has
+  `After=sound.target network.target data.mount`, and `network.target` doesn't
+  go active until **@16.9s**. The renderer needs no network to draw a splash or
+  play a clip (`NetInfo` is refreshed at runtime for the connection card, not at
+  startup). Dropping `network.target` from that `After=` should let the kiosk
+  start as soon as `data.mount` + `sound.target` are ready.
+- **~13s of the 23s userspace boot is fat an appliance doesn't need.**
+  `systemd-analyze` said `5.2s (kernel) + 23.2s (userspace) = 28.4s`, with
+  `cloud-init` sitting *in the critical chain* (Pi OS ships it for headless
+  provisioning -- a job `firstboot.sh` already owns here). Candidates to mask in
+  `provision-appliance.sh`: `NetworkManager-wait-online` (6.0s -- blocks on
+  connectivity a venue may not have), `e2scrub_reap` (2.6s),
+  `rpi-eeprom-update` (2.1s, or make it occasional), `cloud-init-main` (2.0s),
+  `man-db` (1.6s), `apt-daily` + `apt-daily-upgrade` (1.6s, actively hostile on
+  a sealed box).
+- **Boot splash -- two windows, two owners, only one user-updatable.** Agreed
+  design; not built.
+  - **Window A (firmware -> kernel -> systemd -> X up): make it BLACK, not
+    branded.** `cmdline.txt` currently carries `console=tty1`, which is what
+    puts scrolling text on the panel. Move it to `console=tty3` and add `quiet
+    loglevel=3 logo.nologo vt.global_cursor_default=0`, plus `disable_splash=1`
+    in `config.txt` for the firmware rainbow. Free, no packages, no initramfs
+    coupling.
+  - **Plymouth is out for USER content.** Theme assets live on the read-only
+    root, and the early splash is baked into the **initramfs** (hence
+    `plymouth-set-default-theme -R`). Updating it on a sealed box means
+    `update-initramfs` as root -- one of the few ways to genuinely brick this
+    thing, which the updater's "can't brick" guarantee forbids. `/boot/firmware`
+    *is* writable, so a file could be staged there behind a narrow sudoers
+    helper, but the initramfs rebuild makes it pointless. A *fixed* brand mark
+    baked into the image is fine; a customer logo is not.
+  - **Window B (renderer has a GL context -> first scene decoded): the
+    user-updatable PNG, and it is nearly free.** `SceneRenderer::setup()`
+    already clears `outputFbo` to opaque black, and `render()` deliberately
+    leaves `outputFbo` untouched until `layersReady()` -- the existing
+    freeze-frame-instead-of-black-flash logic. Drawing a PNG into that FBO
+    instead of clearing it means the splash holds until the first scene has
+    actually decoded, with no new state machine. Source it from `/data`
+    (e.g. `/data/branding/splash.png`) so it rides the same writable-partition
+    + web-upload path clips already use; seed a default in `dataprep.sh`;
+    fall back to black if missing.
+  - **Window B needs a MINIMUM HOLD or it is invisible.** Measured on this box:
+    service start -> GL context 684ms -> clip decoded 807ms. **Window B is
+    ~0.8s** -- a flash, and perversely the faster the box the less the logo
+    shows. Add `splash.min_seconds` (default ~2-3s, zero-able): hold until
+    `layersReady()` *or* the floor, whichever is later. The floor deliberately
+    delays the show a couple of seconds, which is the right call for an
+    appliance.
+  - **Sequencing matters.** A 3s logo in front of 25s of black is the wrong
+    order of work -- do the two boot items above FIRST, re-measure power-on to
+    first pixel with a real reboot, then size the splash against the real
+    number.
 
 ## Updates & distribution
 
