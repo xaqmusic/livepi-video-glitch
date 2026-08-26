@@ -16,6 +16,13 @@
 #                                        a VERY long hold (>=30s) RESETS the login
 #                                        password to the factory code (recovery)
 #
+# A Pi 5 box has no HAT and therefore no pisound-btn: scripts/pi5/livepi-powerbtn.py
+# drives this same script from the PMIC power button instead, by tap count, because
+# that board force-powers-off a hold at ~5s in hardware. It calls the actions by
+# name (`livepi-btn.sh scene|debug|card|reset`), which is why `reset` exists as an
+# explicit action rather than only as the Pisound path'''s 30s-hold side effect --
+# one gesture contract, two input sources.
+#
 # (Run directly as `livepi-btn.sh scene|debug|card` it still works, for manual
 # testing.) The pisound.button_fifo path in PisoundControlSource stays available
 # but is unused here -- one channel is simpler and `click` mirrors the button.
@@ -35,12 +42,27 @@ case "$name" in
     *)       ACTION="${1:-}" ;;
 esac
 
+# Recovery: revert the web login to the factory device code by dropping the
+# user-set override + the claimed marker. The AP key and SSH password already ARE
+# the factory code, so this just re-unifies and re-reveals it -- no regeneration,
+# no restart. Runs as root (both callers do).
+do_password_reset() {
+    rm -f /data/auth.json /data/.claimed 2>/dev/null || true
+    logger -t livepi-btn "password reset: reverted web login to the factory code"
+}
+
 # Must match ipc.command_fifo in bin/data/config/app.json.
 COMMAND_FIFO="${LIVEPI_COMMAND_FIFO:-/tmp/livepi/command.fifo}"
 
 case "$ACTION" in
     scene) LINE="click" ;;   # -> SceneManager button Click -> next scene
     debug) LINE="debug" ;;   # -> toggle the on-screen debug overlay
+    reset)
+        # Explicit password recovery, for callers that can't express a 30s hold.
+        # Identical effect to the `card` branch'''s >=30s path below.
+        do_password_reset
+        LINE="card on"
+        ;;
     card)
         # pisound-btn appends (click_count, hold_seconds) to a HOLD action's
         # script. A VERY long hold (>=30s -- the Pisound blinks its MIDI LED once
@@ -62,19 +84,13 @@ case "$ACTION" in
             esac
         done
         if [ "$reset" = 1 ]; then
-            # Recovery: revert the web login to the factory device code by
-            # dropping the user-set override + the claimed marker, then force the
-            # card on so that code is visible. The AP key and SSH password already
-            # ARE the factory code, so this just re-unifies and re-reveals it --
-            # no regeneration, no restart. Runs as root (the daemon does).
-            rm -f /data/auth.json /data/.claimed 2>/dev/null || true
-            logger -t livepi-btn "password reset: reverted web login to the factory code"
+            do_password_reset
             LINE="card on"
         else
             LINE="card toggle"
         fi
         ;;
-    *) echo "livepi-btn: unknown action '${ACTION}' (want: scene|debug|card)" >&2; exit 2 ;;
+    *) echo "livepi-btn: unknown action '${ACTION}' (want: scene|debug|card|reset)" >&2; exit 2 ;;
 esac
 
 # No FIFO yet (renderer not started) -> nothing to do.

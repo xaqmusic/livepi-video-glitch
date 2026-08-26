@@ -1,0 +1,32 @@
+# Template for /etc/systemd/system/livepi-powerbtn.service -- rendered and
+# installed by scripts/install-powerbtn-unit.sh.
+#
+# The button source for a box with NO Pisound HAT (a Pi 5, where the Active
+# Cooler takes the HAT's space). Turns taps on the PMIC power button into the
+# same gesture verbs pisound-btn produces, via the shared livepi-btn.sh bridge.
+#
+# Requires /etc/systemd/logind.conf.d/10-livepi-powerkey.conf (HandlePowerKey=
+# ignore), or logind powers the box off on the first tap.
+
+[Unit]
+Description=LivePi power-button gestures (no-Pisound boxes)
+# Order-only: the daemon copes fine with the renderer being absent (the bridge
+# caps its FIFO wait), so a missing kiosk must not hold the button hostage.
+After=livepi-video-glitch.service
+
+[Service]
+Type=simple
+# Root: reading the button needs the `input` group, but writing
+# /sys/class/leds/*/brightness needs root.
+User=root
+Environment=LIVEPI_BTN_BRIDGE=__BRIDGE__
+ExecStart=/usr/bin/python3 __APP_DIR__/scripts/pi5/livepi-powerbtn.py
+Restart=always
+RestartSec=2
+# A gesture daemon that dies mid-show must come back without taking anything
+# else with it.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

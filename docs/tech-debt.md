@@ -36,41 +36,52 @@ is**, and a pointer. Ordered roughly by impact within each section.
   what the Pi 5's hardware HEVC decoder would hand back -- so generalizing the
   patch to N planes is the prerequisite for decoding HEVC natively on a Pi 5
   instead of transcoding to H.264 at ingest.
-- **No physical button on a Pisound-less box** -- designed against real Pi 5
-  hardware, not built. The Pisound button's three gestures (next scene / debug
-  overlay / setup card) have no source on a Pi 5. Scene switching survives via
-  the gear menu's MIDI note/CC binding; the overlay and card are web-UI-only.
+- **BUILT: power-button gestures on a Pisound-less box** (`scripts/pi5/livepi-powerbtn.py`,
+  `systemd/livepi-powerbtn.service.template`, installed by
+  `provision-appliance.sh` whenever no Pisound stack is present).
 
-  Verified on a Pi 5 Rev 1.1, so the design rests on facts rather than guesses:
-  - The power button is a plain `gpio-keys` **evdev** device (`EV=3`, so it
-    reports key down *and* up -- hold duration is just press->release). Bind it
-    by the stable path `/dev/input/by-path/platform-pwr_button-event`, NOT
-    `event0`; numbering shifts.
-  - `logind` owns it today (`HandlePowerKey=poweroff`, the default). Reclaiming
-    it needs `HandlePowerKey=ignore` in a `logind.conf.d` drop-in.
-  - The **`PWR` LED is free** (trigger `[none]`) and supports the kernel
-    `timer` trigger, so the Pisound's blink-while-held feedback is
-    `delay_on`/`delay_off` writes -- no userspace blink loop. Use `PWR`, not
-    `ACT`: `ACT` is on the `mmc0` trigger and taking it costs SD-activity
-    diagnostics. `max_brightness=1` on both, so blink yes, fade no.
-  - A daemon should **shell out to `scripts/pisound/livepi-btn.sh`** rather than
-    reimplement the map -- that script already derives its action from its own
-    invocation name and owns the >=30s password-recovery gesture. One gesture
-    contract, two input sources.
+  **The PMIC force-off threshold is ~5s, measured on a Pi 5 Rev 1.1**: a 4.86s
+  hold survived; a slightly longer one killed the board mid-press. It is a
+  HARDWARE function below Linux and cannot be vetoed. That rules out every
+  hold-based gesture -- a performer holding a beat too long would drop the show
+  -- so the map is TAP COUNTS and holds are deliberately inert:
 
-  **The open risk that decides the design:** the Pi 5's PMIC does a *hardware*
-  forced power-off on a sustained hold, below Linux entirely, and the threshold
-  is unmeasured (deliberately not tested over SSH -- it would kill the box). If
-  it fires at ~5s then `HOLD_3S` (debug) survives but the >7s card gesture and
-  the >=30s password reset are **physically impossible**. Time it with a
-  stopwatch before building anything hold-based. If confirmed, remap the long
-  holds to **click counts** on the Pi 5 (double = debug, triple = card) --
-  immune to the PMIC, same FIFO verbs, and `pisound.conf` already proves the
-  map is data rather than code.
+  | Gesture | Action |
+  |---|---|
+  | 1 tap | next scene |
+  | 2 taps | toggle debug overlay |
+  | 3 taps | toggle setup / QR card |
+  | 5 taps | password reset (recovery) |
 
-  Reclaiming the button also removes clean shutdown from it. That matters less
-  on a read-only-root box (pulling power is safe by design -- the point of the
-  overlay), but the web UI should grow a shutdown control regardless.
+  4 taps is an intentional gap, keeping the destructive gesture hard to reach.
+
+  The tap window is ASYMMETRIC: 180ms after the first tap, 280ms after any
+  subsequent one. The single tap is the scene advance -- the one gesture that
+  happens mid-performance and the only place latency is felt -- so it resolves
+  fast; once a second tap lands nobody is waiting and the extra 100ms buys a
+  forgiving multi-tap. Accepted trade: a sloppy double-tap with a gap over 180ms
+  reads as two scene advances rather than a debug toggle.
+
+  Gestures are NOT reimplemented: each shells out to
+  `scripts/pisound/livepi-btn.sh`, the same bridge pisound-btn uses, which
+  gained an explicit `reset` action so a caller that cannot express a 30s hold
+  can still reach recovery. One contract, two input sources.
+
+  LED feedback uses **PWR (red)** only -- lit while a tap is held, one flash per
+  tap on resolve, and a fast blink past 1.5s warning that the force-off is
+  coming. **ACT (green)** is deliberately left on its `mmc0` trigger: SD-activity
+  is a genuinely useful diagnostic and not ours to steal. Both are
+  `max_brightness=1`, so blink yes, fade no.
+
+  `logind` must be told to let go (`HandlePowerKey=ignore`, installed by the
+  provisioner) or the first tap powers the box off.
+
+- **`livepi-btn.sh` hardcodes `/data` paths for password recovery.** The reset
+  gesture removes `/data/auth.json` and `/data/.claimed`, which is right on an
+  appliance but wrong anywhere `LIVEPI_DATA_DIR` differs -- on a hand-provisioned
+  dev box with no `/data`, auth lives at `bin/data/auth.json` and the gesture
+  fires, logs, and resets nothing. Pre-existing; should read the same env the
+  backend and renderer do before it ships.
 
 ## Boot & first impression
 

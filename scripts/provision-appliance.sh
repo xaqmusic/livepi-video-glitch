@@ -258,6 +258,7 @@ APPCFG
 # ---------------------------------------------------------------------------
 log "Pisound button: LivePi gesture map"
 # ---------------------------------------------------------------------------
+HAVE_POWERBTN=0
 # Conditional on the Pisound stack actually being present. setup-pi.sh owns the
 # "is this a Pisound box?" decision (LIVEPI_PISOUND, defaulting to an
 # auto-probe); this block just reacts to what it installed, so the policy lives
@@ -266,7 +267,29 @@ log "Pisound button: LivePi gesture map"
 # comes from the gear menu's MIDI note/CC binding instead, and the debug
 # overlay / setup card stay reachable from the web UI.
 if [[ ! -d /usr/local/pisound ]]; then
-    log "  no Pisound stack installed -- skipping the button map (USB MIDI box)"
+    log "  no Pisound stack -- installing the POWER-BUTTON gesture daemon instead"
+    # A Pi 5 box has no HAT, so the PMIC power button becomes the only physical
+    # control. Gestures are TAP COUNTS, never holds: that board force-powers-off
+    # a sustained press in HARDWARE at ~5s (measured: a 4.86s hold survived, a
+    # slightly longer one killed the board), and a performer holding a beat too
+    # long would drop the show. See docs/tech-debt.md.
+    #
+    # Reclaim the key from logind first or the very first tap shuts the box down.
+    install -D -m 644 /dev/stdin /etc/systemd/logind.conf.d/10-livepi-powerkey.conf <<'PWRKEY'
+# Managed by LivePi (scripts/provision-appliance.sh). The power button is an
+# APPLIANCE control (tap = next scene), not a shutdown switch. A read-only-root
+# box is safe to cut power to by design, so losing button-initiated shutdown
+# costs little. The PMIC's ~5s force-off is hardware and cannot be vetoed here.
+[Login]
+HandlePowerKey=ignore
+HandlePowerKeyLongPress=ignore
+PWRKEY
+    # The gesture bridge normally lives in the Pisound tree; with no Pisound
+    # installed, keep our own copy so both input sources share one contract.
+    install -D -m 755 "$APP_DIR/scripts/pisound/livepi-btn.sh" /usr/local/livepi/livepi-btn.sh
+    # The unit itself is rendered further down with the other units, where
+    # render_unit is actually defined -- HAVE_POWERBTN carries the decision.
+    HAVE_POWERBTN=1
 else
 # setup-pi.sh installed pisound-btn (the GPIO button daemon) with Blokas' stock
 # map, which is actively hostile to a video appliance: CLICK starts PureData,
@@ -350,6 +373,13 @@ render_unit livepi-app-activate.service.template /etc/systemd/system/livepi-app-
     __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR" __APP_USER__="$APP_USER"
 render_unit livepi-app-confirm.service.template  /etc/systemd/system/livepi-app-confirm.service \
     __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR"
+# Power-button gestures, only on a box with no Pisound HAT (see the button
+# section above). Runs the FACTORY script copy: it is a control surface, so it
+# should keep working even if an update swap goes wrong.
+if [[ "$HAVE_POWERBTN" == "1" ]]; then
+    render_unit livepi-powerbtn.service.template /etc/systemd/system/livepi-powerbtn.service \
+        __APP_DIR__="$APP_DIR" __BRIDGE__=/usr/local/livepi/livepi-btn.sh
+fi
 
 # Captive portal: the service unit is static; copy it + its rule files.
 install -D -m 644 "$APP_DIR/systemd/livepi-captive.service" /etc/systemd/system/livepi-captive.service
@@ -377,6 +407,11 @@ systemctl enable \
     livepi-backend.service \
     livepi-video-glitch.service \
     livepi-captive.service
+# Only exists on a no-Pisound box; enabling it unconditionally would fail there.
+if [[ "$HAVE_POWERBTN" == "1" ]]; then
+    systemctl enable livepi-powerbtn.service 2>/dev/null \
+        || warn "could not enable livepi-powerbtn.service"
+fi
 # Base services the appliance relies on.
 for svc in NetworkManager.service avahi-daemon.service; do
     systemctl enable "$svc" 2>/dev/null || warn "could not enable $svc"
