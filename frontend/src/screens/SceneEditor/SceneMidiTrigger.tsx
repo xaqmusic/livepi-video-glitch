@@ -61,11 +61,13 @@ export default function SceneMidiTrigger({ scene }: { scene: Scene }) {
     // dependency on it would re-subscribe on every frame.
     useEffect(() => {
         if (!armed) return;
-        armedAt.current = Date.now();
         let done = false;
         const tryBind = (latest: ReturnType<typeof useTelemetryStore.getState>["latest"]) => {
             const lc = latest?.lastControl;
-            if (done || !lc || lc.kind === "none" || lc.ts <= 0) return;
+            // Strictly newer than the arming moment: lastControl persists, so
+            // without this, arming Learn on a second scene instantly re-binds
+            // the note used for the first one and steals it away.
+            if (done || !lc || lc.kind === "none" || lc.ts <= armedAt.current) return;
             // Only a NOTE arrives on this feed today; a CC would be the wrong
             // kind of trigger for scene selection, so ignore it rather than
             // binding something that cannot work.
@@ -117,7 +119,14 @@ export default function SceneMidiTrigger({ scene }: { scene: Scene }) {
                         Jump straight to this scene. A key or pad is instant; Program Change lets a
                         sequencer drive the setlist.
                     </div>
-                    <button onClick={() => { setMenuOpen(false); setArmed(true); }}>
+                    <button
+                        onClick={() => {
+                            setMenuOpen(false);
+                            // Renderer clock, read at arm time -- see tryBind.
+                            armedAt.current = useTelemetryStore.getState().latest?.lastControl?.ts ?? 0;
+                            setArmed(true);
+                        }}
+                    >
                         Learn a key or pad…
                     </button>
                     <label className="row" style={{ gap: 6, alignItems: "center" }}>

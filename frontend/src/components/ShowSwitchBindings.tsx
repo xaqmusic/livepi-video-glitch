@@ -53,11 +53,16 @@ export default function ShowSwitchBindings({
     // use, so it never re-subscribes on a telemetry frame.
     useEffect(() => {
         if (!armedFor) return;
-        armedAt.current = Date.now();
         let done = false;
         const tryBind = (latest: ReturnType<typeof useTelemetryStore.getState>["latest"]) => {
             const lc = latest?.lastControl;
-            if (done || !lc || lc.kind !== "note") return;   // only notes arrive on this feed
+            // Only notes arrive on this feed, and only events STRICTLY NEWER
+            // than the arming moment may bind. lastControl persists the last
+            // thing played, so without the timestamp check arming Learn would
+            // instantly re-bind the note used for the PREVIOUS show -- and the
+            // uniqueness rule would then steal it from that show, which is
+            // exactly how this showed up: the first button reverted to "Learn".
+            if (done || !lc || lc.kind !== "note" || lc.ts <= armedAt.current) return;
             done = true;
             const show = armedFor;
             setArmedFor(null);
@@ -94,7 +99,15 @@ export default function ShowSwitchBindings({
                                 color: armed ? "var(--warn)" : b ? "var(--accent)" : "var(--text-dim)",
                             }}
                             title="Learn a key or pad for this show"
-                            onClick={() => setArmedFor(armed ? null : show)}
+                            onClick={() => {
+                                if (armed) { setArmedFor(null); return; }
+                                // Freshest timestamp straight from the store, in the
+                                // renderer's own clock -- Date.now() is a different
+                                // clock entirely and can never be compared to lc.ts.
+                                armedAt.current =
+                                    useTelemetryStore.getState().latest?.lastControl?.ts ?? 0;
+                                setArmedFor(show);
+                            }}
                         >
                             {armed ? (connected ? "listen…" : "no WS!") : b ? describe(b.trigger) : "Learn"}
                         </button>
