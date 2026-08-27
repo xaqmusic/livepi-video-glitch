@@ -94,6 +94,24 @@ struct Mapping {
 // (masking the decoder spin-up freeze), then the new scene ramps out of
 // it. Styles map to post passes: fade dips to black, tear is the h-sync
 // shred at full, shatter fractures to void and reassembles.
+// How a scene is SELECTED DIRECTLY from MIDI, as opposed to the device-global
+// next/first bindings in settings.json. Per-scene and stored in the SHOW,
+// because a scene id only means anything inside its own show -- a device-global
+// table would silently point at nothing the moment a different show loaded.
+//
+// Note = one key or pad per scene (instant, unambiguous, works on any
+// keyboard). Program = MIDI Program Change, which is literally the patch-select
+// message and lets a sequencer drive the setlist. CC ranges were considered and
+// rejected: sweeping a knob past intermediate scenes would load and tear down
+// each one on the way, which the 2-clip decode budget cannot absorb.
+enum class SceneSelectType { None, Note, Program };
+
+struct SceneSelect {
+    SceneSelectType type = SceneSelectType::None;
+    int number = -1;   // note number or program number, 0..127
+    bool active() const { return type != SceneSelectType::None && number >= 0; }
+};
+
 enum class TransitionStyle { None, Fade, Tear, Shatter, Static };
 
 struct TransitionSpec {
@@ -120,6 +138,9 @@ struct Scene {
     // elapse. Off by default; 0 seconds means never.
     bool autoAdvance = false;
     float autoAdvanceSeconds = 0.0f;
+
+    // Direct MIDI selection of THIS scene (see SceneSelect). Inactive by default.
+    SceneSelect select;
 
     // Transitional (removed with the layered SceneRenderer in Phase A.2):
     // the first clip layer's resolved path, so the current single-clip

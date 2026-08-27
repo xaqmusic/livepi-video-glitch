@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -40,9 +41,17 @@ public:
 
 private:
     void applyButtonEvent(ButtonEvent event);
+    // Direct MIDI selection: match this frame's note presses / Program Change
+    // against each scene's own SceneSelect and jump if one fires. Edge-detected
+    // against the previous frame so a HELD pad doesn't re-enter the scene every
+    // frame (which would restart its clips continuously).
+    void applySceneSelect(const ControlState& controlState);
 
     std::vector<Scene> scenes;
     size_t currentIndex = 0;
+    std::map<int, float> prevNoteValues;   // for note-press edge detection
+    uint32_t prevProgramChangeCount = 0;   // for Program Change edge detection
+    bool sceneSelectPrimed = false;        // ignore the very first frame
 
     // Timed auto-advance bookkeeping. sceneEnteredAt is the ofGetElapsedTimef()
     // stamp when the current scene became active; dwellTracking/dwellTrackedIndex

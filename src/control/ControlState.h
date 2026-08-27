@@ -37,6 +37,11 @@ struct ControlState {
     // Modulation
     std::map<int, float> ccValues;    // raw CC number -> normalized 0..1
     std::map<int, float> noteValues;  // note number -> velocity 0..1 (0 = released)
+    // Program Change is an EVENT, not a level: a counter alongside the value so
+    // consumers can edge-detect even when the same program is sent twice in a
+    // row (a sequencer re-triggering the same cue must still fire).
+    int lastProgramChange = -1;        // most recent program number, -1 = none yet
+    uint32_t programChangeCount = 0;   // bumped on every Program Change received
     LastControlEvent lastControlEvent;
     // DEPRECATED: knobA/knobB predate scene-scoped mappings (MappingResolver)
     // and are no longer read by any pass -- kept only so the keyboard

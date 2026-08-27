@@ -111,6 +111,13 @@ void MidiControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_STOP:
             clock.stop();
             break;
+        case MIDI_PROGRAM_CHANGE:
+            // ofxMidi puts the program number in `value` for PC (see
+            // ofxMidiMessage.cpp). Recorded as value + counter so a repeated
+            // program still reads as a fresh event downstream.
+            state.lastProgramChange = message.value;
+            state.programChangeCount++;
+            break;
         case MIDI_NOTE_ON:
         case MIDI_NOTE_OFF: {
             // Notes are bindable triggers just like CCs: press drives the

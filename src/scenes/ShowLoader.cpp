@@ -273,6 +273,19 @@ bool ShowLoader::parseShowFile(const std::string& absPath) {
         scene.autoAdvance = sceneNode.value("autoAdvance", false);
         scene.autoAdvanceSeconds = std::clamp(sceneNode.value("autoAdvanceSeconds", 0.0f), 0.0f, 3600.0f);
 
+        // Direct MIDI selection of this scene: {"type":"note"|"program","number":N}.
+        // Absent or malformed leaves it inactive, which is the safe default --
+        // an unrecognised type must never bind a scene to an arbitrary number.
+        if (sceneNode.contains("sceneSelect") && sceneNode.at("sceneSelect").is_object()) {
+            const auto& sel = sceneNode.at("sceneSelect");
+            const std::string type = sel.value("type", "");
+            const int number = sel.value("number", -1);
+            if (number >= 0 && number <= 127) {
+                if (type == "note") scene.select = {SceneSelectType::Note, number};
+                else if (type == "program") scene.select = {SceneSelectType::Program, number};
+            }
+        }
+
         // Transitional single-clip bridge until the layered SceneRenderer
         // lands (Phase A.2): the first resolvable clip layer is what the
         // current render path plays.

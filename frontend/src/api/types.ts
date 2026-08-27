@@ -104,6 +104,14 @@ export interface Scene {
      *  next scene after autoAdvanceSeconds. */
     autoAdvance?: boolean;
     autoAdvanceSeconds?: number;
+    /**
+     * Direct MIDI selection of THIS scene -- a note/pad, or a Program Change.
+     * Stored on the scene (not device-wide) because a scene id only means
+     * something inside its own show. null/absent = not directly selectable.
+     * CC ranges are deliberately unsupported: sweeping a knob past intermediate
+     * scenes would load and tear down each one on the way.
+     */
+    sceneSelect?: { type: "note" | "program"; number: number } | null;
 }
 
 export interface Show {

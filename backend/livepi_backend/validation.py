@@ -44,6 +44,14 @@ class TransitionSpec(BaseModel):
     duration: float = Field(default=0.8, ge=0.1, le=5.0)
 
 
+class SceneSelect(BaseModel):
+    # CC ranges are deliberately absent: sweeping a knob past intermediate
+    # scenes would load and tear down each one on the way, which the 2-clip
+    # decode budget cannot absorb.
+    type: Literal["note", "program"]
+    number: int = Field(ge=0, le=127)
+
+
 class Scene(BaseModel):
     id: str
     name: str
@@ -59,6 +67,10 @@ class Scene(BaseModel):
     # advance the button/MIDI use, moving to the next scene. Off by default.
     autoAdvance: bool = False
     autoAdvanceSeconds: float = Field(default=0.0, ge=0.0, le=3600.0)
+    # Direct MIDI selection of THIS scene -- a note/pad or a Program Change.
+    # Lives on the scene rather than device-wide because a scene id only means
+    # anything inside its own show. None = not directly selectable.
+    sceneSelect: Optional["SceneSelect"] = None
 
 
 class Show(BaseModel):

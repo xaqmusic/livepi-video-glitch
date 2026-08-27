@@ -11,6 +11,7 @@ import { findScene, useShowStore } from "../../state/showStore";
 import LayerStack from "./LayerStack";
 import MappingsTab from "./MappingsTab";
 import PostEffectsPanel from "./PostEffectsPanel";
+import SceneMidiTrigger from "./SceneMidiTrigger";
 
 export default function SceneEditor() {
     const { show: showName, sceneId } = useParams<{ show: string; sceneId: string }>();
@@ -152,6 +153,7 @@ export default function SceneEditor() {
                             />
                         </>
                     )}
+                    <SceneMidiTrigger scene={scene} />
                     <SaveStatus />
                     <button
                         title="Jump the renderer to this scene"

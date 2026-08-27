@@ -49,10 +49,54 @@ void SceneManager::retainSceneById(std::vector<Scene> newScenes) {
                                 << currentIndex << " (" << scenes[currentIndex].name << ")";
 }
 
+void SceneManager::applySceneSelect(const ControlState& controlState) {
+    // The first frame only establishes a baseline. Without this, whatever a pad
+    // or sequencer happened to be holding at startup would immediately yank the
+    // box off the show's first scene.
+    if (!sceneSelectPrimed) {
+        prevNoteValues = controlState.noteValues;
+        prevProgramChangeCount = controlState.programChangeCount;
+        sceneSelectPrimed = true;
+        return;
+    }
+
+    const bool programFired = controlState.programChangeCount != prevProgramChangeCount;
+    prevProgramChangeCount = controlState.programChangeCount;
+
+    for (const auto& scene : scenes) {
+        if (!scene.select.active()) continue;
+
+        bool fired = false;
+        if (scene.select.type == SceneSelectType::Program) {
+            fired = programFired && controlState.lastProgramChange == scene.select.number;
+        } else if (scene.select.type == SceneSelectType::Note) {
+            // Rising edge only: pressed now, not pressed last frame. A release
+            // (velocity 0) must not select anything, or every note would fire
+            // its scene twice.
+            auto now = controlState.noteValues.find(scene.select.number);
+            if (now != controlState.noteValues.end() && now->second > 0.0f) {
+                auto before = prevNoteValues.find(scene.select.number);
+                fired = before == prevNoteValues.end() || before->second <= 0.0f;
+            }
+        }
+
+        if (fired && scene.id != getCurrentSceneId()) {
+            ofLogNotice("SceneManager") << "MIDI select -> scene \"" << scene.name << "\"";
+            gotoSceneById(scene.id);
+            break;   // first match wins; a duplicate binding must not chain jumps
+        }
+    }
+
+    prevNoteValues = controlState.noteValues;
+}
+
 void SceneManager::update(const ControlState& controlState) {
     if (controlState.lastButtonEvent != ButtonEvent::None) {
         applyButtonEvent(controlState.lastButtonEvent);
     }
+    // After the button event, so an explicit scene selection wins over a
+    // simultaneous next/previous nudge rather than being immediately overridden.
+    applySceneSelect(controlState);
 
     const float now = ofGetElapsedTimef();
     // Restart the dwell clock whenever the active scene changes -- from the

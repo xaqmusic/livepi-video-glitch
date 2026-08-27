@@ -119,6 +119,13 @@ void PisoundControlSource::newMidiMessage(ofxMidiMessage& message) {
         case MIDI_STOP:
             clock.stop();
             break;
+        case MIDI_PROGRAM_CHANGE:
+            // ofxMidi puts the program number in `value` for PC (see
+            // ofxMidiMessage.cpp). Recorded as value + counter so a repeated
+            // program still reads as a fresh event downstream.
+            state.lastProgramChange = message.value;
+            state.programChangeCount++;
+            break;
         case MIDI_NOTE_ON:
         case MIDI_NOTE_OFF: {
             float velocity = message.status == MIDI_NOTE_ON ? message.velocity / 127.0f : 0.0f;
