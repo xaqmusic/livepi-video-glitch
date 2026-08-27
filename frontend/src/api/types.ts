@@ -51,6 +51,13 @@ export interface Settings {
      * automatically if that image is deleted.
      */
     splashImage?: string;
+    /**
+     * Show switching bound to a key/pad or a Program Change. Device-global,
+     * unlike the per-SCENE selectors that live in the show: a show name means
+     * something across the whole box, a scene id only inside its own show.
+     * Bindings to shows that no longer exist are filtered out by the backend.
+     */
+    showSelect?: ShowBinding[];
     /** Control that advances to the next scene, or null if unbound. */
     sceneAdvance?: SceneTrigger | null;
     /** Control that jumps to the first scene, or null if unbound. */
@@ -240,4 +247,10 @@ export interface UpdateStatus {
 export interface SplashCandidates {
     clips: { id: string; path: string }[];
     selectedId: string | null;
+}
+
+/** One show-switch binding: a key/pad or Program Change that loads a show. */
+export interface ShowBinding {
+    show: string;
+    trigger: { type: "note" | "program"; number: number };
 }

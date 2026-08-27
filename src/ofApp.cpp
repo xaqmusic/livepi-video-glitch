@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cmath>
 #include <csignal>
+#include <unistd.h>
 #include <iomanip>
 
 #include "control/MidiControlSource.h"
@@ -164,6 +165,43 @@ void ofApp::setup() {
     // the first scene pays GStreamer's one-time init, measured at 16s on a cold
     // boot. update()'s own lastLoadedSceneIndex check loads it a frame later,
     // by which time the splash has been presented and can cover the wait.
+}
+
+void ofApp::switchActiveShow(const std::string& showName) {
+    // Switch by WRITING shows/active.json, not by reloading in place. That file
+    // is the box's single source of truth for "which show is loaded": the web UI
+    // reads it, the backend writes it, and ShowLoader::pollForChanges already
+    // watches it. Going through it means the editor immediately agrees with the
+    // panel and the choice survives a restart, where an in-memory swap would
+    // silently disagree with both.
+    const std::string path = livepi::userDataPath("shows/" + showName + ".json");
+    if (!ofFile::doesFileExist(path)) {
+        ofLogWarning("ofApp") << "MIDI show select: no show named \"" << showName << "\" -- ignoring";
+        return;
+    }
+    const std::string activePath = livepi::userDataPath("shows/active.json");
+    const std::string tmpPath = activePath + ".tmp";
+    ofJson doc;
+    doc["activeShow"] = showName;
+    // Temp file + rename, so a reader never sees a half-written active.json --
+    // the same shape the backend's atomic_write_json uses.
+    std::string body = doc.dump();
+    FILE* f = fopen(tmpPath.c_str(), "w");
+    if (!f) {
+        ofLogError("ofApp") << "MIDI show select: cannot write " << tmpPath;
+        return;
+    }
+    fwrite(body.data(), 1, body.size(), f);
+    fflush(f);
+    fsync(fileno(f));   // durable: this box expects its power to be pulled
+    fclose(f);
+    if (rename(tmpPath.c_str(), activePath.c_str()) != 0) {
+        ofLogError("ofApp") << "MIDI show select: rename failed for " << activePath;
+        return;
+    }
+    ofLogNotice("ofApp") << "MIDI show select -> \"" << showName << "\"";
+    // Don't reload here: pollForChanges() picks it up on the next frame through
+    // the one code path that already handles a show swap correctly.
 }
 
 void ofApp::prewarmVideoStack() {
@@ -372,6 +410,11 @@ void ofApp::update() {
     ButtonEvent sceneButton = sceneControlMap.poll(frameState);
     if (sceneButton != ButtonEvent::None) {
         sceneManager.injectButtonEvent(sceneButton);
+    }
+    // Show switching bound to a key/pad or a Program Change (gear menu).
+    if (std::string wanted = sceneControlMap.pollShowSelect(frameState);
+        !wanted.empty() && wanted != showLoader.getActiveShowName()) {
+        switchActiveShow(wanted);
     }
 
     // Thermal cap FIRST, before any scene load this frame: a scene entering now

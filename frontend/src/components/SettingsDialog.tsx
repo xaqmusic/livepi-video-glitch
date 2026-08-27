@@ -10,6 +10,7 @@ import type { SceneTrigger, Settings } from "../api/types";
 import { useTelemetry, useTelemetryStore } from "../state/telemetryStore";
 import PasswordDialog from "./PasswordDialog";
 import SoftwareUpdate from "./SoftwareUpdate";
+import ShowSwitchBindings from "./ShowSwitchBindings";
 
 // One "bind a control to a scene action" row. Same Learn mechanism as
 // MappableControl: arm, then bind the first CC/note that arrives NEWER than the
@@ -298,6 +299,21 @@ export default function SettingsDialog({
                             static/tear. Scene entry always folds the reduced resolution into its own transition either way.
                         </div>
                     </section>
+
+                    <ShowSwitchBindings
+                        bindings={settings?.showSelect ?? []}
+                        onChange={async (next) => {
+                            setError(null);
+                            setSettings((s) => (s ? { ...s, showSelect: next } : s));  // optimistic
+                            try {
+                                const res = await api.updateSettings({ showSelect: next });
+                                setSettings((s) => (s ? { ...s, showSelect: res.showSelect } : s));
+                            } catch (err) {
+                                setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+                                api.getSettings().then(setSettings).catch(() => {});
+                            }
+                        }}
+                    />
 
                     <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <strong>Boot splash</strong>

@@ -2,8 +2,10 @@
 
 #include <ctime>
 #include <string>
+#include <vector>
 
 #include "control/ControlState.h"
+#include "scenes/Scene.h"
 #include "ofJson.h"
 
 // The renderer's view of the device-global settings the backend persists into
@@ -59,6 +61,15 @@ public:
     // before the first frame), so unlike the others it is not hot-reloaded.
     const std::string& splashImage() const { return splashImagePath; }
 
+    // Show switching bound to a key/pad or a Program Change. Device-global and
+    // hot-reloaded with the rest of this file, unlike the per-SCENE selectors
+    // which live in the show: a show name is meaningful across the whole box,
+    // whereas a scene id only means something inside its own show.
+    //
+    // Returns the show to switch to, or "" if nothing fired this frame.
+    // Edge-detected internally, so call exactly once per frame like poll().
+    std::string pollShowSelect(const ControlState& state);
+
 private:
     void load();
     bool risingEdge(const Trigger& t, const ControlState& state, float& prev) const;
@@ -73,6 +84,18 @@ private:
     float audioSmoothingValue = 0.6f;
     bool audioAutoGainEnabled = true;
     std::string splashImagePath;
+
+    // Reuses SceneSelect from Scene.h: a note-or-program selector is exactly
+    // the same concept as the per-scene one, and a second near-identical enum
+    // would only invite the two to drift.
+    struct ShowBinding {
+        std::string show;
+        SceneSelect select;
+    };
+    std::vector<ShowBinding> showBindings;
+    std::map<int, float> prevShowNotes;      // per-note edge state
+    uint32_t prevShowProgramCount = 0;
+    bool showSelectPrimed = false;
     float prevAdvance = 0.0f;
     float prevBack = 0.0f;
 };

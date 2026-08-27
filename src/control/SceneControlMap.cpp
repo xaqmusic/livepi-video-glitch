@@ -67,6 +67,30 @@ void SceneControlMap::load() {
     advanceTrigger = parseTrigger(root, "sceneAdvance");
     backTrigger = parseTrigger(root, "sceneBack");
     splashImagePath = root.is_object() ? root.value("splashImage", std::string()) : std::string();
+
+    // showSelect: [{ "show": "<name>", "trigger": {"type":"note"|"program","number":N} }, ...]
+    // An entry missing a show name, or carrying a type we don't recognise, is
+    // dropped rather than guessed at -- a mis-parsed binding that silently
+    // switches shows mid-set would be far worse than one that does nothing.
+    showBindings.clear();
+    if (root.is_object() && root.contains("showSelect") && root.at("showSelect").is_array()) {
+        for (const auto& entry : root.at("showSelect")) {
+            if (!entry.is_object()) continue;
+            const std::string show = entry.value("show", std::string());
+            if (show.empty() || !entry.contains("trigger") || !entry.at("trigger").is_object()) continue;
+            const auto& t = entry.at("trigger");
+            const std::string type = t.value("type", std::string());
+            const int number = t.value("number", -1);
+            if (number < 0 || number > 127) continue;
+            ShowBinding b;
+            b.show = show;
+            b.select.number = number;
+            if (type == "note") b.select.type = SceneSelectType::Note;
+            else if (type == "program") b.select.type = SceneSelectType::Program;
+            else continue;
+            showBindings.push_back(b);
+        }
+    }
     thermalRescueEnabled = root.is_object() ? root.value("thermalRescue", true) : true;
     thermalTransitionEnabled = root.is_object() ? root.value("thermalTransition", false) : false;
     audioSmoothingValue =
@@ -97,6 +121,43 @@ bool SceneControlMap::risingEdge(const Trigger& t, const ControlState& state, fl
     const bool edge = prev <= threshold && cur > threshold;
     prev = cur;
     return edge;
+}
+
+std::string SceneControlMap::pollShowSelect(const ControlState& state) {
+    // Same priming rule as the per-scene selectors: the first frame only
+    // establishes a baseline, so a pad held (or a program left set) at startup
+    // cannot immediately swap the show out from under the operator.
+    if (!showSelectPrimed) {
+        prevShowNotes = state.noteValues;
+        prevShowProgramCount = state.programChangeCount;
+        showSelectPrimed = true;
+        return {};
+    }
+
+    const bool programFired = state.programChangeCount != prevShowProgramCount;
+    prevShowProgramCount = state.programChangeCount;
+
+    std::string chosen;
+    for (const auto& binding : showBindings) {
+        if (!binding.select.active()) continue;
+        bool fired = false;
+        if (binding.select.type == SceneSelectType::Program) {
+            fired = programFired && state.lastProgramChange == binding.select.number;
+        } else {
+            auto now = state.noteValues.find(binding.select.number);
+            if (now != state.noteValues.end() && now->second > 0.0f) {
+                auto before = prevShowNotes.find(binding.select.number);
+                fired = before == prevShowNotes.end() || before->second <= 0.0f;
+            }
+        }
+        if (fired) {
+            chosen = binding.show;
+            break;   // first match wins; a duplicate binding must not chain
+        }
+    }
+
+    prevShowNotes = state.noteValues;
+    return chosen;
 }
 
 ButtonEvent SceneControlMap::poll(const ControlState& state) {

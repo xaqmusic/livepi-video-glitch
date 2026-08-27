@@ -62,6 +62,14 @@ def _set_net_install(enabled: bool) -> bool:
     return out.returncode == 0
 
 
+def _show_select(stored: dict) -> list[dict]:
+    """Show-switch bindings, filtered to shows that still exist. A binding to a
+    renamed or deleted show would otherwise sit in the gear menu looking active
+    while doing nothing."""
+    names = set(storage.list_shows())
+    return [b for b in stored.get("showSelect", []) if b.get("show") in names]
+
+
 def _image_clips() -> dict[str, str]:
     """clipId -> path, for every library entry that is a still image. Those are
     the only sensible splash candidates: a video would show one arbitrary frame."""
@@ -124,6 +132,10 @@ def _public(stored: dict | None = None) -> dict:
         # default. Cleared automatically if the clip it points at is gone, so a
         # deleted image cannot leave the box pointing at a missing file.
         "splashImage": _splash_image(stored),
+        # Show switching bound to a key/pad or Program Change. Device-global
+        # (unlike the per-SCENE selectors, which live in the show) because a
+        # show name means something across the whole box.
+        "showSelect": _show_select(stored),
         "netInstallPrompt": (
             stored["netInstallPrompt"] if "netInstallPrompt" in stored else _net_install()
         ),
@@ -147,6 +159,16 @@ def splash_candidates():
     }
 
 
+class ShowTrigger(BaseModel):
+    type: Literal["note", "program"]
+    number: int = Field(ge=0, le=127)
+
+
+class ShowBinding(BaseModel):
+    show: str
+    trigger: ShowTrigger
+
+
 class SceneTrigger(BaseModel):
     type: Literal["cc", "note"]
     number: int = Field(ge=0, le=127)  # MIDI CC / note range
@@ -165,6 +187,9 @@ class SettingsPatch(BaseModel):
     # free path: the web UI must not be able to point the renderer at an
     # arbitrary file on the box.
     splashClipId: str | None = None
+    # Whole-list replace, not a merge: the gear menu edits these as a set, and a
+    # merge would make "remove the last binding" impossible to express.
+    showSelect: list["ShowBinding"] | None = None
     sceneAdvance: SceneTrigger | None = None
     sceneBack: SceneTrigger | None = None
 
@@ -197,6 +222,20 @@ def update_settings(patch: SettingsPatch):
         stored["audioSmoothing"] = patch.audioSmoothing
     if patch.audioAutoGain is not None:
         stored["audioAutoGain"] = patch.audioAutoGain
+
+    if patch.showSelect is not None:
+        names = set(storage.list_shows())
+        seen: set[tuple[str, int]] = set()
+        kept = []
+        for b in patch.showSelect:
+            if b.show not in names:
+                continue                       # silently drop a stale show name
+            key = (b.trigger.type, b.trigger.number)
+            if key in seen:
+                continue                       # first binding wins, as the renderer does
+            seen.add(key)
+            kept.append({"show": b.show, "trigger": b.trigger.model_dump()})
+        stored["showSelect"] = kept
 
     if "splashClipId" in provided:
         clip_id = patch.splashClipId
