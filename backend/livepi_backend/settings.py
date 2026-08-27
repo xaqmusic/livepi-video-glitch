@@ -16,6 +16,7 @@ Persisted on DATA_DIR (config.SETTINGS_PATH) so it survives deploys and the
 read-only root, like auth.json.
 """
 
+import subprocess
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -25,6 +26,40 @@ from . import config, storage
 from .auth import CLAIMED_PATH, require_session
 
 router = APIRouter(dependencies=[Depends(require_session)])
+
+
+def _net_install() -> bool | None:
+    """True/False, or None where the board has no such setting (any non-Pi, and
+    Pi models with no network-install prompt). None makes the gear menu hide the
+    control rather than offer something that cannot work.
+
+    Returns a BOOL, not the helper's "on"/"off" string: a non-empty string is
+    truthy in JS, so leaking it through would render the checkbox ticked while
+    the prompt was actually off."""
+    try:
+        out = subprocess.run(["sudo", "-n", str(config.NETINSTALL), "get"],
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = out.stdout.strip()
+    if value == "on":
+        return True
+    if value == "off":
+        return False
+    return None
+
+
+def _set_net_install(enabled: bool) -> bool:
+    """Apply the EEPROM change. True if it went through.
+
+    Best-effort and non-fatal: a box where this is unavailable must still be
+    able to save every OTHER setting on the page."""
+    try:
+        out = subprocess.run(["sudo", "-n", str(config.NETINSTALL), "on" if enabled else "off"],
+                             capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out.returncode == 0
 
 
 def _read() -> dict:
@@ -53,6 +88,16 @@ def _public(stored: dict | None = None) -> dict:
         # unity gain, level set entirely by the Pisound's own input gain knob).
         "audioSmoothing": stored.get("audioSmoothing", 0.6),
         "audioAutoGain": stored.get("audioAutoGain", True),
+        # INTENT first, hardware second. On a Pi 5 the EEPROM write lands in the
+        # A/B inactive slot and only becomes readable after a reboot, so echoing
+        # the hardware straight back would show the operator's toggle snapping
+        # back to its old position. Our stored value is what WILL be in effect;
+        # the EEPROM is the fallback for a box we have never set (including one
+        # whose card was moved from another board, where the firmware is the
+        # only truth available).
+        "netInstallPrompt": (
+            stored["netInstallPrompt"] if "netInstallPrompt" in stored else _net_install()
+        ),
     }
 
 
@@ -74,6 +119,7 @@ class SettingsPatch(BaseModel):
     thermalTransition: bool | None = None
     audioSmoothing: float | None = Field(default=None, ge=0.0, le=0.98)
     audioAutoGain: bool | None = None
+    netInstallPrompt: bool | None = None
     sceneAdvance: SceneTrigger | None = None
     sceneBack: SceneTrigger | None = None
 
@@ -106,6 +152,13 @@ def update_settings(patch: SettingsPatch):
         stored["audioSmoothing"] = patch.audioSmoothing
     if patch.audioAutoGain is not None:
         stored["audioAutoGain"] = patch.audioAutoGain
+
+    if patch.netInstallPrompt is not None:
+        # Only touch the EEPROM when the intent actually changes -- a settings
+        # toggle should not rewrite firmware on every save.
+        if stored.get("netInstallPrompt") != patch.netInstallPrompt:
+            if _set_net_install(patch.netInstallPrompt):
+                stored["netInstallPrompt"] = patch.netInstallPrompt
 
     for field in ("sceneAdvance", "sceneBack"):
         if field not in provided:

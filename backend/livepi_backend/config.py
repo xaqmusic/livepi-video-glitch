@@ -48,6 +48,11 @@ APP_ROOT = Path(os.environ.get("LIVEPI_APP_ROOT", "/data/app"))
 ACTIVATOR = Path(os.environ.get("LIVEPI_ACTIVATOR", "/opt/livepi/scripts/app-activate.sh"))
 FACTORY_DIR = Path(os.environ.get("LIVEPI_FACTORY_DIR", "/opt/livepi"))
 
+# Bootloader network-install toggle. FACTORY copy on purpose, exactly like
+# ACTIVATOR: it is named in a sudoers line and writes the board's EEPROM, so it
+# must not be swappable by an app update.
+NETINSTALL = Path(os.environ.get("LIVEPI_NETINSTALL", "/opt/livepi/scripts/livepi-netinstall.sh"))
+
 # ffmpeg gets throttled hard on the Pi so a transcode never fights the
 # renderer for cores (measured: renderer needs ~2 cores worth at 30fps on
 # heavy scenes).

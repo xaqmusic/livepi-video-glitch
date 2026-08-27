@@ -37,6 +37,14 @@ export interface SceneTrigger {
 export interface Settings {
     /** Whether the on-screen setup/QR card appears on every boot. */
     showCardOnBoot: boolean;
+    /**
+     * Bootloader network-install prompt (the pink QR screen at power-on).
+     * null where the board has no such setting -- the gear menu hides the
+     * control rather than offering something that cannot work. Stored in the
+     * board's EEPROM, so it survives re-flashing the card, and only takes
+     * effect at the next power-on.
+     */
+    netInstallPrompt?: boolean | null;
     /** Control that advances to the next scene, or null if unbound. */
     sceneAdvance?: SceneTrigger | null;
     /** Control that jumps to the first scene, or null if unbound. */

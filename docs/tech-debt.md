@@ -85,6 +85,25 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Boot & first impression
 
+- **The Pi 5 EEPROM has no "pending update" state -- do not write code that
+  looks for one.** `rpi-eeprom-config --apply` commits straight into the A/B
+  EEPROM's INACTIVE slot ("Force commit opposite: SUCCESS") and takes effect at
+  the next boot. Until then `rpi-eeprom-config` keeps reporting the ACTIVE slot
+  and `rpi-eeprom-update` says "up to date" -- so a change you just made is
+  invisible to both. Reading the hardware back to confirm a write therefore
+  reports the OLD value and looks like a failure. `scripts/livepi-netinstall.sh`
+  always applies rather than comparing, and the backend tracks the operator's
+  INTENT in settings.json, falling back to the EEPROM only for a board it has
+  never set (e.g. a card moved between boards).
+- **The pink/QR startup screen is the bootloader's network-install prompt**
+  (`NET_INSTALL_AT_POWER_ON`), not the rainbow splash -- which is why
+  `disable_splash` and `logo.nologo` have no effect on it. It is now an owner
+  toggle in the gear menu (Settings ▸ Startup screen), applied through a
+  deliberately narrow helper with an enumerated-verb sudoers line: it writes the
+  BOARD's firmware, which survives a reflash and a card swap, so the web UI must
+  never get general `rpi-eeprom-config` access. Turning it off also removes
+  network-install as a recovery path for that board.
+
 - **FIXED: the first clip load after a cold boot took ~8s and could fail
   outright.** Diagnosed on the Pi 5 (SD measured at 23.6 MB/s). It was never
   about clip size or length -- a 502s/198MB clip prerolls as fast as a 10s one,

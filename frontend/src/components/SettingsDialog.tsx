@@ -120,6 +120,18 @@ export default function SettingsDialog({
         }
     };
 
+    const setNetInstall = async (on: boolean) => {
+        setError(null);
+        setSettings((s) => (s ? { ...s, netInstallPrompt: on } : s)); // optimistic
+        try {
+            const res = await api.updateSettings({ netInstallPrompt: on });
+            setSettings((s) => (s ? { ...s, netInstallPrompt: res.netInstallPrompt } : s));
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.getSettings().then(setSettings).catch(() => {});
+        }
+    };
+
     const setThermalTransition = async (on: boolean) => {
         setError(null);
         setSettings((s) => (s ? { ...s, thermalTransition: on } : s)); // optimistic
@@ -257,6 +269,32 @@ export default function SettingsDialog({
                             static/tear. Scene entry always folds the reduced resolution into its own transition either way.
                         </div>
                     </section>
+
+                    {/* Only rendered where the board actually has the setting: the
+                        backend reports null on anything that isn't a Pi with a
+                        network-install prompt, and offering a control that cannot
+                        work is worse than offering none. */}
+                    {settings?.netInstallPrompt != null && (
+                        <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <strong>Startup screen</strong>
+                            <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={settings.netInstallPrompt}
+                                    onChange={(e) => setNetInstall(e.target.checked)}
+                                />
+                                <span>Show the Raspberry Pi network-install screen at power-on</span>
+                            </label>
+                            <div className="dim" style={{ fontSize: 12 }}>
+                                The pink screen with a QR code that appears before this app starts. It is drawn by the
+                                Pi's <em>bootloader</em>, so turning it off is the only way to get a fully black boot —
+                                and it invites anyone watching to reinstall the operating system, which is rarely what
+                                you want on a projector. Turning it off also removes network-install as a recovery
+                                option for this board. <strong>Applies at the next power-on</strong>, and it is stored
+                                in the board's firmware, so it survives re-flashing the card.
+                            </div>
+                        </section>
+                    )}
 
                     <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         <strong>Audio reactivity</strong>

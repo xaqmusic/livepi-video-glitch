@@ -186,6 +186,16 @@ $APP_USER ALL=(root) NOPASSWD: $APP_DIR/scripts/app-activate.sh apply, $APP_DIR/
 SUDOERS
 visudo -cf /etc/sudoers.d/livepi-update >/dev/null || { warn "sudoers syntax check failed -- removing"; rm -f /etc/sudoers.d/livepi-update; }
 
+# Bootloader network-install toggle (gear menu). Enumerated verbs only -- this
+# writes the BOARD's EEPROM, which survives a reflash and a card swap, so the
+# web UI gets exactly three fixed commands and never rpi-eeprom-config itself.
+# Same reasoning as the activator above: FACTORY path, not the swappable tree.
+install -D -m 440 /dev/stdin /etc/sudoers.d/livepi-netinstall <<SUDOERS
+# Managed by LivePi (scripts/provision-appliance.sh).
+$APP_USER ALL=(root) NOPASSWD: $APP_DIR/scripts/livepi-netinstall.sh get, $APP_DIR/scripts/livepi-netinstall.sh on, $APP_DIR/scripts/livepi-netinstall.sh off
+SUDOERS
+visudo -cf /etc/sudoers.d/livepi-netinstall >/dev/null || { warn "sudoers syntax check failed -- removing"; rm -f /etc/sudoers.d/livepi-netinstall; }
+
 # ---------------------------------------------------------------------------
 log "quiet boot (Window A: black screen + progress bar)"
 # ---------------------------------------------------------------------------
