@@ -28,7 +28,9 @@
         "height": 720
     },
     "ui": {
-        "claimed_marker": ""
+        "claimed_marker": "",
+        "splash_image": "",
+        "splash_min_seconds": 2.0
     },
     "controls": {
         "scene_map": ""

@@ -11,6 +11,7 @@
 #include "fx/ChromaticAberrationPass.h"
 #include "fx/FilterPasses.h"
 #include "fx/HSyncTearPass.h"
+#include "util/DataPath.h"
 #include "util/NetInfo.h"
 #include "util/Platform.h"
 
@@ -55,6 +56,16 @@ void ofApp::setup() {
     // SceneManager's built-in fallback scene.
     showLoader.load();
     sceneManager.setScenes(showLoader.getScenes());
+    // ORDER MATTERS. The splash must be on the output FBO *before* the prewarm
+    // blocks the main thread for ~16s on a cold boot, or that whole stretch is
+    // black and the splash appears only after the wait it was meant to cover.
+    // ui.splash_image is relative to the DATA dir, so it survives app updates
+    // and is replaceable by the owner through the same path clips use.
+    std::string splash = config.getString("ui.splash_image", "");
+    if (!splash.empty()) {
+        sceneRenderer.setSplash(livepi::userDataPath(splash),
+                                config.getFloat("ui.splash_min_seconds", 2.0f));
+    }
     if (config.getBool("render.prewarm_video", true)) prewarmVideoStack();
 
     // The window itself (size, fullscreen-vs-windowed) is already set up in

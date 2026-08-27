@@ -128,47 +128,37 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
   `rpi-eeprom-update` (2.1s, or make it occasional), `cloud-init-main` (2.0s),
   `man-db` (1.6s), `apt-daily` + `apt-daily-upgrade` (1.6s, actively hostile on
   a sealed box).
-- **Boot splash -- two windows, two owners, only one user-updatable.** Agreed
-  design; not built.
-  - **Window A (firmware -> kernel -> systemd -> X up): make it BLACK, not
-    branded.** `cmdline.txt` currently carries `console=tty1`, which is what
-    puts scrolling text on the panel. Move it to `console=tty3` and add `quiet
-    loglevel=3 logo.nologo vt.global_cursor_default=0`, plus `disable_splash=1`
-    in `config.txt` for the firmware rainbow. Free, no packages, no initramfs
-    coupling.
-  - **Plymouth is out for USER content.** Theme assets live on the read-only
-    root, and the early splash is baked into the **initramfs** (hence
-    `plymouth-set-default-theme -R`). Updating it on a sealed box means
-    `update-initramfs` as root -- one of the few ways to genuinely brick this
-    thing, which the updater's "can't brick" guarantee forbids. `/boot/firmware`
-    *is* writable, so a file could be staged there behind a narrow sudoers
-    helper, but the initramfs rebuild makes it pointless. A *fixed* brand mark
-    baked into the image is fine; a customer logo is not.
-  - **Window B (renderer has a GL context -> first scene decoded): the
-    user-updatable PNG, and it is nearly free.** `SceneRenderer::setup()`
-    already clears `outputFbo` to opaque black, and `render()` deliberately
-    leaves `outputFbo` untouched until `layersReady()` -- the existing
-    freeze-frame-instead-of-black-flash logic. Drawing a PNG into that FBO
-    instead of clearing it means the splash holds until the first scene has
-    actually decoded, with no new state machine. Source it from `/data`
-    (e.g. `/data/branding/splash.png`) so it rides the same writable-partition
-    + web-upload path clips already use; seed a default in `dataprep.sh`;
-    fall back to black if missing.
-  - **Window B now has real work to cover.** With the video prewarm above, the
-    renderer legitimately spends ~16s in startup on a cold boot, so the splash
-    has a genuine reason to exist for longer than a flash -- and the minimum-hold
-    floor below matters less than it did.
-  - **Window B needs a MINIMUM HOLD or it is invisible.** Measured on this box:
-    service start -> GL context 684ms -> clip decoded 807ms. **Window B is
-    ~0.8s** -- a flash, and perversely the faster the box the less the logo
-    shows. Add `splash.min_seconds` (default ~2-3s, zero-able): hold until
-    `layersReady()` *or* the floor, whichever is later. The floor deliberately
-    delays the show a couple of seconds, which is the right call for an
-    appliance.
-  - **Sequencing matters.** A 3s logo in front of 25s of black is the wrong
-    order of work -- do the two boot items above FIRST, re-measure power-on to
-    first pixel with a real reboot, then size the splash against the real
-    number.
+- **BUILT: boot splash, two windows, two owners.** Verified on a cold Pi 5 boot.
+  - **Window A (firmware -> kernel -> systemd -> X) is BLACK.**
+    `provision-appliance.sh` appends `quiet loglevel=3 systemd.show_status=0
+    logo.nologo vt.global_cursor_default=0` to `cmdline.txt` (idempotently, one
+    option at a time, so a hand-tuned box keeps its own) and `disable_splash=1`
+    to `config.txt`. `console=tty1` is KEPT on purpose -- the progress bar needs
+    a console, and X takes vt2 so the two never contend.
+  - **A progress bar covers it** (`scripts/livepi-bootsplash.sh`,
+    `livepi-bootsplash.service`). ~40s of pure black is indistinguishable from a
+    dead box, so it draws an ASCII bar on tty1 advancing on REAL milestones
+    (local-fs -> backend -> Xorg -> renderer -> first frame), creeping gently
+    between them so it never looks wedged. Deliberately not plymouth: those
+    assets live on the read-only root and the early splash is baked into the
+    initramfs, so changing it means `update-initramfs` as root -- a genuine
+    brick path on a sealed box.
+  - **Window B is the owner's image**, drawn by the renderer
+    (`SceneRenderer::setSplash`, config `ui.splash_image` /
+    `ui.splash_min_seconds`). Contain-fit and centred so it suits a 1920x720 or
+    a 1080p panel, alpha composited over black. It lives on the DATA dir, so it
+    survives app updates and is replaceable through the same path clips use.
+  - **Ordering is load-bearing.** The splash must be on the output FBO BEFORE
+    `prewarmVideoStack()` blocks the main thread, or the ~16s cold-boot prewarm
+    is black and the splash appears only after the wait it exists to cover.
+  - The hold has two conditions, not one: a minimum floor (default 2s) so a
+    warm boot doesn't flash it, AND `layersReady()` so a slow boot keeps it up
+    until there is genuinely something to replace it with. Measured cold: splash
+    up at +0.3s after the GL context, released 16.7s later.
+
+  Remaining: the splash image is chosen by config, not yet pickable in the web
+  UI -- the clip library already holds images, so a "use as splash" action there
+  is the obvious next step.
 
 ## Updates & distribution
 

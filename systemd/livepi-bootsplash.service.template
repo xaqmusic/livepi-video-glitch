@@ -1,0 +1,30 @@
+# Template for /etc/systemd/system/livepi-bootsplash.service -- rendered by
+# scripts/provision-appliance.sh.
+#
+# Draws a progress bar on tty1 during Window A of the boot (black screen, no
+# kernel/systemd chatter). It stops mattering once startx grabs vt2 and the
+# renderer owns the picture. See scripts/livepi-bootsplash.sh.
+
+[Unit]
+Description=LivePi boot progress bar
+DefaultDependencies=no
+# As early as there is a console to draw on: the whole point is covering the
+# long quiet stretch BEFORE the app-level services come up.
+After=local-fs.target
+Before=livepi-video-glitch.service
+Conflicts=shutdown.target
+
+[Service]
+Type=simple
+Environment=LIVEPI_BOOT_TTY=/dev/tty1
+EnvironmentFile=-__DATA_DIR__/backend/.env
+ExecStart=__APP_DIR__/scripts/livepi-bootsplash.sh
+# It exits on its own once the renderer's first frame lands. If the renderer
+# never comes up, the script's own ceiling ends it -- a stuck progress bar must
+# not become a second failure to debug.
+TimeoutStartSec=150
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=sysinit.target

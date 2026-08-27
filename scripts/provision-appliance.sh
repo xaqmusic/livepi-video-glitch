@@ -187,6 +187,37 @@ SUDOERS
 visudo -cf /etc/sudoers.d/livepi-update >/dev/null || { warn "sudoers syntax check failed -- removing"; rm -f /etc/sudoers.d/livepi-update; }
 
 # ---------------------------------------------------------------------------
+log "quiet boot (Window A: black screen + progress bar)"
+# ---------------------------------------------------------------------------
+# A venue must never see kernel logs or systemd unit chatter on the panel -- a
+# power cut mid-show should come back to black, not a wall of text. The flags:
+#   quiet loglevel=3        kernel: errors and above only (journal keeps it all)
+#   systemd.show_status=0   no "[  OK  ] Started ..." lines
+#   logo.nologo             no framebuffer raspberry logos
+#   vt.global_cursor_default=0   no blinking block cursor on the black screen
+# console=tty1 is KEPT deliberately: the progress bar needs a console to draw
+# on, and X takes vt2 so the two never fight.
+BOOT_CMDLINE=/boot/firmware/cmdline.txt
+[[ -f "$BOOT_CMDLINE" ]] || BOOT_CMDLINE=/boot/cmdline.txt   # pre-Bookworm layout
+if [[ -f "$BOOT_CMDLINE" ]]; then
+    for opt in quiet loglevel=3 systemd.show_status=0 logo.nologo vt.global_cursor_default=0; do
+        # cmdline.txt is ONE line; append only what is missing so re-running is
+        # safe and a hand-tuned box keeps its own options.
+        key="${opt%%=*}"
+        grep -qE "(^| )${key}(=| |$)" "$BOOT_CMDLINE" || sed -i "1s|\$| ${opt}|" "$BOOT_CMDLINE"
+    done
+    log "  cmdline: $(cat "$BOOT_CMDLINE")"
+else
+    warn "no cmdline.txt found -- boot will not be silenced"
+fi
+BOOT_CONFIG=/boot/firmware/config.txt
+[[ -f "$BOOT_CONFIG" ]] || BOOT_CONFIG=/boot/config.txt
+if [[ -f "$BOOT_CONFIG" ]]; then
+    grep -qE "^disable_splash=1" "$BOOT_CONFIG" \
+        || printf '\n# LivePi: no rainbow splash on boot.\ndisable_splash=1\n' >> "$BOOT_CONFIG"
+fi
+
+# ---------------------------------------------------------------------------
 log "X11 kiosk config (Xwrapper)"
 # ---------------------------------------------------------------------------
 # Pi OS Lite's default allowed_users=console refuses to let the systemd kiosk
@@ -373,6 +404,8 @@ render_unit livepi-app-activate.service.template /etc/systemd/system/livepi-app-
     __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR" __APP_USER__="$APP_USER"
 render_unit livepi-app-confirm.service.template  /etc/systemd/system/livepi-app-confirm.service \
     __FACTORY_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR"
+render_unit livepi-bootsplash.service.template /etc/systemd/system/livepi-bootsplash.service \
+    __APP_DIR__="$APP_DIR" __DATA_DIR__="$DATA_DIR"
 # Power-button gestures, only on a box with no Pisound HAT (see the button
 # section above). Runs the FACTORY script copy: it is a control surface, so it
 # should keep working even if an update swap goes wrong.
@@ -406,6 +439,7 @@ systemctl enable \
     livepi-app-confirm.service \
     livepi-backend.service \
     livepi-video-glitch.service \
+    livepi-bootsplash.service \
     livepi-captive.service
 # Only exists on a no-Pisound box; enabling it unconditionally would fail there.
 if [[ "$HAVE_POWERBTN" == "1" ]]; then

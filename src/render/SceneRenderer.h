@@ -56,6 +56,16 @@ public:
     // Live thermal cap (1.0 = no cap), pushed every frame before scene loads.
     void setThermalScale(float thermalScale);
 
+    // Seed the output with a splash image instead of black, and hold it there
+    // for at least minHoldSecs. Window B of the boot sequence: the renderer has
+    // a GL context but no scene ready yet, and on a cold boot it legitimately
+    // spends ~16s in the video prewarm. Without this the panel is simply black
+    // for that whole stretch. A hold floor is required because on a WARM boot
+    // the same window is under a second -- fast enough that an unheld splash is
+    // a flash, and perversely shorter the better the box performs.
+    // Empty path or an unreadable file = the old opaque-black seed.
+    void setSplash(const std::string& imagePath, float minHoldSecs);
+
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
     void render(const ControlState& controlState, const LiveParams& liveParams);
@@ -156,6 +166,10 @@ private:
     LayerCompositor compositor;
     ShaderChain postChain;
     ofFbo outputFbo;
+    // While true, render() leaves outputFbo alone so the splash stays up. Cleared
+    // once the hold has elapsed AND a scene is genuinely ready to replace it.
+    bool splashHolding = false;
+    float splashUntilSecs = 0.0f;
     ofFbo blackFbo;  // seed for generator-placeholder layer chains
     int width = 0;
     int height = 0;

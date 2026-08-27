@@ -144,6 +144,38 @@ void SceneRenderer::sceneRenderDims(float sceneScale, int& outW, int& outH) cons
     outH = std::max(64, static_cast<int>(std::lround(baseHeight * s)));
 }
 
+void SceneRenderer::setSplash(const std::string& imagePath, float minHoldSecs) {
+    if (imagePath.empty()) return;
+    ofImage splash;
+    // Quiet on failure: a missing or corrupt splash must never stop the box
+    // booting, it just means the old opaque-black seed stays.
+    ofSetLogLevel("ofImage", OF_LOG_ERROR);
+    if (!splash.load(imagePath)) {
+        ofLogWarning("SceneRenderer") << "splash image not loaded: " << imagePath;
+        return;
+    }
+    // Contain-fit and centre, exactly like a layer's own fit: the panel is
+    // 1920x720 on one box and 1080p on another, and a splash that stretches or
+    // crops would look broken on whichever it wasn't authored for.
+    float fit = std::min(static_cast<float>(width) / splash.getWidth(),
+                         static_cast<float>(height) / splash.getHeight());
+    float w = splash.getWidth() * fit;
+    float h = splash.getHeight() * fit;
+    outputFbo.begin();
+    ofClear(0, 0, 0, 255);
+    ofSetColor(255);
+    // Alpha-carrying PNGs composite over the black ground rather than punching
+    // a transparent hole in it.
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    splash.draw((width - w) * 0.5f, (height - h) * 0.5f, w, h);
+    outputFbo.end();
+
+    splashHolding = true;
+    splashUntilSecs = ofGetElapsedTimef() + std::max(0.0f, minHoldSecs);
+    ofLogNotice("SceneRenderer") << "splash up (" << splash.getWidth() << "x" << splash.getHeight()
+                                 << ", hold " << minHoldSecs << "s): " << imagePath;
+}
+
 void SceneRenderer::loadScene(const Scene& scene) {
     // A real switch (different scene id) with a transition style DEFERS
     // the swap: the old scene keeps playing while the OUT ramp rises over
@@ -373,6 +405,15 @@ float SceneRenderer::transitionValue(float now) {
 }
 
 void SceneRenderer::render(const ControlState& controlState, const LiveParams& liveParamsIn) {
+    if (splashHolding) {
+        // Leave outputFbo alone -- the same mechanism that makes a scene switch
+        // a freeze-frame instead of a black flash. Two conditions, not one: the
+        // hold floor keeps it visible on a fast boot, and layersReady() keeps it
+        // up on a slow one until there is genuinely something to replace it with.
+        if (ofGetElapsedTimef() < splashUntilSecs || !layersReady()) return;
+        splashHolding = false;
+        ofLogNotice("SceneRenderer") << "splash released";
+    }
     // Transition ramp injects into a COPY of the frame's params -- the
     // resolver's own state is never touched.
     LiveParams liveParams = liveParamsIn;
