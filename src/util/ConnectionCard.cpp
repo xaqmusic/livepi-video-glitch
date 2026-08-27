@@ -1,5 +1,6 @@
 #include "ConnectionCard.h"
 
+#include <sys/stat.h>  // stat (which physical button this box has)
 #include <unistd.h>  // gethostname
 
 #include <algorithm>
@@ -24,6 +25,23 @@ std::string readDeviceCode() {
         if (line.rfind(key, 0) == 0) return line.substr(key.size());
     }
     return "";
+}
+
+// The password-recovery gesture, which differs by what physical button the box
+// actually has. Mirrors provision-appliance.sh's own test EXACTLY (`[[ ! -d
+// /usr/local/pisound ]]` -> install the power-button daemon), so the card can
+// never describe a gesture the box doesn't implement. Not keyed off the Pi 4 /
+// Pi 5 tier: what matters is the presence of the HAT, and a Pi 4 built without
+// one lands on the power button too.
+//
+// Pisound: hold the HAT button 30s. Power button: FIVE quick taps -- a Pi 5
+// force-powers-off a sustained press in hardware at ~5s, so every gesture there
+// is a tap count and holds are inert (scripts/pi5/livepi-powerbtn.py).
+std::string resetGestureLine() {
+    struct stat st;
+    const bool pisound = (stat("/usr/local/pisound", &st) == 0 && S_ISDIR(st.st_mode));
+    return pisound ? "Forgot it? Hold the box button 30s to reset"
+                   : "Forgot it? Tap the power button 5x to reset";
 }
 
 // hostname "livepi-XXXX" -> AP "LivePi-XXXX" (firstboot.sh's naming).
@@ -89,9 +107,10 @@ void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
     // Once the owner sets a custom web password (auth.json on DATA_DIR), the
     // printed factory code no longer logs into the UI -- only the AP key and SSH
     // still use it -- so showing it as "the password" is misleading. Point at the
-    // 30s-button reset instead. The join QR still carries the (unchanged) factory
-    // AP key, so joining the hotspot is unaffected. Checked live (not cached in
-    // gather()) so a UI password change takes effect on the next card show.
+    // physical-button reset instead (gesture per resetGestureLine). The join QR
+    // still carries the (unchanged) factory AP key, so joining the hotspot is
+    // unaffected. Checked live (not cached in gather()) so a UI password change
+    // takes effect on the next card show.
     const bool ownerPasswordSet = std::ifstream(livepi::userDataPath("auth.json")).good();
 
     if (mode == Mode::Lan) {
@@ -125,7 +144,7 @@ void ConnectionCard::draw(int screenW, int screenH, Mode mode) {
         // to change it so it isn't left readable on a projector.
         if (ownerPasswordSet) {
             lines.push_back("Log in with the password you set.");
-            lines.push_back("Forgot it? Hold the box button 30s to reset");
+            lines.push_back(resetGestureLine());
             lines.push_back("the login to the printed code.");
         } else if (!code.empty()) {
             lines.push_back("Password        " + code);
