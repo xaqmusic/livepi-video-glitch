@@ -55,6 +55,7 @@ void ofApp::setup() {
     // SceneManager's built-in fallback scene.
     showLoader.load();
     sceneManager.setScenes(showLoader.getScenes());
+    if (config.getBool("render.prewarm_video", true)) prewarmVideoStack();
 
     // The window itself (size, fullscreen-vs-windowed) is already set up in
     // main.cpp before this runs -- ofGetWidth/Height reflect its actual
@@ -136,6 +137,66 @@ void ofApp::setup() {
     sceneControlMap.setup(config.getString("controls.scene_map", ""));
 
     loadCurrentScene();
+}
+
+void ofApp::prewarmVideoStack() {
+    // GStreamer's plugin registry parse and the dlopen of the decode plugins
+    // (libav, qtdemux, h264parse) are a ONE-TIME PER-PROCESS cost, and oF pays
+    // it LAZILY on the first clip load. That is fine when the boot scene has a
+    // clip -- the bill lands during boot. But a box whose first scene is an
+    // image or a generator never triggers it, so the whole cost arrives on the
+    // first mid-show switch to a clip scene.
+    //
+    // Measured on a Pi 5 with a 23.6 MB/s card: first clip load in a fresh
+    // process 2.72s, versus 1.65s with the stack already warm -- and ~8s at a
+    // real cold boot, with every other service competing for that card. The
+    // renderer's freeze-frame can't hide it either, because on the first switch
+    // there is no previous frame to hold.
+    //
+    // REQUIRES setup-pi.sh patch 7 (oF's preroll ceiling raised 5s -> 30s).
+    // Without it this is worse than useless: on a cold boot the prewarm load
+    // ITSELF times out at 5s, burns ~18s failing, and the renderer restarts --
+    // measured, not theorised. With the ceiling raised it simply takes as long
+    // as the card needs and then succeeds.
+    //
+    // So pay it HERE, during startup, where the boot splash covers it. Loading
+    // any clip is enough: the expensive part is shared per-process, and the
+    // per-clip remainder measured at 0.2-0.35s. Synchronous on purpose -- it
+    // must complete before the first scene switch can race it, and delaying
+    // first pixel by ~1s to make every later switch instant is the right trade
+    // for a live instrument.
+    std::string path;
+    for (const auto& scene : showLoader.getScenes()) {
+        for (const auto& layer : scene.layers) {
+            if (layer.kind != LayerKind::Clip || layer.resolvedPath.empty()) continue;
+            std::string ext = ofToLower(ofFilePath::getFileExt(layer.resolvedPath));
+            if (ext == "png" || ext == "jpg" || ext == "jpeg") continue;  // no decoder involved
+            path = layer.resolvedPath;
+            break;
+        }
+        if (!path.empty()) break;
+    }
+    if (path.empty()) {
+        // No clip anywhere in the show: nothing to prewarm against, and nothing
+        // that will ever pay the cost either.
+        ofLogNotice("ofApp") << "video prewarm skipped -- the show has no clip layers";
+        return;
+    }
+    // The watchdog is ALREADY ARMED by this point (telemetryWriter.setup() runs
+    // earlier in setup()), and it abort()s the process if no frame completes for
+    // kWatchdogSecs. This blocks the main thread for far longer than that on a
+    // cold boot -- measured at 13.7s -- so without widening the grace the
+    // watchdog reads the prewarm as a wedge and kills the renderer mid-boot.
+    // (Observed exactly that: a restart ~5s after the prewarm finished.) Same
+    // bracket SceneRenderer uses around its own blocking clip loads.
+    float began = ofGetElapsedTimef();
+    telemetryWriter.beginLongOp(kPrewarmGraceSecs);
+    {
+        ClipPlayer warm;
+        warm.load(path);   // blocks; this IS the point
+    }                      // destructor pauses + closes before the real scenes load
+    telemetryWriter.endLongOp();
+    ofLogNotice("ofApp") << "video stack prewarmed in " << (ofGetElapsedTimef() - began) << "s using " << path;
 }
 
 void ofApp::update() {

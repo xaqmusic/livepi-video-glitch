@@ -297,6 +297,26 @@ patch(
     "ofGstUtils.cpp I420 plane-offset copy",
 )
 
+# 7. oF gives a pipeline just 5s to reach PAUSED and treats missing that as a
+#    HARD FAILURE -- load() returns false and the layer renders black until
+#    something reloads it. That ceiling is far too tight on a cold boot: the
+#    FIRST clip load in a process also pays GStreamer's one-time plugin-registry
+#    parse and the dlopen of libav/qtdemux/h264parse, all read from storage.
+#    Measured on a Pi 5 with a 23.6 MB/s SD card: a cold-boot preroll spent 18s
+#    and STILL failed, while the same clip loaded in 1.4s once warm. A slow card
+#    must degrade to a slow load, never to a black layer.
+#
+#    30s is safely inside the renderer's own guards: SceneRenderer brackets
+#    every clip load with a 30s watchdog grace (kClipLoadGraceSecs), and the
+#    frame watchdog only arms on the first completed frame -- so a genuinely
+#    hung pipeline still surfaces instead of hanging forever.
+patch(
+    f"{of_root}/libs/openFrameworks/video/ofGstUtils.cpp",
+    '\t\t\tif(!isStream && gst_element_get_state(gstPipeline,&state,NULL,5*GST_SECOND)!=GST_STATE_CHANGE_SUCCESS){\n\t\t\t\tofLogError("ofGstUtils") << "startPipeline(): unable to pause pipeline after 5s";\n',
+    '\t\t\tif(!isStream && gst_element_get_state(gstPipeline,&state,NULL,30*GST_SECOND)!=GST_STATE_CHANGE_SUCCESS){\n\t\t\t\tofLogError("ofGstUtils") << "startPipeline(): unable to pause pipeline after 30s";\n',
+    "ofGstUtils.cpp preroll timeout 5s -> 30s",
+)
+
 # NOTE: OF_USE_GST_GL (routing GStreamer video decode straight into a GL
 # texture) was tried as the first fix for slow video playback -- the V4L2
 # hardware decoder keeps up fine, but oF's default demand for RGB at the

@@ -26,6 +26,13 @@ public:
 
 private:
     void loadCurrentScene();
+    // Pay GStreamer's one-time per-process init during startup rather than on
+    // the first mid-show switch to a clip scene. See the .cpp for the numbers.
+    void prewarmVideoStack();
+    // Generous: a cold-boot prewarm on a slow card measured 13.7s, and a real
+    // hang still recovers once this elapses. Must exceed TelemetryWriter's
+    // kWatchdogSecs by a wide margin or the watchdog aborts the boot.
+    static constexpr double kPrewarmGraceSecs = 90.0;
 
     Config config;
     std::unique_ptr<ControlSource> controlSource;

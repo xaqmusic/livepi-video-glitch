@@ -85,6 +85,31 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Boot & first impression
 
+- **FIXED: the first clip load after a cold boot took ~8s and could fail
+  outright.** Diagnosed on the Pi 5 (SD measured at 23.6 MB/s). It was never
+  about clip size or length -- a 502s/198MB clip prerolls as fast as a 10s one,
+  and warming clip DATA changed nothing (1.48s -> 1.46s, measured; that idea was
+  tried and discarded). The cost is GStreamer's **one-time per-process init** --
+  plugin-registry parse plus the dlopen of libav/qtdemux/h264parse -- which oF
+  pays LAZILY on the first clip load. A box whose boot scene is an image or a
+  generator never triggers it, so the entire bill lands on the first mid-show
+  switch to a clip scene. (That is also why generator-only scenes were instant.)
+  Two changes, and BOTH are needed:
+  - **`setup-pi.sh` / `patch-of-video.sh` patch 7** raises oF's preroll ceiling
+    from 5s to 30s. The 5s limit is a HARD FAILURE, not a slow load: `load()`
+    returns false and the layer renders black. On a cold boot a single preroll
+    spent 18s and still missed it. A slow card must degrade to a slow load.
+  - **`ofApp::prewarmVideoStack()`** (config `render.prewarm_video`, default on)
+    loads one clip during startup so the per-process cost is paid at boot
+    instead of on stage. Without patch 7 this is actively HARMFUL -- the prewarm
+    itself times out, burns ~18s and the renderer restarts; measured, not
+    theorised.
+
+  Verified on a cold reboot: prewarm 15.8s at boot, first switch to a clip scene
+  **1.38s**, one renderer start, no failures. The cost of that trade is ~16s more
+  black before first pixel -- which is precisely what the Window B splash below
+  now has to cover, and why it is worth building.
+
 Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
 
 - **The kiosk is gated on `network.target` for no reason -- biggest single win
@@ -129,6 +154,10 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
     (e.g. `/data/branding/splash.png`) so it rides the same writable-partition
     + web-upload path clips already use; seed a default in `dataprep.sh`;
     fall back to black if missing.
+  - **Window B now has real work to cover.** With the video prewarm above, the
+    renderer legitimately spends ~16s in startup on a cold boot, so the splash
+    has a genuine reason to exist for longer than a flash -- and the minimum-hold
+    floor below matters less than it did.
   - **Window B needs a MINIMUM HOLD or it is invisible.** Measured on this box:
     service start -> GL context 684ms -> clip decoded 807ms. **Window B is
     ~0.8s** -- a flash, and perversely the faster the box the less the logo
