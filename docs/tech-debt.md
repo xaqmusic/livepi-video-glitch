@@ -85,6 +85,17 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Boot & first impression
 
+- **FIXED: `atomic_write_json` was atomic but not DURABLE.** It wrote a temp
+  file and `os.replace`d it -- atomic against a concurrent reader, so nobody
+  ever saw half a file -- but never fsynced, so the contents and the rename both
+  sat in the page cache until ext4 committed, up to seconds later. On a normal
+  machine that gap is theoretical. Here it is not: the appliance is DESIGNED to
+  have its power pulled (read-only root, no clean shutdown expected) and the
+  Pi 5's power button hard-cuts at ~5s. Observed for real -- a gear-menu setting
+  changed moments before a power-off came back with the old value. Now fsyncs
+  the file AND the containing directory. Applies to every operator-initiated
+  write: settings, shows, the clip library.
+
 - **The Pi 5 EEPROM has no "pending update" state -- do not write code that
   looks for one.** `rpi-eeprom-config --apply` commits straight into the A/B
   EEPROM's INACTIVE slot ("Force commit opposite: SUCCESS") and takes effect at

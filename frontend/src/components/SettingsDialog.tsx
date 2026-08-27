@@ -120,8 +120,14 @@ export default function SettingsDialog({
         }
     };
 
+    // Writing the EEPROM takes ~13s. Without a visible pending state the dialog
+    // just looks frozen, and the natural reaction -- hold the power button --
+    // aborts the firmware write AND loses the setting. So: lock the control,
+    // say what is happening, and say explicitly not to cut power.
+    const [netInstallBusy, setNetInstallBusy] = useState(false);
     const setNetInstall = async (on: boolean) => {
         setError(null);
+        setNetInstallBusy(true);
         setSettings((s) => (s ? { ...s, netInstallPrompt: on } : s)); // optimistic
         try {
             const res = await api.updateSettings({ netInstallPrompt: on });
@@ -129,6 +135,8 @@ export default function SettingsDialog({
         } catch (err) {
             setError(err instanceof ApiError ? String(err.detail) : "Save failed");
             api.getSettings().then(setSettings).catch(() => {});
+        } finally {
+            setNetInstallBusy(false);
         }
     };
 
@@ -281,10 +289,17 @@ export default function SettingsDialog({
                                 <input
                                     type="checkbox"
                                     checked={settings.netInstallPrompt}
+                                    disabled={netInstallBusy}
                                     onChange={(e) => setNetInstall(e.target.checked)}
                                 />
                                 <span>Show the Raspberry Pi network-install screen at power-on</span>
                             </label>
+                            {netInstallBusy && (
+                                <div className="warn" style={{ fontSize: 12 }}>
+                                    Writing the bootloader firmware — takes about 15 seconds.
+                                    <strong> Do not power off the box until this finishes.</strong>
+                                </div>
+                            )}
                             <div className="dim" style={{ fontSize: 12 }}>
                                 The pink screen with a QR code that appears before this app starts. It is drawn by the
                                 Pi's <em>bootloader</em>, so turning it off is the only way to get a fully black boot —

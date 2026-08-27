@@ -11,12 +11,35 @@ from . import config
 
 
 def atomic_write_json(path: Path, data) -> None:
+    """Write + rename, and make it DURABLE.
+
+    os.replace alone is atomic against a concurrent READER -- nobody ever sees a
+    half-written file -- but it is not durable against power loss: the contents
+    and the rename both sit in the page cache until ext4 commits, up to seconds
+    later. That gap matters more here than on a normal machine, because this
+    appliance is DESIGNED to have its power pulled (read-only root, no clean
+    shutdown expected) and the Pi 5's power button force-cuts at ~5s. A setting
+    saved seconds before the operator kills power must not evaporate -- which is
+    exactly what was observed: a gear-menu change made moments before a hard
+    power-off came back with the old value.
+
+    So: fsync the file before the rename, then fsync the DIRECTORY so the rename
+    entry itself is on disk. These are rare, operator-initiated writes (settings,
+    shows, the clip library), so the cost is irrelevant next to silently losing
+    one."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, path)
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
     except BaseException:
         try:
             os.unlink(tmp)
