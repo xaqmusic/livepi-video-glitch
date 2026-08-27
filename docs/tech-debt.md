@@ -85,6 +85,16 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Boot & first impression
 
+- **X takes ~30s to initialise on the Pi 5, and it is glamor.** Measured from
+  the Xorg log: a 33.5s gap between loading the glamor module and "glamor X
+  acceleration enabled on V3D 7.1.10". NOT Mesa shader recompilation (the
+  on-disk cache persists, 2.7MB/96 files) and only ~5s of it is demand-paging
+  the 50MB libgallium off a 23.6MB/s card -- pre-reading that file saves ~5s but
+  costs 8s to do, so it is a net loss done serially. The remaining ~28s is
+  unexplained and is the single largest item left in boot time. It is now
+  COVERED rather than fixed (the console keeps the panel during X startup), so
+  it costs patience rather than looking like a dead box.
+
 - **FIXED: `atomic_write_json` was atomic but not DURABLE.** It wrote a temp
   file and `os.replace`d it -- atomic against a concurrent reader, so nobody
   ever saw half a file -- but never fsynced, so the contents and the rename both

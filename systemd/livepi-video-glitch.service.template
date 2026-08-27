@@ -31,7 +31,11 @@ EnvironmentFile=-__DATA_DIR__/backend/.env
 # the image mounts journald volatile anyway.)
 RuntimeDirectory=livepi
 Environment=XAUTHORITY=/run/livepi/Xauthority
-ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- -s off -dpms
+# vt2 is PINNED rather than left to startx to pick: the boot progress bar
+# needs to know which VT to hand the panel back to when the renderer is
+# ready (scripts/livepi-bootsplash.sh), and "whichever one was free" is not
+# something it can rely on.
+ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- vt2 -s off -dpms
 # Restart=always, NOT on-failure: the main process is startx, which exits 0
 # when its X session ends no matter how the app inside died -- a crash or a
 # watchdog abort reads as "success" and on-failure would leave the kiosk
