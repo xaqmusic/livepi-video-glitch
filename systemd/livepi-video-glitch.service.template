@@ -35,7 +35,14 @@ Environment=XAUTHORITY=/run/livepi/Xauthority
 # needs to know which VT to hand the panel back to when the renderer is
 # ready (scripts/livepi-bootsplash.sh), and "whichever one was free" is not
 # something it can rely on.
-ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- vt2 -s off -dpms
+# vt1 + -background none: take over the SAME VT the boot splash drew on, and
+# don't paint the root window. -background none alone is not enough -- on vt2
+# the VT SWITCH itself blanks the panel no matter what X does with its root, so
+# the splash vanished for the whole of X's ~30-40s startup. Starting on vt1
+# means there is no switch, and the framebuffer content survives into X. This is
+# the handover plymouth performs; it needs getty@tty1 disabled, which the
+# provisioner already does.
+ExecStart=startx __APP_DIR__/bin/livepi-video-glitch -- vt1 -background none -s off -dpms
 # Restart=always, NOT on-failure: the main process is startx, which exits 0
 # when its X session ends no matter how the app inside died -- a crash or a
 # watchdog abort reads as "success" and on-failure would leave the kiosk

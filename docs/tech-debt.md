@@ -183,6 +183,104 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
   `rpi-eeprom-update` (2.1s, or make it occasional), `cloud-init-main` (2.0s),
   `man-db` (1.6s), `apt-daily` + `apt-daily-upgrade` (1.6s, actively hostile on
   a sealed box).
+- **BUILT: the splash is on screen for essentially the whole boot.** Verified on
+  a cold Pi 5 boot; the owner's image dominates the panel from ~12s through to
+  the show.
+  - **Window A is BLACK.** `provision-appliance.sh` appends `quiet loglevel=3
+    systemd.show_status=0 logo.nologo vt.global_cursor_default=0` to
+    `cmdline.txt` and `disable_splash=1` to `config.txt`, idempotently.
+  - **The splash goes on the FRAMEBUFFER**, not into X and not into plymouth.
+    `scripts/livepi-bootsplash.sh` uses ffmpeg -- already a dependency -- to
+    convert the configured `ui.splash_image` straight to `/dev/fb0` in the
+    panel's native pixel format, contain-fit and centred exactly as the renderer
+    draws it, so the handover from framebuffer to GL is not a visible jump. No
+    new packages, and nothing in the initramfs (changing that on a sealed box is
+    a brick path). A "LivePi is booting" spinner sits on the bottom row: a
+    spinner, not a bar, because this boot has no honest total.
+  - **X TAKES OVER vt1, NOT vt2, and this is the load-bearing detail.**
+    `-background none` alone is not enough: on a different VT the SWITCH blanks
+    the panel no matter what X does with its root window, which is why the
+    splash previously vanished for X's whole ~30-40s startup. Starting X on the
+    same VT the splash drew on means there is no switch and the framebuffer
+    content survives. Requires `getty@tty1` disabled (the provisioner moves
+    console login to tty3).
+  - **The console is silenced at runtime too** (`dmesg -n 1`, `setterm --msg
+    off`). `loglevel=3` alone still let a few lines scribble across the image.
+    Everything still reaches the journal. Messages BEFORE the service starts
+    (~12s, once the filesystem is up) are not covered -- that would need
+    initramfs work or `loglevel=0`.
+  - **Do not try to hold the console in front of X.** Implemented and reverted:
+    X logs "AIGLX: Suspending AIGLX clients for VT switch" and will not give a
+    client a GL context while its VT is inactive, so the renderer never draws,
+    never writes status.json, and the handover deadlocks with the box stuck on a
+    console. An early test looked fine only because it switched away AFTER the
+    renderer already held a context.
+  - Remaining: the splash image is chosen by config, not yet pickable in the web
+    UI. The clip library already holds images, so a "use as splash" action there
+    is the obvious next step.
+
+- **The Pi 5 EEPROM has no "pending update" state -- do not write code that
+  looks for one.** `rpi-eeprom-config --apply` commits straight into the A/B
+  EEPROM's INACTIVE slot ("Force commit opposite: SUCCESS") and takes effect at
+  the next boot. Until then `rpi-eeprom-config` keeps reporting the ACTIVE slot
+  and `rpi-eeprom-update` says "up to date" -- so a change you just made is
+  invisible to both. Reading the hardware back to confirm a write therefore
+  reports the OLD value and looks like a failure. `scripts/livepi-netinstall.sh`
+  always applies rather than comparing, and the backend tracks the operator's
+  INTENT in settings.json, falling back to the EEPROM only for a board it has
+  never set (e.g. a card moved between boards).
+- **The pink/QR startup screen is the bootloader's network-install prompt**
+  (`NET_INSTALL_AT_POWER_ON`), not the rainbow splash -- which is why
+  `disable_splash` and `logo.nologo` have no effect on it. It is now an owner
+  toggle in the gear menu (Settings ▸ Startup screen), applied through a
+  deliberately narrow helper with an enumerated-verb sudoers line: it writes the
+  BOARD's firmware, which survives a reflash and a card swap, so the web UI must
+  never get general `rpi-eeprom-config` access. Turning it off also removes
+  network-install as a recovery path for that board.
+
+- **FIXED: the first clip load after a cold boot took ~8s and could fail
+  outright.** Diagnosed on the Pi 5 (SD measured at 23.6 MB/s). It was never
+  about clip size or length -- a 502s/198MB clip prerolls as fast as a 10s one,
+  and warming clip DATA changed nothing (1.48s -> 1.46s, measured; that idea was
+  tried and discarded). The cost is GStreamer's **one-time per-process init** --
+  plugin-registry parse plus the dlopen of libav/qtdemux/h264parse -- which oF
+  pays LAZILY on the first clip load. A box whose boot scene is an image or a
+  generator never triggers it, so the entire bill lands on the first mid-show
+  switch to a clip scene. (That is also why generator-only scenes were instant.)
+  Two changes, and BOTH are needed:
+  - **`setup-pi.sh` / `patch-of-video.sh` patch 7** raises oF's preroll ceiling
+    from 5s to 30s. The 5s limit is a HARD FAILURE, not a slow load: `load()`
+    returns false and the layer renders black. On a cold boot a single preroll
+    spent 18s and still missed it. A slow card must degrade to a slow load.
+  - **`ofApp::prewarmVideoStack()`** (config `render.prewarm_video`, default on)
+    loads one clip during startup so the per-process cost is paid at boot
+    instead of on stage. Without patch 7 this is actively HARMFUL -- the prewarm
+    itself times out, burns ~18s and the renderer restarts; measured, not
+    theorised.
+
+  Verified on a cold reboot: prewarm 15.8s at boot, first switch to a clip scene
+  **1.38s**, one renderer start, no failures. The cost of that trade is ~16s more
+  black before first pixel -- which is precisely what the Window B splash below
+  now has to cover, and why it is worth building.
+
+Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
+
+- **The kiosk is gated on `network.target` for no reason -- biggest single win
+  on time-to-first-pixel.** `systemd/livepi-video-glitch.service.template` has
+  `After=sound.target network.target data.mount`, and `network.target` doesn't
+  go active until **@16.9s**. The renderer needs no network to draw a splash or
+  play a clip (`NetInfo` is refreshed at runtime for the connection card, not at
+  startup). Dropping `network.target` from that `After=` should let the kiosk
+  start as soon as `data.mount` + `sound.target` are ready.
+- **~13s of the 23s userspace boot is fat an appliance doesn't need.**
+  `systemd-analyze` said `5.2s (kernel) + 23.2s (userspace) = 28.4s`, with
+  `cloud-init` sitting *in the critical chain* (Pi OS ships it for headless
+  provisioning -- a job `firstboot.sh` already owns here). Candidates to mask in
+  `provision-appliance.sh`: `NetworkManager-wait-online` (6.0s -- blocks on
+  connectivity a venue may not have), `e2scrub_reap` (2.6s),
+  `rpi-eeprom-update` (2.1s, or make it occasional), `cloud-init-main` (2.0s),
+  `man-db` (1.6s), `apt-daily` + `apt-daily-upgrade` (1.6s, actively hostile on
+  a sealed box).
 - **BUILT: boot splash, two windows, two owners.** Verified on a cold Pi 5 boot.
   - **Window A (firmware -> kernel -> systemd -> X) is BLACK.**
     `provision-appliance.sh` appends `quiet loglevel=3 systemd.show_status=0

@@ -1,9 +1,11 @@
 # Template for /etc/systemd/system/livepi-bootsplash.service -- rendered by
 # scripts/provision-appliance.sh.
 #
-# Draws a progress bar on tty1 during Window A of the boot (black screen, no
-# kernel/systemd chatter). It stops mattering once startx grabs vt2 and the
-# renderer owns the picture. See scripts/livepi-bootsplash.sh.
+# Puts the owner's splash image on the framebuffer as early as the filesystem
+# allows, with a "LivePi is booting" spinner under it, and stops once the
+# renderer has drawn its first frame. X then takes over the SAME VT with
+# -background none, so the image survives the handover rather than blanking.
+# See scripts/livepi-bootsplash.sh.
 
 [Unit]
 Description=LivePi boot progress bar
@@ -17,6 +19,11 @@ Conflicts=shutdown.target
 [Service]
 Type=simple
 Environment=LIVEPI_BOOT_TTY=/dev/tty1
+# Explicit, not inferred: the script resolves the owner's splash from the SAME
+# config the renderer reads (ui.splash_image), which means it needs to know both
+# where the app tree is and where user data lives.
+Environment=LIVEPI_APP_DIR=__APP_DIR__
+Environment=LIVEPI_DATA_DIR=__DATA_DIR__
 EnvironmentFile=-__DATA_DIR__/backend/.env
 ExecStart=__APP_DIR__/scripts/livepi-bootsplash.sh
 # It exits on its own once the renderer's first frame lands. If the renderer
