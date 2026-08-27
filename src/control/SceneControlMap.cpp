@@ -66,6 +66,7 @@ void SceneControlMap::load() {
     const ofJson root = ofLoadJson(path);
     advanceTrigger = parseTrigger(root, "sceneAdvance");
     backTrigger = parseTrigger(root, "sceneBack");
+    splashImagePath = root.is_object() ? root.value("splashImage", std::string()) : std::string();
     thermalRescueEnabled = root.is_object() ? root.value("thermalRescue", true) : true;
     thermalTransitionEnabled = root.is_object() ? root.value("thermalTransition", false) : false;
     audioSmoothingValue =

@@ -62,6 +62,29 @@ def _set_net_install(enabled: bool) -> bool:
     return out.returncode == 0
 
 
+def _image_clips() -> dict[str, str]:
+    """clipId -> path, for every library entry that is a still image. Those are
+    the only sensible splash candidates: a video would show one arbitrary frame."""
+    try:
+        library = storage.read_json(config.LIBRARY_PATH) if config.LIBRARY_PATH.is_file() else {}
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for clip in library.get("clips", []):
+        path = clip.get("path", "")
+        if path.lower().endswith((".png", ".jpg", ".jpeg")):
+            out[clip["id"]] = path
+    return out
+
+
+def _splash_image(stored: dict) -> str:
+    """The stored choice, but only while the file is still actually there."""
+    path = stored.get("splashImage", "")
+    if path and (config.DATA_DIR / path).is_file():
+        return path
+    return ""
+
+
 def _read() -> dict:
     return storage.read_json(config.SETTINGS_PATH) if config.SETTINGS_PATH.is_file() else {}
 
@@ -95,6 +118,12 @@ def _public(stored: dict | None = None) -> dict:
         # the EEPROM is the fallback for a box we have never set (including one
         # whose card was moved from another board, where the firmware is the
         # only truth available).
+        # Boot splash: a path relative to DATA_DIR ("" = none). Stored here rather
+        # than in app.json because the app tree is read-only on an appliance --
+        # the renderer and the boot script both prefer this over the shipped
+        # default. Cleared automatically if the clip it points at is gone, so a
+        # deleted image cannot leave the box pointing at a missing file.
+        "splashImage": _splash_image(stored),
         "netInstallPrompt": (
             stored["netInstallPrompt"] if "netInstallPrompt" in stored else _net_install()
         ),
@@ -104,6 +133,18 @@ def _public(stored: dict | None = None) -> dict:
 @router.get("/api/settings")
 def get_settings():
     return _public()
+
+
+@router.get("/api/settings/splash-candidates")
+def splash_candidates():
+    """Still images in the clip library, for the gear menu's splash picker.
+    Videos are excluded -- a clip would only ever show one arbitrary frame."""
+    clips = _image_clips()
+    selected = _splash_image(_read())
+    return {
+        "clips": [{"id": cid, "path": path} for cid, path in clips.items()],
+        "selectedId": next((cid for cid, p in clips.items() if p == selected), None),
+    }
 
 
 class SceneTrigger(BaseModel):
@@ -120,6 +161,10 @@ class SettingsPatch(BaseModel):
     audioSmoothing: float | None = Field(default=None, ge=0.0, le=0.98)
     audioAutoGain: bool | None = None
     netInstallPrompt: bool | None = None
+    # A clipId from the library, or "" / null to clear it. Deliberately NOT a
+    # free path: the web UI must not be able to point the renderer at an
+    # arbitrary file on the box.
+    splashClipId: str | None = None
     sceneAdvance: SceneTrigger | None = None
     sceneBack: SceneTrigger | None = None
 
@@ -152,6 +197,18 @@ def update_settings(patch: SettingsPatch):
         stored["audioSmoothing"] = patch.audioSmoothing
     if patch.audioAutoGain is not None:
         stored["audioAutoGain"] = patch.audioAutoGain
+
+    if "splashClipId" in provided:
+        clip_id = patch.splashClipId
+        if not clip_id:
+            stored.pop("splashImage", None)          # explicit clear
+        else:
+            path = _image_clips().get(clip_id)
+            if path:
+                stored["splashImage"] = path
+            # An unknown id is ignored rather than raising: the library may have
+            # changed under a stale editor tab, and losing one setting is better
+            # than failing the whole save.
 
     if patch.netInstallPrompt is not None:
         # Only touch the EEPROM when the intent actually changes -- a settings

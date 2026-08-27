@@ -45,6 +45,12 @@ export interface Settings {
      * effect at the next power-on.
      */
     netInstallPrompt?: boolean | null;
+    /**
+     * Boot splash image, as a path relative to the data dir ("" = none, plain
+     * black). Set by picking a still image from the clip library. Cleared
+     * automatically if that image is deleted.
+     */
+    splashImage?: string;
     /** Control that advances to the next scene, or null if unbound. */
     sceneAdvance?: SceneTrigger | null;
     /** Control that jumps to the first scene, or null if unbound. */
@@ -220,4 +226,10 @@ export interface UpdateStatus {
     /** The box's original device code -- its unix/SSH/sudo login and hotspot
      *  key. Unchanged by a web-password change; surfaced here for the owner. */
     deviceCode?: string | null;
+}
+
+/** Still images in the clip library that can be used as the boot splash. */
+export interface SplashCandidates {
+    clips: { id: string; path: string }[];
+    selectedId: string | null;
 }

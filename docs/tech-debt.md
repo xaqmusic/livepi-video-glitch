@@ -5,6 +5,13 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Hardware / platform
 
+- **DO NOT SHIP A BUNDLE OR IMAGE TO THE PI 4 BOX YET.** Two changes in this
+  branch are unverified on Pi 4 hardware and one of them now affects every
+  board: the KMS `OutputClass` (below) and the kiosk unit moving X to **vt1**
+  with `-background none` for the boot splash. The only Pi 4 is with a
+  collaborator and cannot be tested against; a replacement is being sourced.
+  The next build targets a Pi 5 (a second team member building his own), so
+  Pi 5 is the safe release path in the meantime.
 - **Pi 5 X11 kiosk needs an explicit KMS OutputClass; UNVERIFIED on Pi 4.**
   `provision-appliance.sh` now writes `/etc/X11/xorg.conf.d/99-livepi-kms.conf`
   unconditionally (matched on the `vc4` DRIVER name, not a `/dev/dri/cardN`
@@ -215,9 +222,15 @@ Measured on the Pi 5 bring-up box (2GB, Pi OS Lite Trixie), 2026-08-26.
     never writes status.json, and the handover deadlocks with the box stuck on a
     console. An early test looked fine only because it switched away AFTER the
     renderer already held a context.
-  - Remaining: the splash image is chosen by config, not yet pickable in the web
-    UI. The clip library already holds images, so a "use as splash" action there
-    is the obvious next step.
+  - **The owner picks the image in the gear menu** (Settings > Boot splash), from
+    the still images already in the clip library. Stored as `splashImage` in
+    settings.json on the WRITABLE data partition -- not app.json, whose tree is
+    read-only on an appliance. The renderer and the boot script both apply the
+    same precedence: settings.json first, `ui.splash_image` in app.json as the
+    shipped default, so the framebuffer splash and the GL splash can never be
+    different pictures. The API takes a clipId, never a free path, so the web UI
+    cannot point the renderer at an arbitrary file; a stored choice is cleared
+    automatically if that image is deleted.
 
 - **The Pi 5 EEPROM has no "pending update" state -- do not write code that
   looks for one.** `rpi-eeprom-config --apply` commits straight into the A/B

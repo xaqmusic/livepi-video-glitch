@@ -78,13 +78,21 @@ void ofApp::setup() {
     // scale, ceiling) as it enters, under that scene's transition.
     sceneRenderer.setBaseSize(baseW, baseH);
     sceneRenderer.setMaxScale(configRenderScale);
+    // Loaded HERE, before the splash below, because the owner's splash choice
+    // lives in settings.json (the gear menu writes it; the app tree is
+    // read-only on an appliance). Also carries the scene-switch binding and the
+    // live thermal/audio toggles, which are hot-reloaded later.
+    sceneControlMap.setup(config.getString("controls.scene_map", ""));
     // AFTER sceneRenderer.setup(): that call allocates outputFbo and clears it
     // to opaque black, so seeding the splash any earlier is silently erased --
     // and width/height are still 0 there, so the contain-fit has nothing to fit
     // to. (Both mistakes were made; the panel just showed black.)
     // ui.splash_image is relative to the DATA dir, so it survives app updates
     // and is replaceable by the owner through the same path clips use.
-    std::string splashPath = config.getString("ui.splash_image", "");
+    // The gear menu's choice wins; ui.splash_image in app.json is the
+    // shipped default for a box nobody has configured yet.
+    std::string splashPath = sceneControlMap.splashImage();
+    if (splashPath.empty()) splashPath = config.getString("ui.splash_image", "");
     if (!splashPath.empty()) {
         sceneRenderer.setSplash(livepi::userDataPath(splashPath),
                                 config.getFloat("ui.splash_min_seconds", 2.0f));
@@ -150,11 +158,6 @@ void ofApp::setup() {
         showConnectionCard = false;
         cardDismissed = true;
     }
-
-    // A MIDI note/CC bound to scene switching in the gear menu, if any. The
-    // backend persists it into settings.json; we watch that file (absolute path
-    // set on the appliance, empty => feature off).
-    sceneControlMap.setup(config.getString("controls.scene_map", ""));
 
     // NOT loadCurrentScene() here. setup() runs before the main loop, so
     // anything blocking here happens with NOTHING on the panel -- and loading

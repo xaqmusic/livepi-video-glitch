@@ -124,6 +124,27 @@ export default function SettingsDialog({
     // just looks frozen, and the natural reaction -- hold the power button --
     // aborts the firmware write AND loses the setting. So: lock the control,
     // say what is happening, and say explicitly not to cut power.
+    const [splashClips, setSplashClips] = useState<{ id: string; path: string }[] | null>(null);
+    const [splashId, setSplashId] = useState<string | null>(null);
+    useEffect(() => {
+        api.splashCandidates()
+            .then((c) => { setSplashClips(c.clips); setSplashId(c.selectedId); })
+            .catch(() => setSplashClips([]));   // no picker rather than a broken one
+    }, []);
+
+    const setSplash = async (clipId: string) => {
+        setError(null);
+        setSplashId(clipId || null);            // optimistic
+        try {
+            await api.updateSettings({ splashClipId: clipId || null });
+            const c = await api.splashCandidates();
+            setSplashClips(c.clips); setSplashId(c.selectedId);
+        } catch (err) {
+            setError(err instanceof ApiError ? String(err.detail) : "Save failed");
+            api.splashCandidates().then((c) => setSplashId(c.selectedId)).catch(() => {});
+        }
+    };
+
     const [netInstallBusy, setNetInstallBusy] = useState(false);
     const setNetInstall = async (on: boolean) => {
         setError(null);
@@ -275,6 +296,44 @@ export default function SettingsDialog({
                             When thermal rescue drops the resolution mid-scene, mask it with the scene's transition
                             effect. Off (default): the scene just restarts quietly at the lower resolution — no random
                             static/tear. Scene entry always folds the reduced resolution into its own transition either way.
+                        </div>
+                    </section>
+
+                    <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <strong>Boot splash</strong>
+                        <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <span className="dim" style={{ minWidth: 52, fontSize: 12 }}>image</span>
+                            <select
+                                value={splashId ?? ""}
+                                disabled={!splashClips}
+                                onChange={(e) => setSplash(e.target.value)}
+                                style={{ flex: 1 }}
+                            >
+                                <option value="">None — plain black</option>
+                                {(splashClips ?? []).map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.path.replace(/^clips\//, "")}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        {splashClips?.length === 0 && (
+                            <div className="dim" style={{ fontSize: 12 }}>
+                                No still images in the library yet — upload a PNG or JPG on the Clips page and it
+                                will appear here.
+                            </div>
+                        )}
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            Shown while the box starts up, from a few seconds after power-on right through to your
+                            first scene — so a band logo here is what an audience sees if you ever have to restart
+                            mid-set. <strong>Applies at the next boot.</strong>
+                        </div>
+                        <div className="dim" style={{ fontSize: 12 }}>
+                            <strong>Suggested image:</strong> around <strong>1920×1080</strong> PNG or JPG. It is
+                            scaled to fit and centred on black, so any shape works — it letterboxes rather than
+                            cropping or stretching, and a square logo is fine. Smaller images are upscaled and can
+                            look soft on a big panel; much larger ones just cost a little boot time. PNG
+                            transparency composites over black.
                         </div>
                     </section>
 

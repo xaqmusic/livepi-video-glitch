@@ -36,15 +36,24 @@ splash_path() {
     python3 - "$APP_DIR" "$DATA_DIR" <<'PY' 2>/dev/null
 import json, os, sys
 app, data = sys.argv[1], sys.argv[2]
+# Same precedence the RENDERER uses, or the framebuffer splash and the GL splash
+# would end up being different pictures: the owner's gear-menu choice in
+# settings.json first, then app.json's shipped default for an unconfigured box.
 rel = ""
-for name in ("app.local.json", "app.json"):          # local override wins
-    try:
-        with open(os.path.join(app, "bin/data/config", name)) as f:
-            rel = json.load(f).get("ui", {}).get("splash_image") or rel
-    except (OSError, ValueError):
-        pass
-    if rel:
-        break
+try:
+    with open(os.path.join(data, "settings.json")) as f:
+        rel = json.load(f).get("splashImage") or ""
+except (OSError, ValueError):
+    pass
+if not rel:
+  for name in ("app.local.json", "app.json"):          # local override wins
+      try:
+          with open(os.path.join(app, "bin/data/config", name)) as f:
+              rel = json.load(f).get("ui", {}).get("splash_image") or rel
+      except (OSError, ValueError):
+          pass
+      if rel:
+          break
 if rel:
     full = os.path.join(data, rel)
     if os.path.isfile(full):

@@ -1,7 +1,7 @@
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 
-import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Settings, Show, UpdateStatus, UploadJob, WifiNetwork } from "./types";
+import type { Clip, EffectsManifest, JobSummary, NetworkStatus, Settings, Show, SplashCandidates, UpdateStatus, UploadJob, WifiNetwork } from "./types";
 
 export class ApiError extends Error {
     status: number;
@@ -99,7 +99,9 @@ export const api = {
         request<{ ok: boolean }>("/api/command", { method: "POST", body: JSON.stringify(cmd) }),
 
     getSettings: () => request<Settings>("/api/settings"),
-    updateSettings: (patch: Partial<Settings>) =>
+    splashCandidates: () => request<SplashCandidates>("/api/settings/splash-candidates"),
+
+    updateSettings: (patch: Partial<Settings> & { splashClipId?: string | null }) =>
         request<{ ok: boolean } & Settings>("/api/settings", { method: "POST", body: JSON.stringify(patch) }),
 
     // In-app updater. uploadUpdate POSTs a .tar.zst bundle; the box then swaps +

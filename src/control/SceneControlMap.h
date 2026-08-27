@@ -52,6 +52,13 @@ public:
     float audioSmoothing() const { return audioSmoothingValue; }
     bool audioAutoGain() const { return audioAutoGainEnabled; }
 
+    // Boot splash image, as a path relative to the DATA dir ("" = none). Lives
+    // here rather than in app.json because the owner picks it from the gear menu
+    // and the app tree is READ-ONLY on a real appliance -- settings.json is on
+    // the writable data partition. Read once at startup (the splash is drawn
+    // before the first frame), so unlike the others it is not hot-reloaded.
+    const std::string& splashImage() const { return splashImagePath; }
+
 private:
     void load();
     bool risingEdge(const Trigger& t, const ControlState& state, float& prev) const;
@@ -65,6 +72,7 @@ private:
     bool thermalTransitionEnabled = false;
     float audioSmoothingValue = 0.6f;
     bool audioAutoGainEnabled = true;
+    std::string splashImagePath;
     float prevAdvance = 0.0f;
     float prevBack = 0.0f;
 };
