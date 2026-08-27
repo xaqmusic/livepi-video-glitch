@@ -60,5 +60,8 @@ bundles without hiccups**.
   apply-to-hardware without sign-off. Commit trailers per the harness.
 - Verify a renderer change compiles on the **desktop** (`make -j`) and the
   frontend (`npm run build`) before building an arm64 bundle.
-- Sealed release images have no SSH; the dev/test box has been
-  `livepi-5779.local` (dev image, my key baked in).
+- Sealed release images DO have SSH (`ssh.socket`, enabled regardless of
+  `LIVEPI_LOCKDOWN`; `pi` is in `sudo`, password = the per-device code). What a
+  seal costs is a persistent `/` -- see "Unsealing a box for tinkering" in
+  docs/releasing.md. Unverified on hardware until the first sealed image boots.
+  The dev/test box has been `livepi-5779.local` (dev image, my key baked in).
