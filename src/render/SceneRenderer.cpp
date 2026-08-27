@@ -410,7 +410,7 @@ void SceneRenderer::render(const ControlState& controlState, const LiveParams& l
         // a freeze-frame instead of a black flash. Two conditions, not one: the
         // hold floor keeps it visible on a fast boot, and layersReady() keeps it
         // up on a slow one until there is genuinely something to replace it with.
-        if (ofGetElapsedTimef() < splashUntilSecs || !layersReady()) return;
+        if (splashExternalHold || ofGetElapsedTimef() < splashUntilSecs || !layersReady()) return;
         splashHolding = false;
         ofLogNotice("SceneRenderer") << "splash released";
     }

@@ -56,17 +56,6 @@ void ofApp::setup() {
     // SceneManager's built-in fallback scene.
     showLoader.load();
     sceneManager.setScenes(showLoader.getScenes());
-    // ORDER MATTERS. The splash must be on the output FBO *before* the prewarm
-    // blocks the main thread for ~16s on a cold boot, or that whole stretch is
-    // black and the splash appears only after the wait it was meant to cover.
-    // ui.splash_image is relative to the DATA dir, so it survives app updates
-    // and is replaceable by the owner through the same path clips use.
-    std::string splash = config.getString("ui.splash_image", "");
-    if (!splash.empty()) {
-        sceneRenderer.setSplash(livepi::userDataPath(splash),
-                                config.getFloat("ui.splash_min_seconds", 2.0f));
-    }
-    if (config.getBool("render.prewarm_video", true)) prewarmVideoStack();
 
     // The window itself (size, fullscreen-vs-windowed) is already set up in
     // main.cpp before this runs -- ofGetWidth/Height reflect its actual
@@ -89,6 +78,26 @@ void ofApp::setup() {
     // scale, ceiling) as it enters, under that scene's transition.
     sceneRenderer.setBaseSize(baseW, baseH);
     sceneRenderer.setMaxScale(configRenderScale);
+    // AFTER sceneRenderer.setup(): that call allocates outputFbo and clears it
+    // to opaque black, so seeding the splash any earlier is silently erased --
+    // and width/height are still 0 there, so the contain-fit has nothing to fit
+    // to. (Both mistakes were made; the panel just showed black.)
+    // ui.splash_image is relative to the DATA dir, so it survives app updates
+    // and is replaceable by the owner through the same path clips use.
+    std::string splashPath = config.getString("ui.splash_image", "");
+    if (!splashPath.empty()) {
+        sceneRenderer.setSplash(livepi::userDataPath(splashPath),
+                                config.getFloat("ui.splash_min_seconds", 2.0f));
+    }
+    // ARM the prewarm rather than running it here. setup() runs BEFORE the main
+    // loop, so nothing has been presented yet: prewarming here blocks for ~16s
+    // with the splash sitting in an FBO that no frame has drawn, and the panel
+    // stays black for exactly the stretch the splash exists to cover. update()
+    // runs it once a real frame has reached the screen.
+    prewarmPending = config.getBool("render.prewarm_video", true);
+    // Pin the splash up for the WHOLE prewarm, not just the time floor. Released
+    // in update() the moment the prewarm returns.
+    if (prewarmPending && !splashPath.empty()) sceneRenderer.setSplashHold(true);
     if (configRenderScale < 0.999f) {
         ofLogNotice("ofApp") << "render.scale ceiling=" << configRenderScale
                              << " (per-scene renderScale caps under it), display " << baseW << "x" << baseH;
@@ -147,7 +156,11 @@ void ofApp::setup() {
     // set on the appliance, empty => feature off).
     sceneControlMap.setup(config.getString("controls.scene_map", ""));
 
-    loadCurrentScene();
+    // NOT loadCurrentScene() here. setup() runs before the main loop, so
+    // anything blocking here happens with NOTHING on the panel -- and loading
+    // the first scene pays GStreamer's one-time init, measured at 16s on a cold
+    // boot. update()'s own lastLoadedSceneIndex check loads it a frame later,
+    // by which time the splash has been presented and can cover the wait.
 }
 
 void ofApp::prewarmVideoStack() {
@@ -214,6 +227,24 @@ void ofApp::update() {
     if (quitRequested) {
         ofExit();
         return;
+    }
+
+    // FRAME 0 DOES NOTHING BUT PRESENT THE SPLASH. Everything below can block
+    // for many seconds on a cold boot -- GStreamer's one-time init, the first
+    // clip preroll, first-draw shader compilation -- and none of it may run
+    // before the panel has something on it, or the splash lives only in an FBO
+    // that no frame ever drew. ofGetFrameNum() advances after a completed draw,
+    // so >=1 means the splash is genuinely on screen.
+    if (startupPending) {
+        if (ofGetFrameNum() < 1) return;
+        startupPending = false;
+        if (prewarmPending) {
+            prewarmPending = false;
+            prewarmVideoStack();
+        }
+        // Release the explicit hold: from here layersReady() keeps the splash up
+        // until the first scene actually has frames, which is the right test.
+        sceneRenderer.setSplashHold(false);
     }
 
     controlSource->update();

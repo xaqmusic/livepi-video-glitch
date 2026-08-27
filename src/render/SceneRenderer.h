@@ -65,6 +65,12 @@ public:
     // a flash, and perversely shorter the better the box performs.
     // Empty path or an unreadable file = the old opaque-black seed.
     void setSplash(const std::string& imagePath, float minHoldSecs);
+    // Hold the splash regardless of the time floor, until the caller says the
+    // startup work behind it is done. The floor alone is not enough: the FIRST
+    // frame compiles every shader and can itself take seconds, so a 2s floor can
+    // expire before the prewarm has even begun and the splash disappears with
+    // the slow part still ahead of it.
+    void setSplashHold(bool held) { splashExternalHold = held; }
 
     void loadScene(const Scene& scene);
     void update(const LiveParams& liveParams);
@@ -169,6 +175,7 @@ private:
     // While true, render() leaves outputFbo alone so the splash stays up. Cleared
     // once the hold has elapsed AND a scene is genuinely ready to replace it.
     bool splashHolding = false;
+    bool splashExternalHold = false;
     float splashUntilSecs = 0.0f;
     ofFbo blackFbo;  // seed for generator-placeholder layer chains
     int width = 0;

@@ -27,13 +27,20 @@ STATUS="${LIVEPI_STATUS_PATH:-/tmp/livepi/status.json}"
 read -r ROWS COLS < <(stty size < "$TTY" 2>/dev/null || echo "24 80")
 [ "${ROWS:-0}" -gt 4 ] 2>/dev/null || { ROWS=24; COLS=80; }
 BAR_ROW=$(( ROWS - 1 ))
+SCROLL_BOTTOM=$(( BAR_ROW - 1 ))
 BAR_W=$(( COLS > 60 ? 46 : COLS - 12 ))
 BAR_COL=$(( (COLS - BAR_W) / 2 ))
 
 esc() { printf '%b' "$1" > "$TTY"; }
+# Scrolling region stops one row short of the bar, so anything that still writes
+# to this console (a late kernel line, a network daemon) scrolls ABOVE and can
+# never push the bar around or leave a second copy of it on screen. Belt and
+# braces with the provisioner moving getty off tty1, which is the usual culprit.
 esc "\033[2J\033[?25l"          # clear, hide the cursor
 
-cleanup() { esc "\033[2J\033[?25h"; }   # leave a clean black screen behind us
+esc "\033[1;${SCROLL_BOTTOM}r"    # confine scrolling above the bar
+# Reset the region on the way out, or a later console user inherits it.
+cleanup() { esc "\033[r\033[2J\033[?25h"; }   # leave a clean black screen behind us
 trap cleanup EXIT
 
 draw() {  # $1 = 0..100
@@ -67,6 +74,12 @@ for _ in $(seq 1 600); do        # ~120s ceiling; X owns the screen long before
         shown=$(( shown + 1 ))   # gentle creep inside a stage
     fi
     draw "$shown"
+    # Every ~2s, clear the scroll region above the bar. Cheap, and it means a
+    # stray line that slips through never lingers for the whole boot.
+    tick=$(( ${tick:-0} + 1 ))
+    if [ $(( tick % 10 )) -eq 0 ]; then
+        esc "\033[1;1H\033[J"
+    fi
     [ "$shown" -ge 100 ] && break
     sleep 0.2
 done

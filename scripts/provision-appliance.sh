@@ -217,6 +217,14 @@ if [[ -f "$BOOT_CONFIG" ]]; then
         || printf '\n# LivePi: no rainbow splash on boot.\ndisable_splash=1\n' >> "$BOOT_CONFIG"
 fi
 
+# Move the console login OFF tty1. Pi OS Lite runs getty@tty1, which prints its
+# banner and login prompt onto the very VT the boot progress bar draws on -- the
+# two interleave and the bar appears doubled. tty3 keeps console login available
+# for support (Alt-F3 on an attached keyboard) without owning the panel; X takes
+# vt2, so the three never collide.
+systemctl disable getty@tty1.service 2>/dev/null || true
+systemctl enable getty@tty3.service 2>/dev/null || warn "could not enable getty@tty3"
+
 # ---------------------------------------------------------------------------
 log "X11 kiosk config (Xwrapper)"
 # ---------------------------------------------------------------------------

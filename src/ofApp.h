@@ -33,6 +33,12 @@ private:
     // hang still recovers once this elapses. Must exceed TelemetryWriter's
     // kWatchdogSecs by a wide margin or the watchdog aborts the boot.
     static constexpr double kPrewarmGraceSecs = 90.0;
+    // Set in setup(), consumed by the first update() that follows a presented
+    // frame -- see the note there for why it can't just run in setup().
+    bool prewarmPending = false;
+    // True until the first frame has been presented. Gates ALL blocking startup
+    // work (prewarm, first scene load) so the splash reaches the panel first.
+    bool startupPending = true;
 
     Config config;
     std::unique_ptr<ControlSource> controlSource;
