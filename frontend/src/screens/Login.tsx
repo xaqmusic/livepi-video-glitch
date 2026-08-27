@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../api/client";
+import { BRAND_MARK, BRAND_NAME } from "../brand";
 
 export default function Login() {
     const [password, setPassword] = useState("");
@@ -24,7 +25,10 @@ export default function Login() {
     return (
         <div className="page" style={{ maxWidth: 360, marginTop: "18vh" }}>
             <form className="card" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <h2>LivePi Videosynth</h2>
+                <h2 style={{ margin: 0 }}>
+                    <span aria-hidden="true" style={{ marginRight: 8 }}>{BRAND_MARK}</span>
+                    {BRAND_NAME} Videosynth
+                </h2>
                 <input
                     type="password"
                     placeholder="Password"

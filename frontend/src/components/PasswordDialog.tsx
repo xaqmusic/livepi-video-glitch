@@ -6,6 +6,7 @@
 import { useState } from "react";
 
 import { api, ApiError } from "../api/client";
+import { BRAND_MARK } from "../brand";
 
 export default function PasswordDialog({
     firstRun = false,
@@ -47,7 +48,10 @@ export default function PasswordDialog({
     return (
         <div className="dialog-backdrop" onClick={onClose}>
             <form className="card dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-                <h3 style={{ margin: 0 }}>{firstRun ? "Set your box's password" : "Change password"}</h3>
+                <h3 style={{ margin: 0 }}>
+                    <span aria-hidden="true" style={{ marginRight: 8 }}>{BRAND_MARK}</span>
+                    {firstRun ? "Set your box's password" : "Change password"}
+                </h3>
                 {firstRun && (
                     <div className="dim">
                         You're logged in with the printed code. Choose a private password to finish setup.

@@ -12,6 +12,7 @@ import SceneEditor from "./screens/SceneEditor";
 import SetlistEditor from "./screens/SetlistEditor";
 import ShowLibrary from "./screens/ShowLibrary";
 import { useShowStore } from "./state/showStore";
+import { BRAND_MARK, BRAND_NAME } from "./brand";
 
 // Edit mode (laptop/tablet) and Live mode (phone) are deliberately separate
 // routes with separate layouts, not one responsive view -- see
@@ -42,7 +43,10 @@ export default function App() {
         <>
             {!isLive && !isLogin && (
                 <nav className="topbar">
-                    <strong>LivePi</strong>
+                    <strong>
+                        <span aria-hidden="true" style={{ marginRight: 6 }}>{BRAND_MARK}</span>
+                        {BRAND_NAME}
+                    </strong>
                     <NavLink to="/edit">Shows</NavLink>
                     {openShow && <NavLink to={`/edit/${encodeURIComponent(openShow)}`} end>Scenes</NavLink>}
                     <NavLink to="/clips">Clips</NavLink>
