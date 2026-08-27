@@ -7,7 +7,10 @@ export default function SaveStatus() {
     const { dirty, saving, warnings, saveError } = useShowStore();
 
     return (
-        <span className="row" style={{ fontSize: 12, gap: 6 }}>
+        // Fixed min-width: this cycles "saved" -> "…" -> "saving…" on EVERY
+        // keystroke, and without a reserved width the whole row reflows as you
+        // type -- which reads as the controls jumping around under the cursor.
+        <span className="row" style={{ fontSize: 12, gap: 6, minWidth: 62 }}>
             {saveError ? (
                 <span className="error" title={saveError}>save failed</span>
             ) : saving ? (

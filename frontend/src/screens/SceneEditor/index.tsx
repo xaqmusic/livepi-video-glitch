@@ -12,6 +12,7 @@ import LayerStack from "./LayerStack";
 import MappingsTab from "./MappingsTab";
 import PostEffectsPanel from "./PostEffectsPanel";
 import SceneMidiTrigger from "./SceneMidiTrigger";
+import NumberField from "../../components/NumberField";
 
 export default function SceneEditor() {
     const { show: showName, sceneId } = useParams<{ show: string; sceneId: string }>();
@@ -66,16 +67,13 @@ export default function SceneEditor() {
                         <option value="static">static</option>
                     </select>
                     {(scene.transition?.style ?? "none") !== "none" && (
-                        <input
-                            type="number"
+                        <NumberField
                             min={0.1}
                             max={5}
                             step={0.1}
-                            style={{ width: 64 }}
                             title="Transition duration, seconds"
                             value={scene.transition?.duration ?? 0.8}
-                            onChange={(e) => {
-                                const duration = Math.min(5, Math.max(0.1, parseFloat(e.target.value) || 0.8));
+                            onCommit={(duration) => {
                                 useShowStore.getState().edit((draft) => {
                                     const s = draft.scenes.find((x) => x.id === scene.id);
                                     if (s?.transition) s.transition.duration = duration;
@@ -118,36 +116,30 @@ export default function SceneEditor() {
                     />
                     {(scene.autoAdvance ?? false) && (
                         <>
-                            <input
-                                type="number"
+                            <NumberField
                                 min={0}
                                 max={59}
                                 step={1}
-                                style={{ width: 64 }}
                                 title="Auto-advance: minutes"
                                 value={Math.floor((scene.autoAdvanceSeconds ?? 0) / 60)}
-                                onChange={(e) => {
-                                    const min = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
+                                onCommit={(mins) => {
                                     useShowStore.getState().edit((draft) => {
                                         const s = draft.scenes.find((x) => x.id === scene.id);
-                                        if (s) s.autoAdvanceSeconds = min * 60 + ((s.autoAdvanceSeconds ?? 0) % 60);
+                                        if (s) s.autoAdvanceSeconds = Math.floor(mins) * 60 + ((s.autoAdvanceSeconds ?? 0) % 60);
                                     });
                                 }}
                             />
                             <span className="dim" style={{ fontSize: 12 }}>:</span>
-                            <input
-                                type="number"
+                            <NumberField
                                 min={0}
                                 max={59}
                                 step={1}
-                                style={{ width: 64 }}
                                 title="Auto-advance: seconds"
                                 value={(scene.autoAdvanceSeconds ?? 0) % 60}
-                                onChange={(e) => {
-                                    const sec = Math.min(59, Math.max(0, Math.floor(parseFloat(e.target.value) || 0)));
+                                onCommit={(secs) => {
                                     useShowStore.getState().edit((draft) => {
                                         const s = draft.scenes.find((x) => x.id === scene.id);
-                                        if (s) s.autoAdvanceSeconds = Math.floor((s.autoAdvanceSeconds ?? 0) / 60) * 60 + sec;
+                                        if (s) s.autoAdvanceSeconds = Math.floor((s.autoAdvanceSeconds ?? 0) / 60) * 60 + Math.floor(secs);
                                     });
                                 }}
                             />
