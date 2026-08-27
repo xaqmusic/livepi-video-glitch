@@ -85,6 +85,21 @@ is**, and a pointer. Ordered roughly by impact within each section.
 
 ## Boot & first impression
 
+- **The boot message CANNOT be kept on screen during X's startup -- do not retry
+  the VT trick.** X grabs its own VT when it starts, so the console message ends
+  there and the panel is black for ~30-40s until the renderer draws. Holding the
+  console in front of X was implemented and reverted: X logs "AIGLX: Suspending
+  AIGLX clients for VT switch" and will NOT give a client a GL context while its
+  VT is inactive, so the renderer never draws, never writes status.json, and the
+  handover never fires -- a deadlock that leaves the box on a console. An early
+  test appeared to prove it safe only because it switched away AFTER the renderer
+  already held a context, which is a different situation.
+
+  Covering that window needs something that draws to the FRAMEBUFFER (fbi or
+  similar, /dev/fb0) before X starts -- ideally the same splash image, so the
+  sequence would read as one continuous image from early boot to the show. Not
+  built; the black is accepted for now.
+
 - **X takes ~30s to initialise on the Pi 5, and it is glamor.** Measured from
   the Xorg log: a 33.5s gap between loading the glamor module and "glamor X
   acceleration enabled on V3D 7.1.10". NOT Mesa shader recompilation (the

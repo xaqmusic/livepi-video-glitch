@@ -236,7 +236,17 @@ void ofApp::update() {
     // that no frame ever drew. ofGetFrameNum() advances after a completed draw,
     // so >=1 means the splash is genuinely on screen.
     if (startupPending) {
-        if (ofGetFrameNum() < 1) return;
+        if (ofGetFrameNum() < 1) {
+            // Still publish telemetry before bailing out. status.json is how the
+            // boot progress bar knows a frame has reached the panel and it can
+            // hand the display over; skipping it here meant the file did not
+            // appear until AFTER the ~17s prewarm below, so the console sat in
+            // front of the splash for the whole of it and the operator saw the
+            // boot message, then black, then a brief flash of the splash.
+            telemetryWriter.update(frameState, sceneManager.getCurrentSceneId(),
+                                   sceneManager.getCurrentScene().name);
+            return;
+        }
         startupPending = false;
         if (prewarmPending) {
             prewarmPending = false;
