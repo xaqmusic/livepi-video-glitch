@@ -7,6 +7,8 @@ live by MIDI (CC + notes) and audio input, and controlled from any phone or
 laptop over the box's own Wi-Fi. Flash a card, power on, connect — no desktop,
 no venue Wi-Fi required.
 
+[Visit the LivePi Wiki for the user manual](https://github.com/xaqmusic/livepi-video-glitch/wiki)
+
 Originally a "CRT glitch box" (see `docs/LivePi VideoGlitcher HLD.pdf`); it grew
 into a full videosynth. `docs/architecture.md` is the current design of record.
 
