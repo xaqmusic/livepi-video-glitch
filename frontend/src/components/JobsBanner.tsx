@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Global background-activity strip under the topbar: any clip still
 // queued/transcoding shows here with live progress no matter which screen
 // you're on (transcodes on the Pi take minutes -- without this, leaving

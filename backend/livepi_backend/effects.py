@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """GET /api/effects -- the hand-maintained manifest (backend doc: fine at
 a dozen effects; generate from the real passes only if it gets annoying)."""
 

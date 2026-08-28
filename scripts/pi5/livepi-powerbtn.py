@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """LivePi power-button gesture daemon for boxes with no Pisound HAT (Pi 5).
 
 WHY TAPS AND NOT HOLDS. The Pisound map used hold durations (3s debug, >7s

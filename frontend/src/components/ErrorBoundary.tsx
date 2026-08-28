@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Last-resort catch so a render crash shows a reload prompt instead of a
 // silently black page (which is indistinguishable from "the Pi died" when
 // you're standing at a rig). Shows the COMPONENT STACK too -- for loop

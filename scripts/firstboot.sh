@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # First-boot personalization for a shipped LivePi box. Runs ONCE, as root,
 # from livepi-firstboot.service BEFORE the backend and kiosk units start
 # (see docs/distribution.md "First boot & device identity").

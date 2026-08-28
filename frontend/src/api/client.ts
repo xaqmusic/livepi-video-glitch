@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Thin typed fetch wrapper. Session is a cookie; a 401 anywhere routes to
 // /login via the thrown error's status.
 

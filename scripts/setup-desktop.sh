@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Installs openFrameworks 0.12.1 (linux64) as a sibling directory to this
 # repo, its Linux dependency packages, and the ofxMidi addon. Safe to re-run.
 set -euo pipefail

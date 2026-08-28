@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // "Software update" section of the Settings dialog (appliance only). Upload a
 // .tar.zst bundle; the box verifies it, swaps the live app tree by symlink,
 // restarts, and health-gates itself -- auto-rolling-back if the new version

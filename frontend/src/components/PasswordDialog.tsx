@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Change the shared password from the topbar (docs/videosynth-backend.md
 // keeps auth to one shared password -- this just lets it be set from the
 // UI instead of backend/.env). The backend persists it in the data dir,

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Put the owner's splash image on screen as early as the kernel allows, and keep
 # a "LivePi is booting" spinner under it until the renderer takes over.
 #

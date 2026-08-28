@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Persistent aarch64 build chroot for LivePi UPDATE BUNDLES. The renderer and
 # the backend pylib are arm64, so a bundle that changes them must be COMPILED
 # for arm64. Rather than a full image build (build-image.sh) every time, this

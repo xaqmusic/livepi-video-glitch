@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Scene-wide post effects (the CRT-decay chain), manifest-driven: every
 // param in the manifest renders a MappableControl -- a new pass added to
 // the manifest shows up here with MIDI + audio binding for free.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Gear-menu panel: bind a key/pad or a Program Change to LOAD A SHOW.
 //
 // Device-global, which is why it lives in Settings rather than the show editor:

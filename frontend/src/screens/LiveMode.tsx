@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Live mode (docs/videosynth-frontend.md): phone-first, mid-set. Current
 // scene from telemetry, Next mirroring the physical button exactly, Back
 // computed client-side, and one big slider per CC mapping in the current

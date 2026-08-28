@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Which box the backend is running on, detected at runtime.
 
 The mirror of `src/util/Platform.h` on the renderer side, and it must stay

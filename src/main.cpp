@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "ofApp.h"
 #include "ofMain.h"
 #include "util/Config.h"

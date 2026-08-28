@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """WS /ws/telemetry -- relays the renderer's status file (Learn mode's CC
 feed, the heaviness indicator, Live mode's current scene). Reads the file
 only while a client is connected, re-parsing only when its mtime moves --

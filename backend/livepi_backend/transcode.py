@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Upload ingest: ffprobe gate + single-worker transcode queue.
 
 Compliant files (H.264, yuv420p, height <= 1080) pass straight through;

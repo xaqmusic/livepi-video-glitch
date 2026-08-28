@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Run this ON THE RASPBERRY PI. Installs the captive-portal pieces that make a
 # phone joining the AP auto-open the LivePi UI: the DNS hijack for OS probe
 # domains (NetworkManager's shared-mode dnsmasq) and the :80 -> :8080 redirect

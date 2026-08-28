@@ -30,6 +30,10 @@ bin/data/clips/*
 
 # Backend (Python) and frontend (Node) local state
 backend/.venv/
+# pip --target tree of third-party deps, built on the target arch. Never
+# commit it: it's a build artifact AND several thousand files of other
+# people's code with their own licenses (see THIRD-PARTY.md).
+backend/pylib/
 backend/.env
 __pycache__/
 frontend/node_modules/

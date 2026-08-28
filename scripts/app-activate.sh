@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # LivePi in-app updater -- activation engine. The read-only-root appliance can
 # never modify /opt/livepi (the factory app, baked into the RO image), so an
 # "update" is a self-contained app tree dropped on the WRITABLE /data partition

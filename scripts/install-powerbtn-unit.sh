@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Run this ON THE RASPBERRY PI. Installs the power-button gesture daemon for a
 # box with NO Pisound HAT (Pi 5). Renders the unit template with the real repo
 # path, installs the logind override that stops a tap shutting the box down, and

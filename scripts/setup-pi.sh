@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Run this ON THE RASPBERRY PI (Raspberry Pi OS Lite, 64-bit, Trixie --
 # see docs/deploy.md for why). Installs openFrameworks (linuxaarch64), the
 # ofxMidi addon, and -- where the box is actually built around one --

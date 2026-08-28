@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Environment-driven configuration, .env pattern (backend/.env on the Pi
 via the systemd unit's EnvironmentFile; plain env vars in dev). Defaults
 point at the repo's own bin/data so `scripts/run-backend-dev.sh` and the

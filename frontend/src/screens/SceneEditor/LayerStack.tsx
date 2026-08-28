@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Layer stack, TOP of the list = foreground (matches how a performer
 // thinks about "background clip + generator riding on top"). The scene's
 // layers array is bottom-to-top (compositing order), so this renders it

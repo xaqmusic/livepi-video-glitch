@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // ONE shared telemetry WebSocket, refcounted: connects when the first
 // consumer mounts (a MappableControl arming Learn, the MappingsTab's
 // heaviness readout, Live mode) and closes when the last one leaves --

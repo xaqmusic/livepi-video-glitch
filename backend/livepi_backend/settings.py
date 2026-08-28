@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Device-global settings the owner controls from the gear menu -- NOT
 per-show (those live in the show JSON). For v1:
 

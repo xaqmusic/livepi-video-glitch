@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """In-app updater API: report the installed / last-good / factory versions,
 accept an uploaded bundle, and trigger apply or rollback. All the risky work --
 verify, atomic symlink swap, restart, health-gate, auto-rollback -- lives in

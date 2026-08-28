@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Captive-portal probe responders.
 
 When a phone/laptop joins the box's AP, its OS fetches a well-known URL to

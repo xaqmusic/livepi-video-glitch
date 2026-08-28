@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Syncs source/shaders/config to the Pi and builds natively there. Full-res
 # clip footage is excluded by default -- see .rsyncfilter.
 #

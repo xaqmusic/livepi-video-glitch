@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # LivePi Pisound-button bridge. The pisound-btn daemon (config: /etc/pisound.conf)
 # invokes this on a button gesture; we forward the gesture to the running
 # renderer over its command FIFO -- whose `click`, `debug`, and `card` verbs do

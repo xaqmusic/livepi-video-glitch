@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // The ordered scene list Click cycles through live. Up/down buttons are
 // the PRIMARY reorder control (touch-friendly; drag-and-drop is a possible
 // later desktop bonus, never the only way -- docs/videosynth-frontend.md).

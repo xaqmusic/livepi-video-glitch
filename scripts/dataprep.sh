@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # First-boot DATA-partition preparation for a shipped LivePi box. Runs ONCE,
 # as root, from livepi-dataprep.service on the very first boot -- BEFORE
 # livepi-firstboot (which writes the per-device secrets into /data) and before

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Run this ON THE RASPBERRY PI. Installs the polkit rule that lets the backend's
 # app user drive NetworkManager (WiFi provisioning) while headless -- without it
 # every nmcli control call from the backend returns "not authorized". Safe to
