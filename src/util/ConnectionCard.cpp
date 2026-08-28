@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "ConnectionCard.h"
 
 #include <sys/stat.h>  // stat (which physical button this box has)

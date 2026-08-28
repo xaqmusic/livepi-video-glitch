@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "SceneManager.h"
 
 #include "ofLog.h"

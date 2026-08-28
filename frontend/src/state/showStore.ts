@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // The draft show document being edited, with debounced auto-save: every
 // edit marks dirty and schedules a whole-document PUT ~400ms later (the
 // backend's atomic write + the renderer's per-frame poll turn that into a

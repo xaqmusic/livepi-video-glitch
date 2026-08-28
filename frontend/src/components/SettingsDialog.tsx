@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Global device settings, opened from the ⚙️ in the topbar. Not per-show
 // (those live in the scene editor) -- box-wide things the owner sets once:
 // the login password, whether the on-screen setup/QR card shows on boot, and

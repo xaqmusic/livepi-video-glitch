@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "ShowLoader.h"
 
 #include <algorithm>

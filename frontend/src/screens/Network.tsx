@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // WiFi provisioning: put the box on a venue network from a phone, no
 // terminal. Backed by /api/network/* (NetworkManager via nmcli). The box is
 // its own control-network AP by default; joining a venue network switches

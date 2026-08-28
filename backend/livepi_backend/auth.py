@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Shared-password auth behind a signed session cookie -- LAN-only,
 single-user gear (docs/videosynth-backend.md's 'sized to match' call).
 Every /api route except login depends on require_session; the telemetry

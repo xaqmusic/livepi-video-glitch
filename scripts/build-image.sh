@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Build the flashable LivePi golden image from stock Raspberry Pi OS Lite
 # (arm64, Trixie), on an x86_64 (or arm64) Linux host via qemu-user emulation.
 # Downloads the base image, loop-mounts it, chroots in, runs the shared

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Normalize a source video into the format this project plays best, writing
 # the result into bin/data/clips/. Run on the desktop, then push with
 # scripts/sync-clips-to-pi.sh.

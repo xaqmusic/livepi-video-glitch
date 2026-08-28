@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Build a LivePi update bundle -- the self-contained app tree the in-app updater
 # drops on /data and makes live by symlink (scripts/app-activate.sh). Emits
 #   livepi-app-<version>.tar.zst   + a matching .sha256
@@ -138,6 +140,20 @@ DIST_SRC="${DIST_OVERRIDE:-$TREE/frontend/dist}"
 [[ -n "$DIST_OVERRIDE" ]] && log "frontend-only: dist from $DIST_SRC, everything else from $TREE"
 cp -a "$DIST_SRC" "$STAGE/frontend/dist"
 cp -a "$TREE/scripts" "$STAGE/"
+
+# --- license + third-party notices ---------------------------------------
+# ofxMidi's BSD terms (and several others) require their copyright notice to
+# be reproduced in the materials accompanying a BINARY distribution, and a
+# bundle is exactly that. The golden image gets these via .rsyncfilter (whole
+# repo minus artifacts); a bundle stages file-by-file, so copy them here or a
+# box updated from factory loses the notices its image shipped with.
+for lic in LICENSE THIRD-PARTY.md; do
+    if [[ -f "$TREE/$lic" ]]; then
+        cp -a "$TREE/$lic" "$STAGE/"
+    else
+        warn "$lic missing from the tree -- bundle ships without required notices"
+    fi
+done
 
 # --- manifest at the tree root (app-activate.sh peeks ./manifest.json) ---------
 cat > "$STAGE/manifest.json" <<MANIFEST

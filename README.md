@@ -134,3 +134,30 @@ scripts/        setup, provisioning, image + bundle build, updater (app-activate
 systemd/        unit templates rendered by the provisioner
 docs/           design + operational documentation
 ```
+
+## Contributing
+
+Contributions welcome — and you don't need a Raspberry Pi to make one. The
+renderer, backend, and web UI all run on a Linux desktop with mock MIDI
+(`./run.sh`). Adding a new effect is one shader plus one line in
+`backend/effects_manifest.json`. See **[`CONTRIBUTING.md`](CONTRIBUTING.md)**
+for setup, the sign-off convention, and the handful of constraints (GLES 2.0,
+runtime-not-compile-time Pi tiers) that are easy to trip over.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Copyright (c) 2026 xaqmusic.
+
+The software is free and open, permanently. Build one from parts, fork it,
+strip it for pieces, put it in something you sell — no permission needed and
+nothing owed back. Third-party components (openFrameworks, ofxMidi, the Debian
+userland in the golden image, and everything else) are inventoried with their
+notices in **[`THIRD-PARTY.md`](THIRD-PARTY.md)**; all are permissive or
+dynamically linked, and none place any restriction on your use of this code.
+If you redistribute a golden image, ship `THIRD-PARTY.md` with it — it carries
+the source offer for the GPL/LGPL parts of the OS.
+
+**Trademark.** The MIT grant covers the code, not the name: "LivePi" and
+"VideoGlitcher" and the project's logo aren't licensed with it. Ship your fork
+under your own name — it keeps support requests pointed at whoever actually
+built the box.

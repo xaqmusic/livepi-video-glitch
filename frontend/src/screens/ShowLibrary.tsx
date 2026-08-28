@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Entry point: saved setlists, which one the Pi boots into, duplicate/new.
 
 import { useCallback, useEffect, useRef, useState } from "react";

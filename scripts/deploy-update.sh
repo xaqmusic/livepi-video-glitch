@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # One-command update deploy from the desktop. Builds the web UI, compiles the
 # arm64 bundle in the persistent build chroot (scripts/build-chroot.sh), drops
 # livepi-app-<version>.tar.zst under ./bundles/, and (with --apply) uploads +

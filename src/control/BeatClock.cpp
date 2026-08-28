@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "BeatClock.h"
 
 void BeatClock::reset() {

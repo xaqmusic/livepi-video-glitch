@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Run this ON THE RASPBERRY PI. Renders
 # systemd/livepi-firstboot.service.template and installs it. Safe to re-run.
 #

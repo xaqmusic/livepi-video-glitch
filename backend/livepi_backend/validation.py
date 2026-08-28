@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Schema v1 validation + cross-checks, run before any show write. A bad
 save gets a 422 here; the renderer never sees invalid data (it still
 degrades gracefully if something slips through -- defense in depth, not a

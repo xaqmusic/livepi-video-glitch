@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // TypeScript mirrors of the backend's schema v1 (backend/livepi_backend/
 // validation.py) and the effects manifest. Keep in sync by hand -- one
 // small schema, two owners, per docs/videosynth-backend.md.

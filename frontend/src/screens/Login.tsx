@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Apply openFrameworks video-path patches that are PLATFORM-NEUTRAL --
 # the subset of setup-pi.sh's oF patches that fix planar-YUV (NV12/I420)
 # handling everywhere, not just GLES/Pi quirks. Run once per oF tree:

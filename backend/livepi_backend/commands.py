@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """POST /api/command -> a line on the renderer's command FIFO. Non-blocking
 write: if the renderer isn't running (no FIFO reader), the open fails with
 ENXIO and the client gets an honest 503 instead of a hang."""

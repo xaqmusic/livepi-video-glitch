@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // A number input you can actually TYPE in.
 //
 // The obvious form -- value={n} onChange={e => set(clamp(parseFloat(e.target.value) || fallback))}

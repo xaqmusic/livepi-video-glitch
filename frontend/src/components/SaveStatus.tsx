@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Auto-save state + last save's warnings (the layer-budget heaviness
 // notes) -- shown wherever a show document is being edited.
 

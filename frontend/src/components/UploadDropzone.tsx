@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // One combined dropzone + Browse button (docs/videosynth-frontend.md):
 // drag-and-drop for the desktop file-browser case, an explicit button for
 // phone/tablet where that gesture doesn't exist. Same upload path either

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Syncs full-resolution clip footage to the Pi -- deliberately separate
 # from deploy-to-pi.sh's regular rsync, which excludes bin/data/clips/*
 # except samples/ (see .rsyncfilter) since real clips are large and don't

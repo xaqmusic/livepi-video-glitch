@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Show CRUD, whole-document model (docs/videosynth-backend.md): a show is
 one small cohesively-edited JSON, so GET returns the full document and PUT
 replaces it -- no per-scene endpoints. Writes validate first and land

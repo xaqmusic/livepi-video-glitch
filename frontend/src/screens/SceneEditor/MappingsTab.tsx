@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Audit view: every binding in this scene, resolved to human names (never
 // raw ids), editable ranges, plus the live heaviness indicator fed by the
 // renderer's frame-time telemetry (flag above ~28ms -- the performer's

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 #include "util/NetInfo.h"
 
 #include <arpa/inet.h>

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Install this under /usr/local/pisound/scripts/pisound-btn/ and wire it to a
 # click pattern via `sudo pisound-config` (see docs/pisound-hardware-notes.md
 # and docs/deploy.md). pisound-btn invokes scripts like this one directly on

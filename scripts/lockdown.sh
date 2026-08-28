@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Final first-boot step for a shipped LivePi box: flip the root filesystem to
 # read-only and reboot into the locked-down appliance state. Runs ONCE, as
 # root, from livepi-lockdown.service AFTER livepi-firstboot has personalized

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // THE shared parameter control (docs/videosynth-frontend.md): every param
 // renders through this. Two independent binding buttons per performer
 // feedback:

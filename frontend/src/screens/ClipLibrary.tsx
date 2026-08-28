@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Shared clip grid -- any layer in any scene can reference any clip here.
 
 import { useCallback, useEffect, useState } from "react";

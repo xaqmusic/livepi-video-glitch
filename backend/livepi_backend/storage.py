@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Show/library file I/O. Every write is atomic (tempfile in the same
 directory + os.replace) so the renderer's per-frame mtime poll can never
 catch a half-written JSON -- the same contract its hot-reload relies on."""

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """One-way writes into the renderer's command FIFO (docs/videosynth-backend.md
 IPC section). Shared by the /api/command route and anything else that nudges the
 renderer -- e.g. auth hiding the on-screen setup card once someone logs in. Kept

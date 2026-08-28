@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Desktop dev: run the backend with auto-reload against the repo's own
 # bin/data -- the renderer (./run.sh) and the backend share the same files
 # exactly as they do on the Pi. First run creates the venv.

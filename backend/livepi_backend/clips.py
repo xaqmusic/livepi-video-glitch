@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """Clip library: list with metadata + thumbnails, multipart upload with
 auto-transcode (decision: phone clips just work), delete with cheap
 referential integrity (refuse while any show references the clip)."""

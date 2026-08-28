@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // The core screen (docs/videosynth-frontend.md): layer stack (top =
 // foreground), scene-wide post effects, and the mappings audit tab.
 

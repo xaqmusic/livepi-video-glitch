@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Read or set the Pi bootloader's NET_INSTALL_AT_POWER_ON flag -- and NOTHING
 # else in the EEPROM.
 #

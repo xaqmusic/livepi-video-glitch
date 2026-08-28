@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 xaqmusic
 // Bind a MIDI note/pad or a Program Change to jump straight to THIS scene.
 //
 // Per-scene and saved in the show, because a scene id only means something

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 # Turn "this root filesystem" into a shipping LivePi appliance: build the app,
 # bake the X11 kiosk, install + enable every LivePi systemd unit, and prime the
 # read-only-root / per-device-secrets first-boot chain. Runs as root.

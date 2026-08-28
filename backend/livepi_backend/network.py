@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """WiFi provisioning over NetworkManager, driven from the web UI -- the box
 is a standing control-network AP by default, and this lets a phone put it
 onto a venue network without a terminal (docs/distribution.md "Networking &

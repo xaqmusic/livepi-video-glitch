@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 xaqmusic
 """App factory: API routers + the built frontend served as static files
 with an SPA fallback (any non-API path returns index.html so React Router
 owns /edit, /live, etc.)."""
